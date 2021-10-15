@@ -1,0 +1,13 @@
+/home/mc/MasterSync/!Programming/2021/Fall 2021/Shuffull/Server/bin/Debug/netcoreapp3.1/Server
+/home/mc/MasterSync/!Programming/2021/Fall 2021/Shuffull/Server/bin/Debug/netcoreapp3.1/Server.deps.json
+/home/mc/MasterSync/!Programming/2021/Fall 2021/Shuffull/Server/bin/Debug/netcoreapp3.1/Server.runtimeconfig.json
+/home/mc/MasterSync/!Programming/2021/Fall 2021/Shuffull/Server/bin/Debug/netcoreapp3.1/Server.runtimeconfig.dev.json
+/home/mc/MasterSync/!Programming/2021/Fall 2021/Shuffull/Server/bin/Debug/netcoreapp3.1/Server.dll
+/home/mc/MasterSync/!Programming/2021/Fall 2021/Shuffull/Server/bin/Debug/netcoreapp3.1/Server.pdb
+/home/mc/MasterSync/!Programming/2021/Fall 2021/Shuffull/Server/obj/Debug/netcoreapp3.1/Server.csprojAssemblyReference.cache
+/home/mc/MasterSync/!Programming/2021/Fall 2021/Shuffull/Server/obj/Debug/netcoreapp3.1/Server.AssemblyInfoInputs.cache
+/home/mc/MasterSync/!Programming/2021/Fall 2021/Shuffull/Server/obj/Debug/netcoreapp3.1/Server.AssemblyInfo.cs
+/home/mc/MasterSync/!Programming/2021/Fall 2021/Shuffull/Server/obj/Debug/netcoreapp3.1/Server.csproj.CoreCompileInputs.cache
+/home/mc/MasterSync/!Programming/2021/Fall 2021/Shuffull/Server/obj/Debug/netcoreapp3.1/Server.dll
+/home/mc/MasterSync/!Programming/2021/Fall 2021/Shuffull/Server/obj/Debug/netcoreapp3.1/Server.pdb
+/home/mc/MasterSync/!Programming/2021/Fall 2021/Shuffull/Server/obj/Debug/netcoreapp3.1/Server.genruntimeconfig.cache
