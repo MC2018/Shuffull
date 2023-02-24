@@ -1,9 +1,15 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
+using Shuffull.Shared;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
+builder.Services.AddDbContext<ShuffullContext>(options =>
+{
+    options.UseSqlServer(builder.Configuration.GetConnectionString("Shuffull"));
+});
 
 var app = builder.Build();
 
@@ -16,11 +22,12 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseStaticFiles();
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(
-           Path.Combine(builder.Environment.ContentRootPath, "MyStaticFiles")),
-    RequestPath = "/StaticFiles"
+           Path.Combine(builder.Environment.ContentRootPath, "Music")),
+    RequestPath = "/music"
 });
 
 app.UseRouting();
