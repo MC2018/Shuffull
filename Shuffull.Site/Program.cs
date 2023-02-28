@@ -1,11 +1,19 @@
+using Microsoft.AspNetCore;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Shuffull.Shared;
+using Shuffull.Site.Configuration;
+using Shuffull.Site.Logic;
+using Shuffull.Site.Services;
+using System.Net;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
+builder.Services.AddSingleton<SongImportService>();
+builder.Services.AddHostedService<SongImportService>();
 builder.Services.AddDbContext<ShuffullContext>(options =>
 {
     options.UseSqlServer(builder.Configuration.GetConnectionString("Shuffull"));
@@ -21,12 +29,16 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
+var filesConfig = builder.Configuration.GetSection(ShuffullFilesConfiguration.FilesConfigurationSection).Get<ShuffullFilesConfiguration>();
+FileRetrieval.RootDirectory = filesConfig.MusicRootDirectory;
+
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(
-           Path.Combine(builder.Environment.ContentRootPath, "Music")),
+        filesConfig.MusicRootDirectory
+    ),
     RequestPath = "/music"
 });
 

@@ -1,6 +1,7 @@
 ﻿using LibVLCSharp.Shared;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 
 namespace Shuffull.Mobile.Services
@@ -20,6 +21,7 @@ namespace Shuffull.Mobile.Services
 
         public static void Test(object sender, EventArgs e)
         {
+            Debug.WriteLine("Waaaaaaaaaa");
         }
 
         public static void Play(string url)
@@ -38,7 +40,6 @@ namespace Shuffull.Mobile.Services
 
             mediaPlayer.Play();
             mediaPlayer.EndReached += Test;
-
         }
 
         public static void Resume()

@@ -11,6 +11,8 @@ namespace Shuffull.Shared
     public class ShuffullContext : DbContext
     {
         public DbSet<Song> Songs { get; set; }
+        public DbSet<Artist> Artists { get; set; }
+        public DbSet<SongArtist> SongArtists { get; set; }
 
         public ShuffullContext(DbContextOptions options) : base(options) { }
     }
