@@ -2,7 +2,7 @@ using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
-using Shuffull.Shared;
+using Shuffull.Site;
 using Shuffull.Site.Configuration;
 using Shuffull.Site.Logic;
 using Shuffull.Site.Services;
@@ -13,7 +13,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddControllersWithViews();
 builder.Services.AddSingleton<SongImportService>();
-builder.Services.AddHostedService<SongImportService>();
+//builder.Services.AddTransient<SongImportService>();
 builder.Services.AddDbContext<ShuffullContext>(options =>
 {
     options.UseSqlServer(builder.Configuration.GetConnectionString("Shuffull"));

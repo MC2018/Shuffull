@@ -5,10 +5,11 @@ using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Shuffull.Shared;
+using Shuffull.Site;
 
 #nullable disable
 
-namespace Shuffull.Shared.Migrations
+namespace Shuffull.Site.Migrations
 {
     [DbContext(typeof(ShuffullContext))]
     [Migration("20230224200941_Init")]

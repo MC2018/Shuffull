@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.EntityFrameworkCore;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
@@ -7,6 +8,7 @@ using System.Threading.Tasks;
 
 namespace Shuffull.Shared.Models
 {
+    [Index(nameof(Name))]
     public class Song
     {
         [Key]
@@ -15,7 +17,7 @@ namespace Shuffull.Shared.Models
         public string Directory { get; set; } = string.Empty;
         [Required]
         public string Name { get; set; } = string.Empty;
-        [Required]
-        public bool Favorite { get; set; }
+
+        public ICollection<PlaylistSong> PlaylistSongs { get; set; }
     }
 }

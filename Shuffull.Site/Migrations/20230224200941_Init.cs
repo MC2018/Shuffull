@@ -2,7 +2,7 @@
 
 #nullable disable
 
-namespace Shuffull.Shared.Migrations
+namespace Shuffull.Site.Migrations
 {
     /// <inheritdoc />
     public partial class Init : Migration

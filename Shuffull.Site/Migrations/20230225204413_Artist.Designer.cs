@@ -2,17 +2,21 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Shuffull.Shared;
+using Shuffull.Site;
 
 #nullable disable
 
-namespace Shuffull.Shared.Migrations
+namespace Shuffull.Site.Migrations
 {
     [DbContext(typeof(ShuffullContext))]
-    partial class ShuffullContextModelSnapshot : ModelSnapshot
+    [Migration("20230225204413_Artist")]
+    partial class Artist
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

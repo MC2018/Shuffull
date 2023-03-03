@@ -8,15 +8,12 @@ using System.Security.Cryptography;
 
 namespace Shuffull.Site.Services
 {
-    public class SongImportService : IHostedService
+    public class SongImportService
     {
-
         private IServiceProvider _services;
-        private Timer _timer;
         private string _songImportDirectory;
         private string _failedImportDirectory;
         private string[] _audioExtensions = new string[] { ".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac" };
-        private bool _inProgress = false;
 
         public SongImportService(IConfiguration configuration, IServiceProvider services)
         {
@@ -25,30 +22,15 @@ namespace Shuffull.Site.Services
             _failedImportDirectory = configuration.GetSection(ShuffullFilesConfiguration.FilesConfigurationSection).Get<ShuffullFilesConfiguration>().FailedImportDirectory;
         }
 
-        public Task StartAsync(CancellationToken cancellationToken)
+        private void ImportFiles(string path, long playlistId)
         {
-            _timer = new Timer(OnCallBack, null, 5000, 60000);
-            return Task.CompletedTask;
-        }
-
-        public async Task StopAsync(CancellationToken cancellationToken)
-        {
-            await _timer.DisposeAsync();
-        }
-
-        private void OnCallBack(object? state)
-        {
-            if (_inProgress)
-            {
-                return;
-            }
-
-            _inProgress = true;
-
-            var files = Directory.GetFiles(_songImportDirectory);
+            var files = Directory.GetFiles(path);
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
+            var playlist = context.Playlists.Where(x => x.PlaylistId == playlistId).First();
             var songArtistPairs = new Dictionary<Song, List<Artist>>();
+            var songs = new List<Song>();
+            var newArtists = new List<Artist>();
 
             foreach (var oldFile in files)
             {
@@ -78,24 +60,62 @@ namespace Shuffull.Site.Services
                     Name = musicFile.Tag.Title ?? Path.GetFileNameWithoutExtension(musicFile.Name),
                     Directory = Path.GetFileName(newFile)
                 };
+                songs.Add(song);
 
-                context.Songs.Add(song);
+                var performerNames = musicFile.Tag.Performers;
 
-                foreach (var performer in musicFile.Tag.Performers)
+                for (int i = 0; i < performerNames.Length; i++)
                 {
-                    var artist = new Artist()
-                    {
-                        Name = performer
-                    };
+                    var performerName = performerNames[i];
+                    var nextPerformerName = performerNames.Length > i + 1 ? performerNames[i + 1] : string.Empty;
 
-                    context.Artists.Add(artist);
-                    artists.Add(artist);
+                    if (performerName.EndsWith("AC") && nextPerformerName.StartsWith("DC"))
+                    {
+                        performerName += $"/{nextPerformerName}";
+                        i++;
+                    }
+
+                    // TODO: try figuring out a better way of pulling this data from SQL
+                    var existingArtist = context.Artists.SingleOrDefault(a => a.Name == performerName);
+                    var newArtist = newArtists.Where(x => x.Name == performerName).FirstOrDefault();
+
+                    if (newArtist != null)
+                    {
+                        existingArtist = newArtist;
+                    }
+                    else if (existingArtist == null)
+                    {
+                        existingArtist = new Artist()
+                        {
+                            Name = performerName
+                        };
+                        newArtists.Add(existingArtist);
+                    }
+
+                    artists.Add(existingArtist);
                 }
 
                 songArtistPairs.Add(song, artists);
             }
 
+            if (newArtists.Any())
+            {
+                context.Artists.AddRange(newArtists);
+                context.SaveChanges();
+            }
+
+            context.Songs.AddRange(songs);
             context.SaveChanges();
+
+            foreach (var song in songs)
+            {
+                var playlistSong = new PlaylistSong()
+                {
+                    PlaylistId = playlistId,
+                    SongId = song.SongId
+                };
+                context.PlaylistSongs.Add(playlistSong);
+            }
 
             foreach (var songArtistPair in songArtistPairs)
             {
@@ -106,14 +126,34 @@ namespace Shuffull.Site.Services
                         SongId = songArtistPair.Key.SongId,
                         ArtistId = artist.ArtistId
                     };
-
                     context.SongArtists.Add(songArtist);
                 }
             }
 
             context.SaveChanges();
+            Directory.Delete(path, true);
+        }
 
-            _inProgress = false;
+        public void DownloadAndImportFiles(IEnumerable<IFormFile> files, long playlistId)
+        {
+            using var scope = _services.CreateScope();
+            using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
+            var path = Path.Combine(_songImportDirectory, Guid.NewGuid().ToString().ToLower());
+
+            Directory.CreateDirectory(path);
+
+            foreach (var file in files)
+            {
+                var filePath = Path.Combine(path, file.FileName);
+                using var stream = new FileStream(filePath, FileMode.Create);
+                
+                file.CopyTo(stream);
+            }
+
+            Task.Run(() =>
+            {
+                ImportFiles(path, playlistId);
+            });
         }
 
         private string MoveAndRenameFile(string currentFileDirectory)
@@ -140,6 +180,11 @@ namespace Shuffull.Site.Services
                 Directory.Move(fileDirectory, Path.Combine(_failedImportDirectory, Path.GetFileName(fileDirectory)));
             }
             catch { }
+        }
+
+        public void Dispose()
+        {
+
         }
     }
 }

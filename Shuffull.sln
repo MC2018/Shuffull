@@ -23,7 +23,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Shuffull.Mobile", "Shuffull
 		{6BDE1796-89BE-4EF1-80B0-E9D164B615C7} = {6BDE1796-89BE-4EF1-80B0-E9D164B615C7}
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Shuffull.Shared", "Shuffull.Shared\Shuffull.Shared.csproj", "{6BDE1796-89BE-4EF1-80B0-E9D164B615C7}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Shuffull.Shared", "Shuffull.Shared\Shuffull.Shared.csproj", "{6BDE1796-89BE-4EF1-80B0-E9D164B615C7}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
