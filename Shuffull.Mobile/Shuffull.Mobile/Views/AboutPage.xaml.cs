@@ -1,6 +1,8 @@
 ﻿using LibVLCSharp.Forms.Shared;
 using LibVLCSharp.Shared;
+using Newtonsoft.Json;
 using Shuffull.Mobile.Services;
+using Shuffull.Shared.Networking.Models;
 using System;
 using System.ComponentModel;
 using System.Net.Http;
@@ -25,13 +27,15 @@ namespace Shuffull.Mobile.Views
 
         private void btnPlayMusic_Clicked(object sender, EventArgs e)
         {
-            //var baseAddress = new Uri("");
-           // _client.BaseAddress = baseAddress;
             using (var response = _client.GetAsync("music/getmusic").Result)
             using (var content = response.Content)
             {
-                var result = content.ReadAsStringAsync().Result;
-                MusicService.Play(result);
+                if (response.IsSuccessStatusCode)
+                {
+                    var resultStr = content.ReadAsStringAsync().Result;
+                    var result = JsonConvert.DeserializeObject<SongResult>(resultStr);
+                    MusicService.Play(result.Url);
+                }
             }
         }
 

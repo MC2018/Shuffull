@@ -24,6 +24,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Shuffull.Database\Shuffull.Database.csproj" />
     <ProjectReference Include="..\Shuffull.Shared\Shuffull.Shared.csproj" />
   </ItemGroup>
 

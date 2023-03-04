@@ -1,4 +1,4 @@
-﻿using Shuffull.Shared;
+﻿using Shuffull.Database;
 using System.Data.Common;
 
 namespace Shuffull.Site.Logic

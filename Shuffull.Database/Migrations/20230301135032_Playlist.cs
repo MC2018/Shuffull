@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace Shuffull.Site.Migrations
+namespace Shuffull.Database.Migrations
 {
     /// <inheritdoc />
     public partial class Playlist : Migration

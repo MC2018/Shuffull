@@ -4,12 +4,12 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using Shuffull.Shared;
-using Shuffull.Site;
+using Shuffull.Database;
+using Shuffull.Database;
 
 #nullable disable
 
-namespace Shuffull.Site.Migrations
+namespace Shuffull.Database.Migrations
 {
     [DbContext(typeof(ShuffullContext))]
     [Migration("20230224200941_Init")]
@@ -25,7 +25,7 @@ namespace Shuffull.Site.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("Shuffull.Shared.Models.Song", b =>
+            modelBuilder.Entity("Shuffull.Database.Models.Song", b =>
                 {
                     b.Property<long>("SongId")
                         .ValueGeneratedOnAdd()

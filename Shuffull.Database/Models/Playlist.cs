@@ -8,7 +8,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Shuffull.Shared.Models
+namespace Shuffull.Database.Models
 {
     public class Playlist
     {

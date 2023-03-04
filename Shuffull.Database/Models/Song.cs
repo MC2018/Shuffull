@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Shuffull.Shared.Models
+namespace Shuffull.Database.Models
 {
     [Index(nameof(Name))]
     public class Song
@@ -19,5 +19,6 @@ namespace Shuffull.Shared.Models
         public string Name { get; set; } = string.Empty;
 
         public ICollection<PlaylistSong> PlaylistSongs { get; set; }
+        public ICollection<SongArtist> SongArtists { get; set; }
     }
 }

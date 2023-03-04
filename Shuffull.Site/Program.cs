@@ -2,6 +2,7 @@ using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
+using Shuffull.Database;
 using Shuffull.Site;
 using Shuffull.Site.Configuration;
 using Shuffull.Site.Logic;

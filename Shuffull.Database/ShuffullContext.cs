@@ -1,12 +1,12 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using Shuffull.Shared.Models;
+using Shuffull.Database.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Shuffull.Site
+namespace Shuffull.Database
 {
     public class ShuffullContext : DbContext
     {

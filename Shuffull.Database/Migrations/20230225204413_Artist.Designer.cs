@@ -4,12 +4,12 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using Shuffull.Shared;
-using Shuffull.Site;
+using Shuffull.Database;
+using Shuffull.Database;
 
 #nullable disable
 
-namespace Shuffull.Site.Migrations
+namespace Shuffull.Database.Migrations
 {
     [DbContext(typeof(ShuffullContext))]
     [Migration("20230225204413_Artist")]
@@ -25,7 +25,7 @@ namespace Shuffull.Site.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("Shuffull.Shared.Models.Artist", b =>
+            modelBuilder.Entity("Shuffull.Database.Models.Artist", b =>
                 {
                     b.Property<long>("ArtistId")
                         .ValueGeneratedOnAdd()
@@ -42,7 +42,7 @@ namespace Shuffull.Site.Migrations
                     b.ToTable("Artists");
                 });
 
-            modelBuilder.Entity("Shuffull.Shared.Models.Song", b =>
+            modelBuilder.Entity("Shuffull.Database.Models.Song", b =>
                 {
                     b.Property<long>("SongId")
                         .ValueGeneratedOnAdd()
@@ -66,7 +66,7 @@ namespace Shuffull.Site.Migrations
                     b.ToTable("Songs");
                 });
 
-            modelBuilder.Entity("Shuffull.Shared.Models.SongArtist", b =>
+            modelBuilder.Entity("Shuffull.Database.Models.SongArtist", b =>
                 {
                     b.Property<long>("SongArtistId")
                         .ValueGeneratedOnAdd()
@@ -89,15 +89,15 @@ namespace Shuffull.Site.Migrations
                     b.ToTable("SongArtists");
                 });
 
-            modelBuilder.Entity("Shuffull.Shared.Models.SongArtist", b =>
+            modelBuilder.Entity("Shuffull.Database.Models.SongArtist", b =>
                 {
-                    b.HasOne("Shuffull.Shared.Models.Artist", "Artist")
+                    b.HasOne("Shuffull.Database.Models.Artist", "Artist")
                         .WithMany()
                         .HasForeignKey("ArtistId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Shuffull.Shared.Models.Song", "Song")
+                    b.HasOne("Shuffull.Database.Models.Song", "Song")
                         .WithMany()
                         .HasForeignKey("SongId")
                         .OnDelete(DeleteBehavior.Cascade)

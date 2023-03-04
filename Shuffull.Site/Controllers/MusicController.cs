@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Shuffull.Shared.Models;
-using Shuffull.Shared;
+using Microsoft.EntityFrameworkCore;
+using Shuffull.Database;
+using Shuffull.Shared.Networking.Models;
 using Shuffull.Site.Models;
 using System.Diagnostics;
 
@@ -22,15 +23,24 @@ namespace Shuffull.Site.Controllers
             return "Index";
         }
 
-        public string GetMusic(string name) 
+        public SongResult GetMusic(string name)
         {
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
             var randomIndex = new Random().Next(0, context.Songs.Count());
-            var randomSong = context.Songs.Skip(randomIndex).First();
+            var randomSong = context.Songs
+                .Skip(randomIndex)
+                .AsNoTracking()
+                .First();
+            var result = new SongResult()
+            {
+                Name = randomSong.Name,
+                Url = Path
+                        .Combine(HttpContext.Request.Scheme + "://", HttpContext.Request.Host.ToString(), "music", randomSong.Directory)
+                        .Replace("\\", "/")
+            };
 
-            return Path.Combine(HttpContext.Request.Scheme + "://", HttpContext.Request.Host.ToString(), "music", randomSong.Directory)
-                .Replace("\\", "/");
+            return result;
         }
 
         [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]

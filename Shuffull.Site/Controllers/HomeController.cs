@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Shuffull.Shared.Models;
+using Shuffull.Database;
+using Shuffull.Database.Models;
 using Shuffull.Site.Models;
 using Shuffull.Site.Services;
 using System.Diagnostics;
