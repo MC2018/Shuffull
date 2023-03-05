@@ -8,15 +8,15 @@ namespace Shuffull.Mobile.Services
 {
     internal class MusicService
     {
-        private static LibVLC libvlc;
-        private static MediaPlayer mediaPlayer = null;
+        private static readonly LibVLC _libvlc;
+        private static MediaPlayer _mediaPlayer = null;
 
-        public static bool IsPlaying { get { return mediaPlayer?.IsPlaying ?? false; } }
+        public static bool IsPlaying { get { return _mediaPlayer?.IsPlaying ?? false; } }
 
         static MusicService()
         {
             Core.Initialize();
-            libvlc = new LibVLC();
+            _libvlc = new LibVLC();
         }
 
         public static void Test(object sender, EventArgs e)
@@ -26,40 +26,49 @@ namespace Shuffull.Mobile.Services
 
         public static void Play(string url)
         {
-            var media = new Media(libvlc, new Uri(url));
+            var media = new Media(_libvlc, new Uri(url));
 
-            if (mediaPlayer != null)
+            /*media.MetaChanged += (sender, args) => {
+                var artwork = media.Meta(MetadataType.ArtworkURL);
+
+                if (artwork != null)
+                {
+                    // Do stuff
+                }
+            };*/
+
+            if (_mediaPlayer != null)
             {
-                mediaPlayer.Dispose();
+                _mediaPlayer.Dispose();
             }
 
-            mediaPlayer = new MediaPlayer(media)
+            _mediaPlayer = new MediaPlayer(media)
             {
                 EnableHardwareDecoding = true
             };
 
-            mediaPlayer.Play();
-            mediaPlayer.EndReached += Test;
+            _mediaPlayer.Play();
+            _mediaPlayer.EndReached += Test;
         }
 
         public static void Resume()
         {
-            if (mediaPlayer == null)
+            if (_mediaPlayer == null)
             {
                 return;
             }
 
-            mediaPlayer.Play();
+            _mediaPlayer.Play();
         }
 
         public static void Pause()
         {
-            if (mediaPlayer == null)
+            if (_mediaPlayer == null)
             {
                 return;
             }
 
-            mediaPlayer.Pause();
+            _mediaPlayer.Pause();
         }
     }
 }

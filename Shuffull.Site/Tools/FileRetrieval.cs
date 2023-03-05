@@ -1,7 +1,7 @@
 ﻿using Shuffull.Database;
 using System.Data.Common;
 
-namespace Shuffull.Site.Logic
+namespace Shuffull.Site.Tools
 {
     public class FileRetrieval
     {

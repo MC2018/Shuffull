@@ -4,7 +4,9 @@ using Newtonsoft.Json;
 using Shuffull.Mobile.Services;
 using Shuffull.Shared.Networking.Models;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
 using System.Net.Http;
 using Xamarin.Forms;
 using Xamarin.Forms.Xaml;
@@ -13,7 +15,8 @@ namespace Shuffull.Mobile.Views
 {
     public partial class AboutPage : ContentPage
     {
-        private static HttpClient _client = new HttpClient() { BaseAddress = new Uri("http://192.168.0.39:7117/") };
+        private static readonly string _url = "http://192.168.0.39:7117/";
+        private static readonly HttpClient _client = new HttpClient() { BaseAddress = new Uri(_url) };
 
         public AboutPage()
         {
@@ -27,14 +30,20 @@ namespace Shuffull.Mobile.Views
 
         private void btnPlayMusic_Clicked(object sender, EventArgs e)
         {
-            using (var response = _client.GetAsync("music/getmusic").Result)
+            var parameters = new Dictionary<string, string>()
+            {
+                { "playlistId", "1" }
+            };
+            var encodedContent = new FormUrlEncodedContent(parameters);
+
+            using (var response = _client.PostAsync("music/GetPlaylist", encodedContent).Result)
             using (var content = response.Content)
             {
                 if (response.IsSuccessStatusCode)
                 {
                     var resultStr = content.ReadAsStringAsync().Result;
-                    var result = JsonConvert.DeserializeObject<SongResult>(resultStr);
-                    MusicService.Play(result.Url);
+                    var result = JsonConvert.DeserializeObject<PlaylistResult>(resultStr);
+                    MusicService.Play($"{_url}music/{result.Songs.First().Directory}");
                 }
             }
         }

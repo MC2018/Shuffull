@@ -5,7 +5,7 @@ using Shuffull.Site.Models;
 using Shuffull.Site.Services;
 using System.Diagnostics;
 
-namespace Shuffull.Site.Controllers
+namespace Shuffull.Tools.Controllers
 {
     public class HomeController : Controller
     {

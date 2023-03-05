@@ -3,7 +3,7 @@ using Murmur;
 using Shuffull.Database;
 using Shuffull.Database.Models;
 using Shuffull.Site.Configuration;
-using Shuffull.Site.Logic;
+using Shuffull.Site.Tools;
 using System.Security.Cryptography;
 
 namespace Shuffull.Site.Services
@@ -180,11 +180,6 @@ namespace Shuffull.Site.Services
                 Directory.Move(fileDirectory, Path.Combine(_failedImportDirectory, Path.GetFileName(fileDirectory)));
             }
             catch { }
-        }
-
-        public void Dispose()
-        {
-
         }
     }
 }
