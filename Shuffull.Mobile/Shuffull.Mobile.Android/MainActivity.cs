@@ -5,6 +5,9 @@ using Android.Content.PM;
 using Android.Runtime;
 using Android.OS;
 using MediaManager;
+using Xamarin.Forms;
+using Shuffull.Mobile.Services;
+using Shuffull.Mobile.Droid.Services;
 
 namespace Shuffull.Mobile.Droid
 {
@@ -14,7 +17,7 @@ namespace Shuffull.Mobile.Droid
         protected override void OnCreate(Bundle savedInstanceState)
         {
             base.OnCreate(savedInstanceState);
-
+            DependencyService.Register<IFileService, FileService>();
             Xamarin.Essentials.Platform.Init(this, savedInstanceState);
             global::Xamarin.Forms.Forms.Init(this, savedInstanceState);
             LoadApplication(new App());

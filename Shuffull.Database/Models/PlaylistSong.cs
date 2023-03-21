@@ -18,11 +18,11 @@ namespace Shuffull.Database.Models
         [Required]
         public long SongId { get; set; }
         [Required]
-        public long BucketNumber { get; set; }
-        [Required]
         public DateTime LastAddedToQueue { get; set; }
-
-        public bool IsInQueue() { return BucketNumber != -1; }
+        [Required]
+        public DateTime LastPlayed { get; set; }
+        [Required]
+        public bool InQueue { get; set; }
 
         [Key]
         public Playlist Playlist { get; set; }

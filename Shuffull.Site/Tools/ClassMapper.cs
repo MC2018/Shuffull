@@ -1,6 +1,6 @@
 ﻿using AutoMapper;
 using Shuffull.Database.Models;
-using Shuffull.Shared.Networking.Models;
+using Results = Shuffull.Shared.Networking.Models.Results;
 
 namespace Shuffull.Site.Tools
 {
@@ -12,8 +12,9 @@ namespace Shuffull.Site.Tools
         {
             var config = new MapperConfiguration(x =>
             {
-                x.CreateMap<Song, SongResult>();
-                x.CreateMap<Playlist, PlaylistResult>();
+                x.CreateMap<Song, Results.Song>();
+                x.CreateMap<PlaylistSong, Results.PlaylistSong>();
+                x.CreateMap<Playlist, Results.Playlist>();
             });
 
             Mapper = config.CreateMapper();

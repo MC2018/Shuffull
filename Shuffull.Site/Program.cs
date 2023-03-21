@@ -7,6 +7,7 @@ using Shuffull.Site.Configuration;
 using Shuffull.Site.Tools;
 using Shuffull.Site.Services;
 using System.Net;
+using Shuffull.Site;
 
 var builder = WebApplication.CreateBuilder(args);
 

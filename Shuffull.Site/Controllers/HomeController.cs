@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Shuffull.Database;
 using Shuffull.Database.Models;
+using Shuffull.Site;
 using Shuffull.Site.Models;
 using Shuffull.Site.Services;
 using System.Diagnostics;
@@ -9,12 +10,10 @@ namespace Shuffull.Tools.Controllers
 {
     public class HomeController : Controller
     {
-        private readonly ILogger<HomeController> _logger;
-        private IServiceProvider _services;
+        private readonly IServiceProvider _services;
 
-        public HomeController(ILogger<HomeController> logger, IServiceProvider services)
+        public HomeController(IServiceProvider services)
         {
-            _logger = logger;
             _services = services;
         }
 

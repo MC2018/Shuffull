@@ -26,6 +26,8 @@ namespace Shuffull.Database.Models
         [Range(0, PERCENT_UNTIL_REPLAYABLE_CAP)]
         [Column(TypeName = "decimal(2,2)")] // allows 2 digits to be saved, with up to 2 digits to the right of the decimal
         public decimal PercentUntilReplayable { get; set; }
+        [Required]
+        public DateTime LastUpdated { get; set; }
 
 
         [Key]
