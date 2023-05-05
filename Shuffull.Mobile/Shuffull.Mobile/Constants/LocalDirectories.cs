@@ -6,7 +6,6 @@ namespace Shuffull.Mobile.Constants
 {
     internal class LocalDirectories
     {
-        public static readonly string Playlists = "playlists";
-        public static readonly string Requests = "requests";
+        public static readonly string Music = "music";
     }
 }

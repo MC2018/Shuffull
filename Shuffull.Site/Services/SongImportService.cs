@@ -1,7 +1,6 @@
 ﻿using Microsoft.Identity.Client;
 using Murmur;
-using Shuffull.Database;
-using Shuffull.Database.Models;
+using Shuffull.Site.Database.Models;
 using Shuffull.Site.Configuration;
 using Shuffull.Site.Tools;
 using System.Security.Cryptography;

@@ -1,8 +1,12 @@
-﻿using Shuffull.Mobile.Constants;
+﻿using Microsoft.EntityFrameworkCore;
+using MoreLinq.Extensions;
+using Newtonsoft.Json;
+using Shuffull.Mobile.Constants;
 using Shuffull.Mobile.Extensions;
 using Shuffull.Mobile.Services;
+using Shuffull.Shared;
+using Shuffull.Shared.Networking.Models;
 using Shuffull.Shared.Networking.Models.Requests;
-using Shuffull.Shared.Networking.Models.Results;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -18,169 +22,147 @@ namespace Shuffull.Mobile.Tools
     public class DataManager
     {
         // TODO: Timer to auto-update playlist information as needed
-        private static List<Playlist> _playlists = new List<Playlist>();
         private static long _currentPlaylistId;
-        private static readonly List<IRequest> _requests = new List<IRequest>();
 
-        public static void Initialize()
+        public static long CurrentPlaylistId
         {
-            // requests
-            _requests.AddRange(ReadAll<IRequest>(LocalDirectories.Requests));
-
-            // playlists
-            _playlists.AddRange(ReadAll<Playlist>(LocalDirectories.Playlists));
-        }
-
-        private static List<T> ReadAll<T>(string directory)
-        {
-            var fileService = DependencyService.Get<IFileService>();
-            var files = fileService.GetFiles(directory);
-            var result = new List<T>();
-
-            foreach (var file in files)
+            get
             {
-                try
+                if (_currentPlaylistId == 0)
                 {
-                    var obj = fileService.ReadFile<T>(file);
-                    result.Add(obj);
+                    var context = DependencyService.Get<ShuffullContext>();
+                    var playlist = context.Playlists.FirstOrDefault();
+
+                    if (playlist != null)
+                    {
+                        _currentPlaylistId = playlist.PlaylistId;
+                    }
                 }
-                catch (SerializationException)
+
+                return _currentPlaylistId;
+            }
+            set
+            {
+                var context = DependencyService.Get<ShuffullContext>();
+
+                if (context.Playlists.Where(x => x.PlaylistId == value).Any())
                 {
-                    fileService.DeleteFile(file);
+                    _currentPlaylistId = value;
                 }
             }
-
-            return result;
         }
 
         // Playlists
-        public static void AddPlaylist(Playlist playlist)
+        public static void UpdatePlaylist(Playlist playlist)
         {
-            WritePlaylist(playlist);
-            _playlists.Add(playlist);
+            var context = DependencyService.Get<ShuffullContext>();
+            var localPlaylist = context.Playlists.Where(x => x.PlaylistId == playlist.PlaylistId).FirstOrDefault();
+
+            if (localPlaylist == null)
+            {
+                AddPlaylist(playlist);
+                return;
+            }
+
+            context.Playlists.Remove(localPlaylist);
+            context.Playlists.Add(playlist);
+            context.SaveChanges();
+        }
+
+        private static void AddPlaylist(Playlist playlist)
+        {
+            var context = DependencyService.Get<ShuffullContext>();
+            context.Playlists.Add(playlist);
+            context.SaveChanges();
         }
 
         public static List<Playlist> GetPlaylists()
         {
-            var result = new List<Playlist>(_playlists);
-            return result.OrderBy(x => x.PlaylistId).ToList();
+            var context = DependencyService.Get<ShuffullContext>();
+            return context.Playlists
+                .OrderBy(x => x.PlaylistId)
+                .ToList();
         }
 
-        private static List<Playlist> ReadPlaylists(long[] playlistIds)
+        public static void RemovePlaylist(long playlistId)
         {
-            var fileService = DependencyService.Get<IFileService>();
-            var result = new List<Playlist>();
+            var context = DependencyService.Get<ShuffullContext>();
+            var playlist = context.Playlists.Where(x => x.PlaylistId == playlistId).FirstOrDefault();
 
-            foreach (var playlistId in playlistIds)
+            if (playlist == null)
             {
-                try
-                {
-                    var playlist = fileService.ReadFile<Playlist>($"{LocalDirectories.Playlists}/{playlistId}");
-                    result.Add(playlist);
-                }
-                catch
-                {
-                }
+                return;
             }
 
-            return result;
-        }
-
-        private static void WritePlaylist(Playlist playlist)
-        {
-            var fileService = DependencyService.Get<IFileService>();
-
-            try
+            context.Playlists.Remove(playlist);
+            context.SaveChanges();
+            
+            if (_currentPlaylistId == playlist.PlaylistId)
             {
-                fileService.WriteFile(playlist, $"{LocalDirectories.Playlists}/{playlist.PlaylistId}");
-            }
-            catch
-            {
-            }
-        }
-
-        public static void SetCurrentPlaylist(long playlistId)
-        {
-            if (_playlists.Where(x => x.PlaylistId == playlistId).Any())
-            {
-                _currentPlaylistId = playlistId;
-            }
-        }
-
-        public static void RemovePlaylist(Playlist playlist)
-        {
-            DeletePlaylist(playlist);
-            _playlists.Remove(playlist);
-        }
-        private static void DeletePlaylist(Playlist playlist)
-        {
-            var fileService = DependencyService.Get<IFileService>();
-
-            try
-            {
-                fileService.DeleteFile($"{LocalDirectories.Playlists}/{playlist.PlaylistId}");
-            }
-            catch
-            {
+                _currentPlaylistId = GetPlaylists().FirstOrDefault()?.PlaylistId ?? 0;
             }
         }
 
         // Requests
-        public static void AddRequest(IRequest request)
+        public static void AddRequest(Request request)
         {
-            WriteRequest(request);
-            _requests.Add(request);
+            var context = DependencyService.Get<ShuffullContext>();
+            context.Requests.Add(request);
+            context.SaveChanges();
         }
 
-        public static void RemoveRequest(IRequest request)
+        public static void RemoveRequest(Request request)
         {
-            DeleteRequest(request);
-            _requests.Remove(request);
+            var context = DependencyService.Get<ShuffullContext>();
+            context.Requests.Remove(request);
+            context.SaveChanges();
         }
 
-        public static List<IRequest> GetRequests()
+        public static List<Request> GetRequests()
         {
-            var result = new List<IRequest>(_requests);
-            return result.OrderBy(x => x.TimeRequested).ToList();
+            var context = DependencyService.Get<ShuffullContext>();
+            return context.Requests
+                .OrderBy(x => x.TimeRequested)
+                .ToList();
         }
 
-        private static void WriteRequest(IRequest request)
+        public static Song GetNextSong()
         {
-            var fileService = DependencyService.Get<IFileService>();
+            var context = DependencyService.Get<ShuffullContext>();
+            var songCount = context.Playlists.Where(x => x.PlaylistId == CurrentPlaylistId)
+                .SelectMany(x => x.PlaylistSongs)
+                .Count();
 
-            try
+            if (songCount == 0)
             {
-                fileService.WriteFile(request, $"requests/{request.Guid}");
+                throw new Exception("No song available");
             }
-            catch (Exception e)
-            {
-            }
-        }
 
-        private static void DeleteRequest(IRequest request)
-        {
-            var fileService = DependencyService.Get<IFileService>();
-
-            try
-            {
-                fileService.DeleteFile($"{LocalDirectories.Requests}/{request.Guid}");
-            }
-            catch
-            {
-            }
-        }
-
-        public static string GetNextSong()
-        {
-            var playlist = _playlists.Where(x => x.PlaylistId == _currentPlaylistId).First();
-            var randomIndex = new Random().Next(0, playlist.PlaylistSongs.Count());
-            var randomSong = playlist
-                .PlaylistSongs
+            var randomIndex = new Random().Next(0, songCount);
+            var result = context.Playlists
+                .SelectMany(x => x.PlaylistSongs)
                 .Skip(randomIndex)
+                .Take(1)
+                .Select(x => x.Song)
                 .First();
-            var result = $"{SiteInfo.URL}music/{randomSong.Song.Directory}";
 
             return result;
+        }
+
+        internal static void IncrementPlaylistsBySongIds(List<long> songIds)
+        {
+            var context = DependencyService.Get<ShuffullContext>();
+            var playlists = context.Playlists
+                .Where(x => x.PlaylistSongs.Any(y => songIds.Contains(y.SongId)))
+                .DistinctBy(x => x.PlaylistId)
+                .ToList();
+
+            foreach (var playlist in playlists)
+            {
+                playlist.VersionCounter++;
+            }
+
+            context.SaveChanges();
         }
     }
 }

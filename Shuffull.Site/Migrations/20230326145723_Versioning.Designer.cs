@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Shuffull.Site;
 
@@ -11,9 +12,11 @@ using Shuffull.Site;
 namespace Shuffull.Site.Migrations
 {
     [DbContext(typeof(ShuffullContext))]
-    partial class ShuffullContextModelSnapshot : ModelSnapshot
+    [Migration("20230326145723_Versioning")]
+    partial class Versioning
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -38,7 +41,7 @@ namespace Shuffull.Site.Migrations
 
                     b.HasIndex("Name");
 
-                    b.ToTable("Artists", (string)null);
+                    b.ToTable("Artists");
                 });
 
             modelBuilder.Entity("Shuffull.Database.Models.Playlist", b =>
@@ -69,7 +72,7 @@ namespace Shuffull.Site.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("Playlists", (string)null);
+                    b.ToTable("Playlists");
                 });
 
             modelBuilder.Entity("Shuffull.Database.Models.PlaylistSong", b =>
@@ -101,7 +104,7 @@ namespace Shuffull.Site.Migrations
 
                     b.HasIndex("SongId");
 
-                    b.ToTable("PlaylistSongs", (string)null);
+                    b.ToTable("PlaylistSongs");
                 });
 
             modelBuilder.Entity("Shuffull.Database.Models.Song", b =>
@@ -124,7 +127,7 @@ namespace Shuffull.Site.Migrations
 
                     b.HasIndex("Name");
 
-                    b.ToTable("Songs", (string)null);
+                    b.ToTable("Songs");
                 });
 
             modelBuilder.Entity("Shuffull.Database.Models.SongArtist", b =>
@@ -147,7 +150,7 @@ namespace Shuffull.Site.Migrations
 
                     b.HasIndex("SongId");
 
-                    b.ToTable("SongArtists", (string)null);
+                    b.ToTable("SongArtists");
                 });
 
             modelBuilder.Entity("Shuffull.Database.Models.User", b =>
@@ -166,7 +169,7 @@ namespace Shuffull.Site.Migrations
 
                     b.HasIndex("Username");
 
-                    b.ToTable("Users", (string)null);
+                    b.ToTable("Users");
                 });
 
             modelBuilder.Entity("Shuffull.Database.Models.Playlist", b =>

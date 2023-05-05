@@ -1,7 +1,11 @@
-﻿using Shuffull.Mobile.Constants;
+﻿using Microsoft.EntityFrameworkCore;
+using Newtonsoft.Json;
+using Shuffull.Mobile.Constants;
 using Shuffull.Mobile.Extensions;
+using Shuffull.Shared;
+using Shuffull.Shared.Enums;
+using Shuffull.Shared.Networking.Models;
 using Shuffull.Shared.Networking.Models.Requests;
-using Shuffull.Shared.Networking.Models.Results;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -18,18 +22,22 @@ namespace Shuffull.Mobile.Tools
 
         public static void Initialize()
         {
+            // Add request to sync everything before syncing
+            // TODO: add timer
             Sync();
         }
 
-        public static void RequestSync()
+        public static void RequestManualSync()
         {
             if (!_isSyncing)
             {
+                // TODO: make timer fire off instead of just calling Sync
+                // Just try to ensure the method calling this continues and doesn't wait for sync
                 Sync();
             }
         }
 
-        public static void Sync()
+        private static void Sync()
         {
             if (_isSyncing)
             {
@@ -38,32 +46,72 @@ namespace Shuffull.Mobile.Tools
 
             _isSyncing = true;
 
+            // Update playlists
+            var updatePlaylistsRequest = new UpdatePlaylistsRequest()
+            {
+                Guid = Guid.NewGuid().ToString(),
+                TimeRequested = DateTime.UtcNow
+            };
+
+            DataManager.AddRequest(updatePlaylistsRequest);
+
             var requests = DataManager.GetRequests();
+            var requestTypes = requests.Select(x => x.RequestType).Distinct().ToList();
 
+            // Run all requests
+            foreach (var requestType in requestTypes)
+            {
+                var requestsToRun = requests.Where(x => x.RequestType == requestType).ToList();
+                var requestSuccessful = RunRequests(requestsToRun, requestType);
 
-
-
-            SyncPlaylists();
-
-
-
-
+                if (requestSuccessful)
+                {
+                    foreach (var requestToRun in requestsToRun)
+                    {
+                        DataManager.RemoveRequest(requestToRun);
+                    }
+                }
+            }
 
             _isSyncing = false;
         }
 
-        private static void SyncPlaylists()
+        private static bool RunRequests(List<Request> requests, RequestType requestType)
         {
-            PushPlaylists();
-            PullPlaylists();
+            var requestSuccessful = false;
+
+            switch (requestType)
+            {
+                case RequestType.UpdateSongLastPlayed:
+                    requestSuccessful = UpdateSongLastPlayed(requests.Cast<UpdateSongLastPlayedRequest>().ToList());
+                    break;
+                case RequestType.UpdatePlaylists:
+                    requestSuccessful = UpdatePlaylists();
+                    break;
+            }
+
+            return requestSuccessful;
         }
 
-        private static void PushPlaylists()
+        private static bool UpdateSongLastPlayed(List<UpdateSongLastPlayedRequest> requests)
         {
+            var client = DependencyService.Get<HttpClient>();
+            var parameters = new Dictionary<string, string>()
+            {
+                { "requests", JsonConvert.SerializeObject(requests) }
+            };
 
+            if (!client.TryPost(new Uri($"{SiteInfo.Url}song/UpdateLastPlayed"), parameters, out object _))
+            {
+                return false;
+            }
+
+            DataManager.IncrementPlaylistsBySongIds(requests.Select(x => x.SongId).ToList());
+
+            return true;
         }
 
-        private static void PullPlaylists()
+        private static bool UpdatePlaylists()
         {
             var client = DependencyService.Get<HttpClient>();
             var parameters = new Dictionary<string, string>()
@@ -71,54 +119,62 @@ namespace Shuffull.Mobile.Tools
                 { "userId", "1" }
             };
 
-            if (client.TryPost(new Uri($"{SiteInfo.URL}playlist/GetAllOverview"), parameters, out List<Playlist> accessiblePlaylists))
+            if (!client.TryPost(new Uri($"{SiteInfo.Url}playlist/GetAllOverview"), parameters, out List<Playlist> accessiblePlaylists))
             {
-                // TODO: Will probably need to move this all into its own method, and called every X minutes
-                var accessiblePlaylistIds = accessiblePlaylists.Select(x => x.PlaylistId).ToArray();
-                var localPlaylists = DataManager.GetPlaylists();
-                var playlistsToFetch = new List<long>();
-                var playlistsToAdd = new List<Playlist>();
-
-                // Remove playlists from local if they are no longer accessible
-                foreach (var localPlaylist in localPlaylists)
-                {
-                    if (!accessiblePlaylistIds.Contains(localPlaylist.PlaylistId))
-                    {
-                        DataManager.RemovePlaylist(localPlaylist);
-                    }
-                }
-
-                // Create a list of playlists that need updating
-                foreach (var accessiblePlaylist in accessiblePlaylists)
-                {
-                    var localPlaylist = localPlaylists.Where(x => x.PlaylistId == accessiblePlaylist.PlaylistId).FirstOrDefault();
-
-                    if (localPlaylist == null || localPlaylist.LastUpdated < accessiblePlaylist.LastUpdated)
-                    {
-                        playlistsToFetch.Add(accessiblePlaylist.PlaylistId);
-                    }
-                    else if (localPlaylist.LastUpdated > accessiblePlaylist.LastUpdated)
-                    {
-                        // TODO: POST new info to server
-                    }
-                }
-
-                parameters = new Dictionary<string, string>()
-                {
-                    { "playlistIds", $"{string.Join(",", playlistsToFetch)}" }
-                };
-
-                if (playlistsToFetch.Any()
-                    && client.TryPost(new Uri($"{SiteInfo.URL}playlist/GetAll"), parameters, out List<Playlist> updatedPlaylists))
-                {
-                    foreach (var updatedPlaylist in updatedPlaylists)
-                    {
-                        DataManager.AddPlaylist(updatedPlaylist);
-                    }
-                }
-
-                DataManager.SetCurrentPlaylist(DataManager.GetPlaylists().FirstOrDefault()?.PlaylistId ?? 0);
+                return false;
             }
+
+            // TODO: Will probably need to have this called every X minutes
+            var accessiblePlaylistIds = accessiblePlaylists.Select(x => x.PlaylistId).ToArray();
+            var localPlaylists = DataManager.GetPlaylists();
+            var playlistsToFetch = new List<long>();
+            var playlistsToAdd = new List<Playlist>();
+
+            // Remove playlists from local if they are no longer accessible
+            foreach (var localPlaylist in localPlaylists)
+            {
+                if (!accessiblePlaylistIds.Contains(localPlaylist.PlaylistId))
+                {
+                    DataManager.RemovePlaylist(localPlaylist.PlaylistId);
+                }
+            }
+
+            // Create a list of playlists that need updating
+            foreach (var accessiblePlaylist in accessiblePlaylists)
+            {
+                var localPlaylist = localPlaylists.Where(x => x.PlaylistId == accessiblePlaylist.PlaylistId).FirstOrDefault();
+
+                if (localPlaylist == null || localPlaylist.VersionCounter < accessiblePlaylist.VersionCounter)
+                {
+                    playlistsToFetch.Add(accessiblePlaylist.PlaylistId);
+                }
+                else if (localPlaylist.VersionCounter > accessiblePlaylist.VersionCounter)
+                {
+                    // TODO: POST new info to server; could just be that something gets added to the request pile
+                }
+            }
+
+            parameters = new Dictionary<string, string>()
+            {
+                { "playlistIds", $"{string.Join(",", playlistsToFetch)}" }
+            };
+
+
+
+            if (playlistsToFetch.Any())
+            {
+                if (!client.TryPost(new Uri($"{SiteInfo.Url}playlist/GetAll"), parameters, out List<Playlist> updatedPlaylists))
+                {
+                    return false;
+                }
+
+                foreach (var updatedPlaylist in updatedPlaylists)
+                {
+                    DataManager.UpdatePlaylist(updatedPlaylist);
+                }
+            }
+
+            return true;
         }
     }
 }

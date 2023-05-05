@@ -6,6 +6,6 @@ namespace Shuffull.Mobile.Constants
 {
     internal class SiteInfo
     {
-        public const string URL = "http://192.168.0.39:7117/";
+        public const string Url = "http://192.168.11.92:7117/";
     }
 }

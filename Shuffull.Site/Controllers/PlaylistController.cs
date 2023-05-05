@@ -1,11 +1,14 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Shuffull.Database;
+using Shuffull.Site.Database;
 using Shuffull.Site.Tools;
 using Shuffull.Site.Models;
 using System.Diagnostics;
 using Shuffull.Site;
-using Results = Shuffull.Shared.Networking.Models.Results;
+using Results = Shuffull.Shared.Networking.Models;
+using Shuffull.Shared.Networking.Models;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Shuffull.Tools.Controllers
 {
@@ -18,7 +21,7 @@ namespace Shuffull.Tools.Controllers
             _services = services;
         }
 
-        public List<Results.Playlist> GetAllOverview(long userId)
+        public List<Playlist> GetAllOverview(long userId)
         {
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
@@ -26,12 +29,12 @@ namespace Shuffull.Tools.Controllers
                 .AsNoTracking()
                 .Where(x => x.UserId == userId)
                 .ToList();
-            var result = ClassMapper.Mapper.Map<List<Results.Playlist>>(playlists);
+            var result = ClassMapper.Mapper.Map<List<Playlist>>(playlists);
 
             return result;
         }
 
-        public List<Results.Playlist> GetAll(long[] playlistIds)
+        public string GetAll(long[] playlistIds)
         {
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
@@ -41,12 +44,18 @@ namespace Shuffull.Tools.Controllers
                 .Include(x => x.PlaylistSongs)
                 .ThenInclude(x => x.Song)
                 .ToList();
-            var result = ClassMapper.Mapper.Map<List<Results.Playlist>>(playlist);
+            var result = ClassMapper.Mapper.Map<List<Playlist>>(playlist);
 
-            return result;
+            var options = new JsonSerializerOptions
+            {
+                ReferenceHandler = ReferenceHandler.Preserve
+            };
+            var resultStr = JsonSerializer.Serialize(result, options);
+
+            return resultStr;
         }
 
-        public Results.Playlist Get(long playlistId)
+        public string Get(long playlistId)
         {
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
@@ -56,9 +65,15 @@ namespace Shuffull.Tools.Controllers
                 .Include(x => x.PlaylistSongs)
                 .ThenInclude(x => x.Song)
                 .FirstOrDefault();
-            var result = ClassMapper.Mapper.Map<Results.Playlist>(playlist);
+            var result = ClassMapper.Mapper.Map<Playlist>(playlist);
 
-            return result;
+            var options = new JsonSerializerOptions
+            {
+                ReferenceHandler = ReferenceHandler.Preserve
+            };
+
+            var resultStr = JsonSerializer.Serialize(result, options);
+            return resultStr;
         }
     }
 }

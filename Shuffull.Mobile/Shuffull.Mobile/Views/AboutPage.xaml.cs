@@ -5,6 +5,7 @@ using Shuffull.Mobile.Constants;
 using Shuffull.Mobile.Extensions;
 using Shuffull.Mobile.Services;
 using Shuffull.Mobile.Tools;
+using Shuffull.Shared;
 using Shuffull.Shared.Networking.Models;
 using System;
 using System.Collections.Generic;

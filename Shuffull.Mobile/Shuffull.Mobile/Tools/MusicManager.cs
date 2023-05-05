@@ -1,5 +1,7 @@
 ﻿using LibVLCSharp.Shared;
+using Shuffull.Mobile.Constants;
 using Shuffull.Mobile.Tools;
+using Shuffull.Shared.Networking.Models;
 using Shuffull.Shared.Networking.Models.Requests;
 using System;
 using System.Collections.Generic;
@@ -8,6 +10,7 @@ using System.IO;
 using System.Net.Http;
 using System.Text;
 using Xamarin.Forms;
+using static SQLite.SQLite3;
 
 namespace Shuffull.Mobile.Tools
 {
@@ -25,6 +28,7 @@ namespace Shuffull.Mobile.Tools
 
         public static void PlayNewSong()
         {
+            Song song;
             string songUrl;
 
             try
@@ -41,12 +45,14 @@ namespace Shuffull.Mobile.Tools
 
             try
             {
-                songUrl = DataManager.GetNextSong(); // TODO: Make this method attempt to fetch from server if failure
+                song = DataManager.GetNextSong(); // TODO: Make this method attempt to fetch from server if failure
+                songUrl = $"{SiteInfo.Url}music/{song.Directory}";
             }
             catch (InvalidOperationException)
             {
                 return;
             }
+
 
             using (var media = new Media(_libvlc, new Uri(songUrl)))
             {
@@ -62,7 +68,13 @@ namespace Shuffull.Mobile.Tools
                 };
             }
 
-            var request = new UpdateSongLastPlayedRequest() { LastPlayed = DateTime.UtcNow, Guid = Guid.NewGuid().ToString(), SongId = 1, TimeRequested = DateTime.UtcNow };
+            var request = new UpdateSongLastPlayedRequest()
+            {
+                LastPlayed = DateTime.UtcNow,
+                Guid = Guid.NewGuid().ToString(),
+                SongId = song.SongId,
+                TimeRequested = DateTime.UtcNow
+            };
             DataManager.AddRequest(request);
         }
 

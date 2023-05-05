@@ -4,4 +4,29 @@
 		<TargetFramework>netstandard2.0</TargetFramework>
 		<ProduceReferenceAssembly>true</ProduceReferenceAssembly>
 	</PropertyGroup>
+
+	<ItemGroup>
+	  <Compile Remove="Migrations\20230504050234_Requests.cs" />
+	  <Compile Remove="Migrations\20230504050234_Requests.Designer.cs" />
+	  <Compile Remove="Migrations\20230504051603_Test.cs" />
+	  <Compile Remove="Migrations\20230504051603_Test.Designer.cs" />
+	  <Compile Remove="Migrations\20230504051657_Requests.cs" />
+	  <Compile Remove="Migrations\20230504051657_Requests.Designer.cs" />
+	  <Compile Remove="Migrations\20230504051845_Requests.cs" />
+	  <Compile Remove="Migrations\20230504051845_Requests.Designer.cs" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <PackageReference Include="Microsoft.EntityFrameworkCore" Version="3.1.32" />
+	  <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="3.1.32">
+	    <PrivateAssets>all</PrivateAssets>
+	    <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+	  </PackageReference>
+	  <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="3.1.32" />
+	  <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="3.1.32">
+	    <PrivateAssets>all</PrivateAssets>
+	    <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+	  </PackageReference>
+	  <PackageReference Include="System.ComponentModel.Annotations" Version="5.0.0" />
+	</ItemGroup>
 </Project>
