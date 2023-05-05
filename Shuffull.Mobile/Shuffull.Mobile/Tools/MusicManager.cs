@@ -76,11 +76,7 @@ namespace Shuffull.Mobile.Tools
                 return;
             }
 
-            var fileService = DependencyService.Get<IFileService>();
-
-            using (var media = new Media(_libvlc, new Uri(songUrl),
-                $":sout=#file={{dst={Path.Combine(fileService.GetRootPath(), song.Directory)}}}",
-                ":sout-keep"))
+            using (var media = new Media(_libvlc, new Uri(songUrl)))
             {
                 _mediaPlayer = new MediaPlayer(media)
                 {
