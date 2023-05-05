@@ -1,5 +1,6 @@
 ﻿using LibVLCSharp.Shared;
 using Microsoft.EntityFrameworkCore;
+using Shuffull.Mobile.Constants;
 using Shuffull.Mobile.Services;
 using Shuffull.Mobile.Tools;
 using Shuffull.Mobile.Views;
@@ -24,7 +25,7 @@ namespace Shuffull.Mobile
             DependencyService.RegisterSingleton(client);
             Core.Initialize();
 
-            var dbPath = Path.Combine(DependencyService.Get<IFileService>().GetRootPath(), "data_new.db3");
+            var dbPath = Path.Combine(DependencyService.Get<IFileService>().GetRootPath(), LocalDirectories.Database);
             var context = new ShuffullContext(dbPath);
 
             if (context.Database.GetPendingMigrations().Any())
@@ -32,12 +33,7 @@ namespace Shuffull.Mobile
                 context.Database.Migrate();
             }
 
-            DataManager.Initialize(context);
-            var songs = context.Songs.ToList();
-            var fileService = DependencyService.Get<IFileService>();
             DependencyService.RegisterSingleton(context);
-
-            //Database = new Database(Path.Combine(fileService.GetRootPath(), "data.db3"));
             SyncManager.Initialize();
 
             MainPage = new AppShell();

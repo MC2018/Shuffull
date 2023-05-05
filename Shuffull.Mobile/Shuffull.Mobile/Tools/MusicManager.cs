@@ -9,6 +9,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Text;
+using System.Threading;
 using Xamarin.Forms;
 using static SQLite.SQLite3;
 
@@ -18,12 +19,26 @@ namespace Shuffull.Mobile.Tools
     {
         private static readonly LibVLC _libvlc;
         private static MediaPlayer _mediaPlayer = null;
+        private static readonly System.Timers.Timer _timer;
+        private static bool _playNewSong = false;
 
         public static bool IsPlaying { get { return _mediaPlayer?.IsPlaying ?? false; } }
 
         static MusicManager()
         {
             _libvlc = new LibVLC();
+            _timer = new System.Timers.Timer(50);
+            _timer.Elapsed += OnTimerElapsed;
+            _timer.Start();
+        }
+
+        private static void OnTimerElapsed(object sender, System.Timers.ElapsedEventArgs e)
+        {
+            if (_playNewSong)
+            {
+                _playNewSong = false;
+                PlayNewSong();
+            }
         }
 
         public static void PlayNewSong()
@@ -35,7 +50,7 @@ namespace Shuffull.Mobile.Tools
             {
                 _mediaPlayer?.Dispose();
             }
-            catch (ObjectDisposedException)
+            catch (ObjectDisposedException e)
             {
             }
             finally
@@ -45,14 +60,13 @@ namespace Shuffull.Mobile.Tools
 
             try
             {
-                song = DataManager.GetNextSong(); // TODO: Make this method attempt to fetch from server if failure
+                song = DataManager.GetNextSong(); // TODO: Make this method attempt to fetch from server if failure?
                 songUrl = $"{SiteInfo.Url}music/{song.Directory}";
             }
             catch (InvalidOperationException)
             {
                 return;
             }
-
 
             using (var media = new Media(_libvlc, new Uri(songUrl)))
             {
@@ -64,7 +78,7 @@ namespace Shuffull.Mobile.Tools
                 _mediaPlayer.Play();
                 _mediaPlayer.EndReached += (sender, args) =>
                 {
-                    PlayNewSong();
+                    _playNewSong = true;
                 };
             }
 
