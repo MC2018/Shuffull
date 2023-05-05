@@ -22,23 +22,12 @@ namespace Shuffull.Mobile.Tools
     public class DataManager
     {
         // TODO: Timer to auto-update playlist information as needed
-        private static long _currentPlaylistId;
+        private static long _currentPlaylistId = 0;
 
         public static long CurrentPlaylistId
         {
             get
             {
-                if (_currentPlaylistId == 0)
-                {
-                    var context = DependencyService.Get<ShuffullContext>();
-                    var playlist = context.Playlists.FirstOrDefault();
-
-                    if (playlist != null)
-                    {
-                        _currentPlaylistId = playlist.PlaylistId;
-                    }
-                }
-
                 return _currentPlaylistId;
             }
             set

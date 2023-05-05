@@ -38,7 +38,7 @@ namespace Shuffull.Mobile
 
             MainPage = new AppShell();
             //MainPage = new LoginPage();
-            Shell.Current.GoToAsync("//AboutPage").Wait();
+            Shell.Current.GoToAsync("//PlaylistSelect").Wait();
         }
 
         protected override void OnStart()

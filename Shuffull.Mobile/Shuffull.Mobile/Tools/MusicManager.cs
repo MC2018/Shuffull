@@ -1,5 +1,6 @@
 ﻿using LibVLCSharp.Shared;
 using Shuffull.Mobile.Constants;
+using Shuffull.Mobile.Services;
 using Shuffull.Mobile.Tools;
 using Shuffull.Shared.Networking.Models;
 using Shuffull.Shared.Networking.Models.Requests;
@@ -10,6 +11,7 @@ using System.IO;
 using System.Net.Http;
 using System.Text;
 using System.Threading;
+using Xamarin.CommunityToolkit.UI.Views.Options;
 using Xamarin.Forms;
 using static SQLite.SQLite3;
 
@@ -60,6 +62,12 @@ namespace Shuffull.Mobile.Tools
 
             try
             {
+                if (DataManager.CurrentPlaylistId == 0)
+                {
+                    Shell.Current.DisplayAlert("No Playlist", "No playlist was selected.", "OK");
+                    return;
+                }
+
                 song = DataManager.GetNextSong(); // TODO: Make this method attempt to fetch from server if failure?
                 songUrl = $"{SiteInfo.Url}music/{song.Directory}";
             }
@@ -68,7 +76,11 @@ namespace Shuffull.Mobile.Tools
                 return;
             }
 
-            using (var media = new Media(_libvlc, new Uri(songUrl)))
+            var fileService = DependencyService.Get<IFileService>();
+
+            using (var media = new Media(_libvlc, new Uri(songUrl),
+                $":sout=#file={{dst={Path.Combine(fileService.GetRootPath(), song.Directory)}}}",
+                ":sout-keep"))
             {
                 _mediaPlayer = new MediaPlayer(media)
                 {

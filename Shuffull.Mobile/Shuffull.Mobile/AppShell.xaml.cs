@@ -17,7 +17,14 @@ namespace Shuffull.Mobile
 
         private async void OnMenuItemClicked(object sender, EventArgs e)
         {
-            await Shell.Current.GoToAsync("//AboutPage");
+            if (sender is MenuItem)
+            {
+                var menuItem = sender as MenuItem;
+                var path = menuItem.CommandParameter as string;
+
+                await Shell.Current.GoToAsync($"//{path}");
+                Shell.Current.FlyoutIsPresented = false;
+            }
         }
     }
 }
