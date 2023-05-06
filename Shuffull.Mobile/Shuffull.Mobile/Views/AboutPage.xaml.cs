@@ -45,5 +45,21 @@ namespace Shuffull.Mobile.Views
                 MusicManager.Play();
             }
         }
+
+        private void OnDownloadAllClicked(object sender, EventArgs e)
+        {
+            if (DataManager.CurrentPlaylistId == 0)
+            {
+                Shell.Current.DisplayAlert("No Playlist", "No playlist was selected.", "OK");
+            }
+
+            var playlist = DataManager.GetPlaylistWithSongs(DataManager.CurrentPlaylistId);
+            var songDirectories = playlist.PlaylistSongs.Select(x => x.Song.Directory).ToList();
+
+            foreach (var songDirectory in songDirectories)
+            {
+                DownloadManager.AddToQueue(songDirectory);
+            }
+        }
     }
 }

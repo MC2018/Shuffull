@@ -73,6 +73,17 @@ namespace Shuffull.Mobile.Tools
                 .ToList();
         }
 
+        public static Playlist GetPlaylistWithSongs(long playlistId)
+        {
+            var context = DependencyService.Get<ShuffullContext>();
+            return context.Playlists
+                .Where(x => x.PlaylistId == playlistId)
+                .Include(x => x.PlaylistSongs)
+                .ThenInclude(x => x.Song)
+                .OrderBy(x => x.PlaylistId)
+                .FirstOrDefault();
+        }
+
         public static void RemovePlaylist(long playlistId)
         {
             var context = DependencyService.Get<ShuffullContext>();

@@ -69,7 +69,15 @@ namespace Shuffull.Mobile.Tools
                 }
 
                 song = DataManager.GetNextSong(); // TODO: Make this method attempt to fetch from server if failure?
-                songUrl = $"{SiteInfo.Url}music/{song.Directory}";
+
+                if (LocalFileExists(song.Directory, out string path))
+                {
+                    songUrl = path;
+                }
+                else
+                {
+                    songUrl = $"{SiteInfo.Url}music/{song.Directory}";
+                }
             }
             catch (InvalidOperationException)
             {
@@ -84,6 +92,7 @@ namespace Shuffull.Mobile.Tools
                 };
 
                 _mediaPlayer.Play();
+
                 _mediaPlayer.EndReached += (sender, args) =>
                 {
                     _playNewSong = true;
@@ -98,6 +107,20 @@ namespace Shuffull.Mobile.Tools
                 TimeRequested = DateTime.UtcNow
             };
             DataManager.AddRequest(request);
+        }
+
+        private static bool LocalFileExists(string songFileName, out string path)
+        {
+            var fileService = DependencyService.Get<IFileService>();
+            path = Path.Combine(fileService.GetRootPath(), LocalDirectories.Music, songFileName);
+            
+            if (File.Exists(path))
+            {
+                return true;
+            }
+
+            path = null;
+            return false;
         }
 
         public static void Play()
