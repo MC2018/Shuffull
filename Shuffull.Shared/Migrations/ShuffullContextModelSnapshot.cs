@@ -19,7 +19,6 @@ namespace Shuffull.Shared.Migrations
             modelBuilder.Entity("Shuffull.Shared.Networking.Models.Playlist", b =>
                 {
                     b.Property<long>("PlaylistId")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
                     b.Property<long>("CurrentSongId")
@@ -46,7 +45,6 @@ namespace Shuffull.Shared.Migrations
             modelBuilder.Entity("Shuffull.Shared.Networking.Models.PlaylistSong", b =>
                 {
                     b.Property<long>("PlaylistSongId")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("InQueue")
@@ -71,6 +69,29 @@ namespace Shuffull.Shared.Migrations
                     b.HasIndex("SongId");
 
                     b.ToTable("PlaylistSongs");
+                });
+
+            modelBuilder.Entity("Shuffull.Shared.Networking.Models.RecentlyPlayedSong", b =>
+                {
+                    b.Property<string>("RecentlyPlayedSongGuid")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("LastPlayed")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("SongId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("TimestampSeconds")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("RecentlyPlayedSongGuid");
+
+                    b.HasIndex("SongId");
+
+                    b.HasIndex("TimestampSeconds");
+
+                    b.ToTable("RecentlyPlayedSongs");
                 });
 
             modelBuilder.Entity("Shuffull.Shared.Networking.Models.Requests.Request", b =>
@@ -98,7 +119,6 @@ namespace Shuffull.Shared.Migrations
             modelBuilder.Entity("Shuffull.Shared.Networking.Models.Song", b =>
                 {
                     b.Property<long>("SongId")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Directory")
@@ -144,6 +164,15 @@ namespace Shuffull.Shared.Migrations
 
                     b.HasOne("Shuffull.Shared.Networking.Models.Song", "Song")
                         .WithMany("PlaylistSongs")
+                        .HasForeignKey("SongId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Shuffull.Shared.Networking.Models.RecentlyPlayedSong", b =>
+                {
+                    b.HasOne("Shuffull.Shared.Networking.Models.Song", "Song")
+                        .WithMany()
                         .HasForeignKey("SongId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();

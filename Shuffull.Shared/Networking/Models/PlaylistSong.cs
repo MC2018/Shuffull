@@ -1,12 +1,13 @@
 ﻿using System;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Shuffull.Shared.Networking.Models
 {
     [Serializable]
     public class PlaylistSong
     {
-        [Key]
+        [Key, DatabaseGenerated(DatabaseGeneratedOption.None)]
         public long PlaylistSongId { get; set; }
         [Required]
         public long PlaylistId { get; set; }

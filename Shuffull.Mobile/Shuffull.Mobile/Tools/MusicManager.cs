@@ -23,27 +23,40 @@ namespace Shuffull.Mobile.Tools
         private static MediaPlayer _mediaPlayer = null;
         private static readonly System.Timers.Timer _timer;
         private static bool _playNewSong = false;
+        private static readonly int _timerCycle = 1000;
+        private static int _currentTimerPosition = 0;
 
         public static bool IsPlaying { get { return _mediaPlayer?.IsPlaying ?? false; } }
 
         static MusicManager()
         {
             _libvlc = new LibVLC();
-            _timer = new System.Timers.Timer(50);
+            _timer = new System.Timers.Timer(10);
             _timer.Elapsed += OnTimerElapsed;
             _timer.Start();
         }
 
         private static void OnTimerElapsed(object sender, System.Timers.ElapsedEventArgs e)
         {
-            if (_playNewSong)
+            // Play new song
+            if (_currentTimerPosition % 5 == 0 && _playNewSong)
             {
                 _playNewSong = false;
                 PlayNewSong();
             }
+
+            if (_currentTimerPosition % 500 == 0 && IsPlaying)
+            {
+                DataManager.UpdateCurrentlyPlayingSong((int)(_mediaPlayer.Time / 1000));
+            }
+
+            if (_currentTimerPosition++ >= _timerCycle)
+            {
+                _currentTimerPosition = 0;
+            }
         }
 
-        public static void PlayNewSong()
+        public static void PlayNewSong(RecentlyPlayedSong unfinishedSong = null)
         {
             Song song;
             string songUrl;
@@ -60,29 +73,37 @@ namespace Shuffull.Mobile.Tools
                 _mediaPlayer = null;
             }
 
-            try
+            if (unfinishedSong != null)
             {
-                if (DataManager.CurrentPlaylistId == 0)
+                song = unfinishedSong.Song;
+            }
+            else
+            {
+                try
                 {
-                    Shell.Current.DisplayAlert("No Playlist", "No playlist was selected.", "OK");
+                    if (DataManager.CurrentPlaylistId == 0)
+                    {
+                        Shell.Current.DisplayAlert("No Playlist", "No playlist was selected.", "OK");
+                        return;
+                    }
+
+                    song = DataManager.GetNextSong(); // TODO: Make this method attempt to fetch from server if failure?
+                }
+                catch (InvalidOperationException)
+                {
                     return;
                 }
-
-                song = DataManager.GetNextSong(); // TODO: Make this method attempt to fetch from server if failure?
-
-                if (LocalFileExists(song.Directory, out string path))
-                {
-                    songUrl = path;
-                }
-                else
-                {
-                    songUrl = $"{SiteInfo.Url}music/{song.Directory}";
-                }
             }
-            catch (InvalidOperationException)
+
+            if (LocalFileExists(song.Directory, out string path))
             {
-                return;
+                songUrl = path;
             }
+            else
+            {
+                songUrl = $"{SiteInfo.Url}music/{song.Directory}";
+            }
+
 
             using (var media = new Media(_libvlc, new Uri(songUrl)))
             {
@@ -92,6 +113,11 @@ namespace Shuffull.Mobile.Tools
                 };
 
                 _mediaPlayer.Play();
+
+                if (unfinishedSong != null)
+                {
+                    _mediaPlayer.Time = unfinishedSong.TimestampSeconds.Value * 1000;
+                }
 
                 _mediaPlayer.EndReached += (sender, args) =>
                 {
@@ -107,6 +133,11 @@ namespace Shuffull.Mobile.Tools
                 TimeRequested = DateTime.UtcNow
             };
             DataManager.AddRequest(request);
+
+            if (unfinishedSong == null)
+            {
+                DataManager.SetCurrentlyPlayingSong(song.SongId);
+            }
         }
 
         private static bool LocalFileExists(string songFileName, out string path)
@@ -127,7 +158,9 @@ namespace Shuffull.Mobile.Tools
         {
             if (_mediaPlayer == null)
             {
-                PlayNewSong();
+                var unfinishedSong = DataManager.GetCurrentlyPlayingSong();
+
+                PlayNewSong(unfinishedSong);
             }
             else
             {

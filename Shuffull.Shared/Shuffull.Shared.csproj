@@ -6,14 +6,14 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-	  <Compile Remove="Migrations\20230504050234_Requests.cs" />
-	  <Compile Remove="Migrations\20230504050234_Requests.Designer.cs" />
-	  <Compile Remove="Migrations\20230504051603_Test.cs" />
-	  <Compile Remove="Migrations\20230504051603_Test.Designer.cs" />
-	  <Compile Remove="Migrations\20230504051657_Requests.cs" />
-	  <Compile Remove="Migrations\20230504051657_Requests.Designer.cs" />
-	  <Compile Remove="Migrations\20230504051845_Requests.cs" />
-	  <Compile Remove="Migrations\20230504051845_Requests.Designer.cs" />
+	  <Compile Remove="Migrations\20230506030716_Init-RecentlyPlayedSong.cs" />
+	  <Compile Remove="Migrations\20230506030716_Init-RecentlyPlayedSong.Designer.cs" />
+	  <Compile Remove="Migrations\20230506041607_Init-RecentlyPlayedSong.cs" />
+	  <Compile Remove="Migrations\20230506041607_Init-RecentlyPlayedSong.Designer.cs" />
+	  <Compile Remove="Migrations\20230507002229_Init-RecentlyPlayedSong.cs" />
+	  <Compile Remove="Migrations\20230507002229_Init-RecentlyPlayedSong.Designer.cs" />
+	  <Compile Remove="Migrations\20230507002624_Init-RecentlyPlayedSong.cs" />
+	  <Compile Remove="Migrations\20230507002624_Init-RecentlyPlayedSong.Designer.cs" />
 	</ItemGroup>
 
 	<ItemGroup>

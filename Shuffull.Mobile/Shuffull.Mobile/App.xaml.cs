@@ -5,6 +5,7 @@ using Shuffull.Mobile.Services;
 using Shuffull.Mobile.Tools;
 using Shuffull.Mobile.Views;
 using Shuffull.Shared;
+using Shuffull.Shared.Networking.Models;
 using System;
 using System.Configuration;
 using System.IO;
@@ -25,12 +26,21 @@ namespace Shuffull.Mobile
             DependencyService.RegisterSingleton(client);
             Core.Initialize();
 
-            var dbPath = Path.Combine(DependencyService.Get<IFileService>().GetRootPath(), LocalDirectories.Database);
+            var fileService = DependencyService.Get<IFileService>();
+            var dbPath = Path.Combine(fileService.GetRootPath(), LocalDirectories.Database);
             var context = new ShuffullContext(dbPath);
 
             if (context.Database.GetPendingMigrations().Any())
             {
-                context.Database.Migrate();
+                try
+                {
+                    context.Database.Migrate();
+                }
+                catch (Exception) // when the database changes too much, the schema needs to be rebuilt
+                {
+                    fileService.DeleteFile(dbPath);
+                    context.Database.Migrate();
+                }
             }
 
             DependencyService.RegisterSingleton(context);

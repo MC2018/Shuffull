@@ -24,6 +24,7 @@ namespace Shuffull.Mobile.Tools
         // TODO: Timer to auto-update playlist information as needed
         private static long _currentPlaylistId = 0;
 
+        public static long RecentlyPlayedMaxCount = 25;
         public static long CurrentPlaylistId
         {
             get
@@ -39,6 +40,75 @@ namespace Shuffull.Mobile.Tools
                     _currentPlaylistId = value;
                 }
             }
+        }
+
+        public static RecentlyPlayedSong GetCurrentlyPlayingSong()
+        {
+            var context = DependencyService.Get<ShuffullContext>();
+            return context.RecentlyPlayedSongs
+                .Where(x => x.TimestampSeconds != null)
+                .Include(x => x.Song)
+                .FirstOrDefault();
+        }
+
+        public static void ClearCurrentlyPlayingSong()
+        {
+            var context = DependencyService.Get<ShuffullContext>();
+            var lastPlayedSong = context.RecentlyPlayedSongs.Where(x => x.TimestampSeconds != null).FirstOrDefault();
+
+            if (lastPlayedSong != null)
+            {
+                lastPlayedSong.TimestampSeconds = null;
+            }
+
+            if (context.RecentlyPlayedSongs.Count() > RecentlyPlayedMaxCount)
+            {
+                var songToRemove = context.RecentlyPlayedSongs.OrderBy(x => x.LastPlayed).First();
+                context.RecentlyPlayedSongs.Remove(songToRemove);
+            }
+        }
+
+        public static void SetCurrentlyPlayingSong(long songId)
+        {
+            var context = DependencyService.Get<ShuffullContext>();
+
+            ClearCurrentlyPlayingSong();
+
+            var song = context.Songs.Where(x => x.SongId == songId).FirstOrDefault();
+
+            if (song == null)
+            {
+                throw new Exception("No song available");
+            }
+
+            if (songId != -1)
+            {
+                var recentlyPlayedSong = new RecentlyPlayedSong()
+                {
+                    RecentlyPlayedSongGuid = Guid.NewGuid().ToString(),
+                    SongId = songId,
+                    TimestampSeconds = 0,
+                    LastPlayed = DateTime.UtcNow
+                };
+
+                context.RecentlyPlayedSongs.Add(recentlyPlayedSong);
+            }
+
+            context.SaveChanges();
+        }
+
+        public static void UpdateCurrentlyPlayingSong(int timestampSeconds)
+        {
+            var context = DependencyService.Get<ShuffullContext>();
+            var recentlyPlayedSong = context.RecentlyPlayedSongs.Where(x => x.TimestampSeconds != null).FirstOrDefault();
+
+            if (recentlyPlayedSong == null)
+            {
+                throw new Exception("No song available");
+            }
+
+            recentlyPlayedSong.TimestampSeconds = timestampSeconds;
+            context.SaveChanges();
         }
 
         // Playlists

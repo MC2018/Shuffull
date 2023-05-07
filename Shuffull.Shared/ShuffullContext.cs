@@ -15,6 +15,7 @@ namespace Shuffull.Shared
         public DbSet<Playlist> Playlists { get; set; }
         public DbSet<PlaylistSong> PlaylistSongs { get; set; }
         public DbSet<Request> Requests { get; set; }
+        public DbSet<RecentlyPlayedSong> RecentlyPlayedSongs { get; set; }
 
         private readonly string _path = "temp.db3";
 
@@ -42,6 +43,9 @@ namespace Shuffull.Shared
                 .HasDiscriminator<string>("RequestName")
                 .HasValue<UpdatePlaylistsRequest>(Enums.RequestType.UpdatePlaylists.ToString())
                 .HasValue<UpdateSongLastPlayedRequest>(Enums.RequestType.UpdateSongLastPlayed.ToString());
+
+            modelBuilder.Entity<RecentlyPlayedSong>()
+                .HasIndex(x => x.TimestampSeconds);
         }
     }
 }
