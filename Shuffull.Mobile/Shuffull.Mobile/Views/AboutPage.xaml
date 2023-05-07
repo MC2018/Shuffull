@@ -30,7 +30,8 @@
         </StackLayout>
         <ScrollView Grid.Row="1">
             <StackLayout Orientation="Vertical" Padding="30,24,30,24" Spacing="10">
-                <Button Margin="0,10,0,0" Text="Skip" x:Name="btnSkip" Clicked="OnSkipClicked" />
+                <Button Margin="0,10,0,0" Text="Last" x:Name="btnLast" Clicked="OnLastClicked" />
+                <Button Text="Next" x:Name="btnNext" Clicked="OnNextClicked" />
                 <Button Text="Play/Pause" x:Name="btnPlayPause" Clicked="OnPlayPauseClicked" />
                 <Button Text="Download All" x:Name="btnDownloadAll" Clicked="OnDownloadAllClicked" />
             </StackLayout>

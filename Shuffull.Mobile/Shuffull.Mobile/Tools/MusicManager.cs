@@ -42,7 +42,7 @@ namespace Shuffull.Mobile.Tools
             if (_currentTimerPosition % 5 == 0 && _playNewSong)
             {
                 _playNewSong = false;
-                PlayNewSong();
+                PlayNextSong();
             }
 
             if (_currentTimerPosition % 500 == 0 && IsPlaying)
@@ -56,16 +56,27 @@ namespace Shuffull.Mobile.Tools
             }
         }
 
-        public static void PlayNewSong(RecentlyPlayedSong unfinishedSong = null)
+        public static void PlayLastSong()
+        {
+            var recentlyPlayedSong = DataManager.CheckForLastRecentlyPlayedSong();
+
+            if (recentlyPlayedSong != null)
+            {
+                PlayNextSong(recentlyPlayedSong);
+            }
+        }
+
+        public static void PlayNextSong(RecentlyPlayedSong recentlyPlayedSong = null)
         {
             Song song;
             string songUrl;
+            bool isPartiallyPlayed = recentlyPlayedSong?.TimestampSeconds != null;
 
             try
             {
                 _mediaPlayer?.Dispose();
             }
-            catch (ObjectDisposedException e)
+            catch (ObjectDisposedException)
             {
             }
             finally
@@ -73,9 +84,14 @@ namespace Shuffull.Mobile.Tools
                 _mediaPlayer = null;
             }
 
-            if (unfinishedSong != null)
+            if (recentlyPlayedSong == null)
             {
-                song = unfinishedSong.Song;
+                recentlyPlayedSong = DataManager.CheckForNextRecentlyPlayedSong();
+            }
+
+            if (recentlyPlayedSong != null)
+            {
+                song = recentlyPlayedSong.Song;
             }
             else
             {
@@ -114,9 +130,9 @@ namespace Shuffull.Mobile.Tools
 
                 _mediaPlayer.Play();
 
-                if (unfinishedSong != null)
+                if (isPartiallyPlayed)
                 {
-                    _mediaPlayer.Time = unfinishedSong.TimestampSeconds.Value * 1000;
+                    _mediaPlayer.Time = recentlyPlayedSong.TimestampSeconds.Value * 1000;
                 }
 
                 _mediaPlayer.EndReached += (sender, args) =>
@@ -134,9 +150,9 @@ namespace Shuffull.Mobile.Tools
             };
             DataManager.AddRequest(request);
 
-            if (unfinishedSong == null)
+            if (!isPartiallyPlayed)
             {
-                DataManager.SetCurrentlyPlayingSong(song.SongId);
+                DataManager.SetCurrentlyPlayingSong(song.SongId, recentlyPlayedSong?.RecentlyPlayedSongGuid);
             }
         }
 
@@ -160,7 +176,7 @@ namespace Shuffull.Mobile.Tools
             {
                 var unfinishedSong = DataManager.GetCurrentlyPlayingSong();
 
-                PlayNewSong(unfinishedSong);
+                PlayNextSong(unfinishedSong);
             }
             else
             {

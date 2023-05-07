@@ -29,9 +29,14 @@ namespace Shuffull.Mobile.Views
             base.OnAppearing();
         }
 
-        private void OnSkipClicked(object sender, EventArgs e)
+        private void OnLastClicked(object sender, EventArgs e)
         {
-            MusicManager.PlayNewSong();
+            MusicManager.PlayLastSong();
+        }
+
+        private void OnNextClicked(object sender, EventArgs e)
+        {
+            MusicManager.PlayNextSong();
         }
 
         private void OnPlayPauseClicked(object sender, EventArgs e)

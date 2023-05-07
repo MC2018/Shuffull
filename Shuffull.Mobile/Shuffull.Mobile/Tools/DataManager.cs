@@ -68,7 +68,7 @@ namespace Shuffull.Mobile.Tools
             }
         }
 
-        public static void SetCurrentlyPlayingSong(long songId)
+        public static void SetCurrentlyPlayingSong(long songId, string recentlyPlayedSongGuid = null)
         {
             var context = DependencyService.Get<ShuffullContext>();
 
@@ -83,15 +83,33 @@ namespace Shuffull.Mobile.Tools
 
             if (songId != -1)
             {
-                var recentlyPlayedSong = new RecentlyPlayedSong()
-                {
-                    RecentlyPlayedSongGuid = Guid.NewGuid().ToString(),
-                    SongId = songId,
-                    TimestampSeconds = 0,
-                    LastPlayed = DateTime.UtcNow
-                };
+                RecentlyPlayedSong recentlyPlayedSong;
+                var existingRecordFound = false;
 
-                context.RecentlyPlayedSongs.Add(recentlyPlayedSong);
+                if (recentlyPlayedSongGuid != null)
+                {
+                    recentlyPlayedSong = context.RecentlyPlayedSongs
+                        .Where(x => x.RecentlyPlayedSongGuid == recentlyPlayedSongGuid)
+                        .FirstOrDefault();
+
+                    if (recentlyPlayedSong != null)
+                    {
+                        recentlyPlayedSong.TimestampSeconds = 0;
+                        existingRecordFound = true;
+                    }
+                }
+
+                if (!existingRecordFound)
+                {
+                    recentlyPlayedSong = new RecentlyPlayedSong()
+                    {
+                        RecentlyPlayedSongGuid = Guid.NewGuid().ToString(),
+                        SongId = songId,
+                        TimestampSeconds = 0,
+                        LastPlayed = DateTime.UtcNow
+                    };
+                    context.RecentlyPlayedSongs.Add(recentlyPlayedSong);
+                }
             }
 
             context.SaveChanges();
@@ -109,6 +127,45 @@ namespace Shuffull.Mobile.Tools
 
             recentlyPlayedSong.TimestampSeconds = timestampSeconds;
             context.SaveChanges();
+        }
+
+        public static RecentlyPlayedSong CheckForLastRecentlyPlayedSong()
+        {
+            return CheckForRecentlyPlayedSong(false);
+        }
+
+        public static RecentlyPlayedSong CheckForNextRecentlyPlayedSong()
+        {
+            return CheckForRecentlyPlayedSong(true);
+        }
+
+        private static RecentlyPlayedSong CheckForRecentlyPlayedSong(bool next)
+        {
+            var context = DependencyService.Get<ShuffullContext>();
+            var lastPlayed = context.RecentlyPlayedSongs
+                .Where(x => x.TimestampSeconds != null)
+                .Select(x => x.LastPlayed)
+                .FirstOrDefault();
+
+            if (lastPlayed == null)
+            {
+                return null;
+            }
+
+            var query = context.RecentlyPlayedSongs
+                .Include(x => x.Song)
+                .Where(x => next ? (x.LastPlayed > lastPlayed) : (x.LastPlayed < lastPlayed));
+
+            if (next)
+            {
+                query = query.OrderBy(x => x.LastPlayed);
+            }
+            else
+            {
+                query = query.OrderByDescending(x => x.LastPlayed);
+            }
+
+            return query.FirstOrDefault();
         }
 
         // Playlists
