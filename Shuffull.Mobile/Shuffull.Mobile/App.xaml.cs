@@ -1,5 +1,6 @@
 ﻿using LibVLCSharp.Shared;
 using Microsoft.EntityFrameworkCore;
+using MoreLinq.Extensions;
 using Shuffull.Mobile.Constants;
 using Shuffull.Mobile.Services;
 using Shuffull.Mobile.Tools;
@@ -11,6 +12,7 @@ using System.Configuration;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Threading;
 using Xamarin.Forms;
 using Xamarin.Forms.Xaml;
 
@@ -28,22 +30,7 @@ namespace Shuffull.Mobile
 
             var fileService = DependencyService.Get<IFileService>();
             var dbPath = Path.Combine(fileService.GetRootPath(), LocalDirectories.Database);
-            var context = new ShuffullContext(dbPath);
-
-            if (context.Database.GetPendingMigrations().Any())
-            {
-                try
-                {
-                    context.Database.Migrate();
-                }
-                catch (Exception) // when the database changes too much, the schema needs to be rebuilt
-                {
-                    fileService.DeleteFile(dbPath);
-                    context.Database.Migrate();
-                }
-            }
-
-            DependencyService.RegisterSingleton(context);
+            DataManager.Initialize(dbPath);
             SyncManager.Initialize();
 
             MainPage = new AppShell();

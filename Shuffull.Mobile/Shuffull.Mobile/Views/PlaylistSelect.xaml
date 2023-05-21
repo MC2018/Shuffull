@@ -2,9 +2,9 @@
 <ContentPage xmlns="http://xamarin.com/schemas/2014/forms"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="Shuffull.Mobile.Views.PlaylistSelect">
-  <ListView x:Name="MyListView"
+  <ListView x:Name="Playlists"
             ItemsSource="{Binding Items}"
-            ItemTapped="Handle_ItemTapped"
+            ItemTapped="PlaylistTapped"
             CachingStrategy="RecycleElement">
     <!--Built in Cells-->
     <ListView.ItemTemplate>

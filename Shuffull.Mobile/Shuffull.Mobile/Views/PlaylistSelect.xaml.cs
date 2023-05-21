@@ -25,10 +25,10 @@ namespace Shuffull.Mobile.Views
             PlaylistNames = new ObservableCollection<string>(playlists.Select(x => x.Name).ToList());
             _playlistIds = playlists.Select(x => x.PlaylistId).ToList();
 
-            MyListView.ItemsSource = PlaylistNames;
+            Playlists.ItemsSource = PlaylistNames;
         }
 
-        async void Handle_ItemTapped(object sender, ItemTappedEventArgs e)
+        async void PlaylistTapped(object sender, ItemTappedEventArgs e)
         {
             if (e.Item == null)
             {
@@ -37,7 +37,7 @@ namespace Shuffull.Mobile.Views
 
             DataManager.CurrentPlaylistId = _playlistIds[e.ItemIndex];
 
-            //Deselect Item
+            // Deselect Item
             ((ListView)sender).SelectedItem = null;
             await Shell.Current.GoToAsync($"//AboutPage");
         }
