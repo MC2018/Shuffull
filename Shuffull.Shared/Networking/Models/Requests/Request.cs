@@ -6,7 +6,7 @@ using System.Text;
 
 namespace Shuffull.Shared.Networking.Models.Requests
 {
-    public class Request
+    public abstract class Request
     {
         [Required]
         [Key]
@@ -17,5 +17,7 @@ namespace Shuffull.Shared.Networking.Models.Requests
         public RequestType RequestType { get; protected set; }
         [Required]
         public string RequestName { get; protected set; }
+
+        public abstract void UpdateLocalDb(ShuffullContext context);
     }
 }

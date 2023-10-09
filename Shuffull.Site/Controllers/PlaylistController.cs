@@ -51,7 +51,7 @@ namespace Shuffull.Tools.Controllers
                 ReferenceHandler = ReferenceHandler.Preserve
             };
             var resultStr = JsonSerializer.Serialize(result, options);
-
+            
             return resultStr;
         }
 

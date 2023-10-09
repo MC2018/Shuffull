@@ -1,7 +1,9 @@
-﻿using Shuffull.Shared.Enums;
+﻿using Microsoft.EntityFrameworkCore;
+using Shuffull.Shared.Enums;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Linq;
 using System.Text;
 
 namespace Shuffull.Shared.Networking.Models.Requests
@@ -16,6 +18,23 @@ namespace Shuffull.Shared.Networking.Models.Requests
         { 
             RequestType = RequestType.UpdateSongLastPlayed;
             RequestName = RequestType.UpdateSongLastPlayed.ToString();
+        }
+
+        public override void UpdateLocalDb(ShuffullContext context)
+        {
+            var song = context.Songs
+                .Where(x => x.SongId == SongId)
+                .Include(x => x.PlaylistSongs)
+                .ThenInclude(x => x.Playlist)
+                .First();
+
+            foreach (var playlistSong in song.PlaylistSongs)
+            {
+                playlistSong.LastPlayed = LastPlayed;
+                playlistSong.InQueue = false;
+            }
+
+            context.UpdateQueue(SongId);
         }
     }
 }

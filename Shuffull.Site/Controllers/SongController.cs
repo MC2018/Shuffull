@@ -9,6 +9,8 @@ using Shuffull.Site;
 using Results = Shuffull.Shared.Networking.Models;
 using Shuffull.Shared.Networking.Models.Requests;
 using Shuffull.Site.Database.Models;
+using System.Collections.Generic;
+using Newtonsoft.Json;
 
 namespace Shuffull.Tools.Controllers
 {
@@ -31,10 +33,18 @@ namespace Shuffull.Tools.Controllers
             foreach ()
         }*/
 
-        public async Task UpdateLastPlayed(List<UpdateSongLastPlayedRequest> requests)
+        [HttpPost]
+        public async Task UpdateLastPlayed(string requestsJson)
         {
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
+            var requests = JsonConvert.DeserializeObject<List<UpdateSongLastPlayedRequest>>(requestsJson);
+
+            if (requests == null)
+            {
+                return;
+            }
+
             var songIds = requests.Select(x => x.SongId).ToList();
             var songs = context.Songs
                 .Where(x => songIds.Contains(x.SongId))
@@ -54,11 +64,12 @@ namespace Shuffull.Tools.Controllers
                     if (playlistSong.LastPlayed < updatedTime)
                     {
                         playlistSong.LastPlayed = updatedTime;
+                        playlistSong.InQueue = false;
                         // TODO: device ID playlistSong.Playlist.LastUpdatedDevice = ...
                     }
                 }
             }
-
+            // TODO: do these playlists actually update?
             updatedPlaylists = updatedPlaylists.DistinctBy(x => x.PlaylistId).ToList();
 
             foreach (var updatedPlaylist in updatedPlaylists)

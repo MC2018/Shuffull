@@ -111,7 +111,8 @@ namespace Shuffull.Site.Services
                 var playlistSong = new PlaylistSong()
                 {
                     PlaylistId = playlistId,
-                    SongId = song.SongId
+                    SongId = song.SongId,
+                    InQueue = true
                 };
                 context.PlaylistSongs.Add(playlistSong);
             }
