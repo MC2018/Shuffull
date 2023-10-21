@@ -20,6 +20,7 @@ namespace Shuffull.Windows
             // To customize application configuration such as set high DPI settings or default font,
             // see https://aka.ms/applicationconfiguration.
             ApplicationConfiguration.Initialize();
+            Core.Initialize();
             ConfigureServices();
             Directory.CreateDirectory(Directories.LocalDataAbsolutePath);
             Directory.CreateDirectory(Directories.MusicFolderAbsolutePath);

@@ -19,6 +19,7 @@ namespace Shuffull.Shared
         public DbSet<PlaylistSong> PlaylistSongs { get; set; }
         public DbSet<Request> Requests { get; set; }
         public DbSet<RecentlyPlayedSong> RecentlyPlayedSongs { get; set; }
+        public DbSet<LocalSessionData> LocalSessionData { get; set; }
 
         private readonly string _path = "temp.db3";
 
@@ -275,13 +276,13 @@ namespace Shuffull.Shared
 
         public void UpdateQueue(long songId)
         {
-            var playlistsIdsToUpdate = Songs
+            var playlistIdsToUpdate = Songs
                 .Where(x => x.SongId == songId)
                 .SelectMany(x => x.PlaylistSongs)
-                .Select(x => x.Playlist.PlaylistId)
+                .Select(x => x.PlaylistId)
                 .ToList();
             var playlistsToUpdate = Playlists
-                .Where(x => playlistsIdsToUpdate.Contains(x.PlaylistId))
+                .Where(x => playlistIdsToUpdate.Contains(x.PlaylistId))
                 .Include(x => x.PlaylistSongs)
                 .ToList();
 
@@ -294,9 +295,9 @@ namespace Shuffull.Shared
                     .Count();
                 var inQueuePercentage = (decimal)inQueueCount / playlistSongCount;
 
-                if (inQueuePercentage < playlist.PercentUntilReplayable)
+                if ((1 - inQueuePercentage) > playlist.PercentUntilReplayable)
                 {
-                    var addToQueueCount = (int)Math.Ceiling(inQueuePercentage * playlistSongCount);
+                    var addToQueueCount = (int)Math.Ceiling(((1 - inQueuePercentage) - playlist.PercentUntilReplayable) * playlistSongCount);
                     var playlistSongsToAdd = playlistSongs
                         .Where(x => !x.InQueue)
                         .OrderBy(x => x.LastPlayed)

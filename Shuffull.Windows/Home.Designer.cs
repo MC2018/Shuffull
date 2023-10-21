@@ -31,9 +31,11 @@
             label1 = new Label();
             playlistSelectorBox = new ComboBox();
             musicControllerPanel = new Panel();
+            playPlaylistButton = new Button();
             previousButton = new Button();
             skipButton = new Button();
             playButton = new Button();
+            activelyDownloadCheckBox = new CheckBox();
             musicControllerPanel.SuspendLayout();
             SuspendLayout();
             // 
@@ -50,7 +52,7 @@
             // 
             playlistSelectorBox.DropDownStyle = ComboBoxStyle.DropDownList;
             playlistSelectorBox.FormattingEnabled = true;
-            playlistSelectorBox.Location = new Point(337, 60);
+            playlistSelectorBox.Location = new Point(105, 290);
             playlistSelectorBox.Name = "playlistSelectorBox";
             playlistSelectorBox.Size = new Size(168, 23);
             playlistSelectorBox.TabIndex = 1;
@@ -58,13 +60,24 @@
             // 
             // musicControllerPanel
             // 
+            musicControllerPanel.Controls.Add(playPlaylistButton);
             musicControllerPanel.Controls.Add(previousButton);
             musicControllerPanel.Controls.Add(skipButton);
             musicControllerPanel.Controls.Add(playButton);
-            musicControllerPanel.Location = new Point(12, 360);
+            musicControllerPanel.Location = new Point(12, 319);
             musicControllerPanel.Name = "musicControllerPanel";
-            musicControllerPanel.Size = new Size(776, 78);
+            musicControllerPanel.Size = new Size(776, 119);
             musicControllerPanel.TabIndex = 2;
+            // 
+            // playPlaylistButton
+            // 
+            playPlaylistButton.Location = new Point(122, 3);
+            playPlaylistButton.Name = "playPlaylistButton";
+            playPlaylistButton.Size = new Size(99, 23);
+            playPlaylistButton.TabIndex = 4;
+            playPlaylistButton.Text = "Play Playlist";
+            playPlaylistButton.UseVisualStyleBackColor = true;
+            playPlaylistButton.Click += playPlaylistButton_Click;
             // 
             // previousButton
             // 
@@ -96,11 +109,23 @@
             playButton.UseVisualStyleBackColor = true;
             playButton.Click += playButton_Click;
             // 
+            // activelyDownloadCheckBox
+            // 
+            activelyDownloadCheckBox.AutoSize = true;
+            activelyDownloadCheckBox.Location = new Point(232, 151);
+            activelyDownloadCheckBox.Name = "activelyDownloadCheckBox";
+            activelyDownloadCheckBox.Size = new Size(125, 19);
+            activelyDownloadCheckBox.TabIndex = 3;
+            activelyDownloadCheckBox.Text = "Actively Download";
+            activelyDownloadCheckBox.UseVisualStyleBackColor = true;
+            activelyDownloadCheckBox.CheckedChanged += activelyDownloadCheckBox_CheckedChanged;
+            // 
             // Home
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(800, 450);
+            Controls.Add(activelyDownloadCheckBox);
             Controls.Add(musicControllerPanel);
             Controls.Add(playlistSelectorBox);
             Controls.Add(label1);
@@ -119,5 +144,7 @@
         private Button previousButton;
         private Button skipButton;
         private Button playButton;
+        private CheckBox activelyDownloadCheckBox;
+        private Button playPlaylistButton;
     }
 }

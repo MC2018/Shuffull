@@ -51,7 +51,14 @@ namespace Shuffull.Tools.Controllers
                 .Include(x => x.PlaylistSongs)
                 .ThenInclude(x => x.Playlist)
                 .ToList();
-            var updatedPlaylists = new List<Database.Models.Playlist>();
+            var playlistIds = songs
+                .SelectMany(x => x.PlaylistSongs)
+                .Select(x => x.PlaylistId)
+                .Distinct()
+                .ToList();
+            var playlists = context.Playlists
+                .Where(x => playlistIds.Contains(x.PlaylistId))
+                .ToList();
 
             foreach (var song in songs)
             {
@@ -59,8 +66,6 @@ namespace Shuffull.Tools.Controllers
 
                 foreach (var playlistSong in song.PlaylistSongs)
                 {
-                    updatedPlaylists.Add(playlistSong.Playlist);
-
                     if (playlistSong.LastPlayed < updatedTime)
                     {
                         playlistSong.LastPlayed = updatedTime;
@@ -69,20 +74,20 @@ namespace Shuffull.Tools.Controllers
                     }
                 }
             }
-            // TODO: do these playlists actually update?
-            updatedPlaylists = updatedPlaylists.DistinctBy(x => x.PlaylistId).ToList();
 
-            foreach (var updatedPlaylist in updatedPlaylists)
+            // Updating of the queues
+            foreach (var song in songs)
             {
-                updatedPlaylist.VersionCounter++;
+                context.UpdateQueue(song.SongId);
+            }
+
+
+            foreach (var playlist in playlists)
+            {
+                playlist.VersionCounter++;
             }
 
             await context.SaveChangesAsync();
-
-            //var result = ClassMapper.Mapper.Map<List<Results.Song>>(songs);
-
-            //return result;
-            //return null;
         }
     }
 }

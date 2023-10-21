@@ -22,18 +22,33 @@ namespace Shuffull.Windows.Tools
         {
             get
             {
+                if (_currentPlaylistId == -1)
+                {
+                    var context = Program.ServiceProvider.GetRequiredService<ShuffullContext>();
+                    var localSessionData = context.LocalSessionData.First();
+                    _currentPlaylistId = localSessionData.CurrentPlaylistId > 0 ? localSessionData.CurrentPlaylistId : -1;
+                }
+
                 return _currentPlaylistId;
             }
             set
             {
-                if (_currentPlaylistId != -1)
+                var context = Program.ServiceProvider.GetRequiredService<ShuffullContext>();
+                var localSessionData = context.LocalSessionData.First();
+
+                if (localSessionData.CurrentPlaylistId == value)
                 {
-                    var context = Program.ServiceProvider.GetRequiredService<ShuffullContext>();
+                    return;
+                }
+
+                if (_currentPlaylistId != -1 && _currentPlaylistId != value)
+                {
                     context.ClearRecentlyPlayedSongs();
-                    context.SaveChangesAsync();
                 }
 
                 _currentPlaylistId = value;
+                localSessionData.CurrentPlaylistId = value;
+                context.SaveChangesAsync();
             }
         }
         public static long RecentlyPlayedMaxCount = 25;
@@ -115,12 +130,17 @@ namespace Shuffull.Windows.Tools
             _queue.Enqueue(song);
         }
 
+        public static void ClearQueue()
+        {
+            _queue.Clear();
+        }
+
         async private static Task Play(Song song, RecentlyPlayedSong? recentlyPlayedSong = null)
         {
             var context = Program.ServiceProvider.GetRequiredService<ShuffullContext>();
             var url = $"{SiteInfo.Url}music/{song.Directory}";
             var uri = new Uri(url);
-            var media = new Media(_libvlc, uri);
+            using var media = new Media(_libvlc, uri);
 
             if (recentlyPlayedSong == null)
             {

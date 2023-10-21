@@ -18,7 +18,7 @@ namespace Shuffull.Windows.Tools
 {
     public static class DownloadManager
     {
-        private static readonly List<string> _songFileNames = new List<string>();
+        private static readonly List<string> _songFileNames = new();
         private static readonly System.Timers.Timer _timer;
         private static bool _currentlyDownloading = false;
 

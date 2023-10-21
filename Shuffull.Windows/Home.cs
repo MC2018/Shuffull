@@ -19,7 +19,7 @@ namespace Shuffull.Windows
 {
     public partial class Home : Form
     {
-        public long _playlistId;
+        private bool _constructorLoading = true;
 
         public Home()
         {
@@ -33,10 +33,34 @@ namespace Shuffull.Windows
             label1.Text = Directories.MusicFolderAbsolutePath;
             var context = Program.ServiceProvider.GetRequiredService<ShuffullContext>();
             var playlists = context.Playlists.ToList();
+            var localSessionData = context.LocalSessionData.FirstOrDefault();
+
+            if (localSessionData == null)
+            {
+                localSessionData = new LocalSessionData()
+                {
+                    UserId = 1,
+                    ActivelyDownload = false,
+                    CurrentPlaylistId = -1
+                };
+
+                context.LocalSessionData.Add(localSessionData);
+                context.SaveChanges();
+            }
+
+            // Data loading
+            var playlistIndex = playlists.FindIndex(x => x.PlaylistId == localSessionData.CurrentPlaylistId);
             playlistSelectorBox.DataSource = playlists;
             playlistSelectorBox.DisplayMember = "Name";
-            playlistSelectorBox.SelectedIndex = -1;
-            UpdateMusicControllerPanelAccess(false);
+            UpdateMusicControllerPanelAccess(playlistIndex != -1);
+
+            activelyDownloadCheckBox.Checked = localSessionData.ActivelyDownload;
+
+            _constructorLoading = false;
+
+            // Data setting
+            Thread.Sleep(10);
+            playlistSelectorBox.SelectedIndex = playlistIndex;
         }
 
         private void UpdateMusicControllerPanelAccess(bool enabled)
@@ -51,13 +75,11 @@ namespace Shuffull.Windows
         {
             var comboBox = (ComboBox)sender;
 
-            if (comboBox.SelectedIndex == -1 || comboBox.SelectedItem is not Playlist playlist)
+            if (_constructorLoading || comboBox.SelectedIndex == -1 || comboBox.SelectedItem is not Playlist playlist)
             {
                 return;
             }
 
-            MediaManager.CurrentPlaylistId = playlist.PlaylistId;
-            Console.WriteLine(playlist.PlaylistId);
             UpdateMusicControllerPanelAccess(true);
         }
 
@@ -81,6 +103,30 @@ namespace Shuffull.Windows
         async private void previousButton_Click(object sender, EventArgs e)
         {
             await MediaManager.Previous();
+        }
+
+        async private void playPlaylistButton_Click(object sender, EventArgs e)
+        {
+            MediaManager.CurrentPlaylistId = ((Playlist)playlistSelectorBox.SelectedItem).PlaylistId;
+            MediaManager.ClearQueue();
+            await MediaManager.Skip();
+        }
+
+        async private void activelyDownloadCheckBox_CheckedChanged(object sender, EventArgs e)
+        {
+            if (_constructorLoading)
+            {
+                return;
+            }
+
+            var context = Program.ServiceProvider.GetRequiredService<ShuffullContext>();
+            var localSessionData = context.LocalSessionData.FirstOrDefault();
+
+            if (localSessionData != null)
+            {
+                localSessionData.ActivelyDownload = activelyDownloadCheckBox.Checked;
+                await context.SaveChangesAsync();
+            }
         }
     }
 }
