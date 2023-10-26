@@ -30,6 +30,10 @@ if (!app.Environment.IsDevelopment())
 }
 
 var filesConfig = builder.Configuration.GetSection(ShuffullFilesConfiguration.FilesConfigurationSection).Get<ShuffullFilesConfiguration>();
+
+Directory.CreateDirectory(filesConfig.FailedImportDirectory);
+Directory.CreateDirectory(filesConfig.MusicRootDirectory);
+Directory.CreateDirectory(filesConfig.SongImportDirectory);
 FileRetrieval.RootDirectory = filesConfig.MusicRootDirectory;
 
 app.UseHttpsRedirection();
@@ -37,7 +41,7 @@ app.UseStaticFiles();
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(
-        filesConfig.MusicRootDirectory
+        FileRetrieval.RootDirectory
     ),
     RequestPath = "/music"
 });

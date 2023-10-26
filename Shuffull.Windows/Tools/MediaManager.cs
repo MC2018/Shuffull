@@ -41,7 +41,7 @@ namespace Shuffull.Windows.Tools
                     return;
                 }
 
-                if (_currentPlaylistId != -1 && _currentPlaylistId != value)
+                if (_currentPlaylistId != value)
                 {
                     context.ClearRecentlyPlayedSongs();
                 }

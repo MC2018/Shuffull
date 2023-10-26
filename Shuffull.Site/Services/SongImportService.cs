@@ -166,7 +166,7 @@ namespace Shuffull.Site.Services
 
             var fileExtension = Path.GetExtension(currentFileDirectory);
             var newFileName = Path.GetFileName($"{hexStr}{fileExtension}");
-            var newFileDirectory = Path.Combine(FileRetrieval.RootDirectory, newFileName).Replace("-", "").ToLower();
+            var newFileDirectory = Path.Combine(FileRetrieval.RootDirectory, newFileName.Replace("-", "").ToLower());
 
             File.Move(currentFileDirectory, newFileDirectory);
 

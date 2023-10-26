@@ -6,6 +6,6 @@ namespace Shuffull.Windows.Constants
 {
     internal class SiteInfo
     {
-        public const string Url = "http://192.168.11.92:7117/";
+        public const string Url = "http://localhost:7117/";
     }
 }
