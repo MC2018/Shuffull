@@ -39,6 +39,7 @@ namespace Shuffull.Tools.Controllers
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
             var requests = JsonConvert.DeserializeObject<List<UpdateSongLastPlayedRequest>>(requestsJson);
+            var userId = 1;
 
             if (requests == null)
             {
@@ -46,45 +47,15 @@ namespace Shuffull.Tools.Controllers
             }
 
             var songIds = requests.Select(x => x.SongId).ToList();
-            var songs = context.Songs
+            var userSongs = context.Users
+                .Where(x => x.UserId == userId)
+                .SelectMany(x => x.UserSongs)
                 .Where(x => songIds.Contains(x.SongId))
-                .Include(x => x.PlaylistSongs)
-                .ThenInclude(x => x.Playlist)
-                .ToList();
-            var playlistIds = songs
-                .SelectMany(x => x.PlaylistSongs)
-                .Select(x => x.PlaylistId)
-                .Distinct()
-                .ToList();
-            var playlists = context.Playlists
-                .Where(x => playlistIds.Contains(x.PlaylistId))
                 .ToList();
 
-            foreach (var song in songs)
+            foreach (var userSong in userSongs)
             {
-                var updatedTime = requests.Where(x => x.SongId == song.SongId).First().LastPlayed;
-
-                foreach (var playlistSong in song.PlaylistSongs)
-                {
-                    if (playlistSong.LastPlayed < updatedTime)
-                    {
-                        playlistSong.LastPlayed = updatedTime;
-                        playlistSong.InQueue = false;
-                        // TODO: device ID playlistSong.Playlist.LastUpdatedDevice = ...
-                    }
-                }
-            }
-
-            // Updating of the queues
-            foreach (var song in songs)
-            {
-                context.UpdateQueue(song.SongId);
-            }
-
-
-            foreach (var playlist in playlists)
-            {
-                playlist.VersionCounter++;
+                userSong.LastPlayed = requests.Where(x => x.SongId == userSong.SongId).First().LastPlayed;
             }
 
             await context.SaveChangesAsync();

@@ -2,6 +2,7 @@
 using MoreLinq.Extensions;
 using Shuffull.Shared.Networking.Models;
 using Shuffull.Shared.Networking.Models.Requests;
+using Shuffull.Shared.Networking.Models.Server;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -14,12 +15,19 @@ namespace Shuffull.Shared
 {
     public class ShuffullContext : DbContext
     {
-        public DbSet<Song> Songs { get; set; }
+        public DbSet<Artist> Artists { get; set; }
         public DbSet<Playlist> Playlists { get; set; }
         public DbSet<PlaylistSong> PlaylistSongs { get; set; }
+        public DbSet<Song> Songs { get; set; }
+        public DbSet<SongArtist> SongArtists { get; set; }
+        public DbSet<SongTag> SongTags { get; set; }
+        public DbSet<Tag> Tags { get; set; }
+        public DbSet<User> Users { get; set; }
+        public DbSet<UserSong> UserSongs { get; set; }
+
         public DbSet<Request> Requests { get; set; }
-        public DbSet<RecentlyPlayedSong> RecentlyPlayedSongs { get; set; }
         public DbSet<LocalSessionData> LocalSessionData { get; set; }
+        public DbSet<RecentlyPlayedSong> RecentlyPlayedSongs { get; set; }
 
         private readonly string _path = "temp.db3";
 
@@ -216,6 +224,7 @@ namespace Shuffull.Shared
             }
             else
             {
+                //playlist.PlaylistSongs = new List<PlaylistSong>();
                 Playlists.Add(playlist);
             }
         }
@@ -251,66 +260,35 @@ namespace Shuffull.Shared
 
         public Song GetNextSong(long playlistId)
         {
-            var songCount = Playlists.Where(x => x.PlaylistId == playlistId)
-                .SelectMany(x => x.PlaylistSongs)
-                .Where(x => x.InQueue)
-                .Count();
+            var localSessionData = LocalSessionData.First();
+            var playlist = Playlists.Where(x => x.PlaylistId == playlistId).FirstOrDefault();
+            var userSongs = PlaylistSongs.Where(x => x.PlaylistId == playlistId)
+                .SelectMany(x => x.Song.UserSongs)
+                .Where(x => x.UserId == localSessionData.UserId)
+                .OrderBy(x => x.LastPlayed)
+                .ToList();
 
-            if (songCount == 0)
+            if (!userSongs.Any())
             {
                 throw new Exception("No song available");
             }
 
-            var randomIndex = new Random().Next(0, songCount);
-            var result = Playlists
-                .Where(x => x.PlaylistId == playlistId)
-                .SelectMany(x => x.PlaylistSongs)
-                .Where(x => x.InQueue)
+            var thresholdIndex = (int)Math.Ceiling(userSongs.Count * playlist.PercentUntilReplayable);
+            var lastNeverPlayedSong = userSongs
+                .Select((x, index) => new { UserSong = x, Index = index })
+                .Where(x => x.UserSong.LastPlayed <= DateTime.MinValue)
+                .Select(x => x.Index)
+                .Last();
+
+            thresholdIndex = lastNeverPlayedSong > thresholdIndex ? lastNeverPlayedSong : thresholdIndex;
+
+            var randomIndex = new Random().Next(0, thresholdIndex);
+            var selectedUserSong = userSongs
                 .Skip(randomIndex)
                 .Take(1)
-                .Select(x => x.Song)
                 .First();
-
+            var result = Songs.Where(x => x.SongId == selectedUserSong.SongId).First();
             return result;
-        }
-
-        public void UpdateQueue(long songId)
-        {
-            var playlistIdsToUpdate = Songs
-                .Where(x => x.SongId == songId)
-                .SelectMany(x => x.PlaylistSongs)
-                .Select(x => x.PlaylistId)
-                .ToList();
-            var playlistsToUpdate = Playlists
-                .Where(x => playlistIdsToUpdate.Contains(x.PlaylistId))
-                .Include(x => x.PlaylistSongs)
-                .ToList();
-
-            foreach (var playlist in playlistsToUpdate)
-            {
-                var playlistSongs = playlist.PlaylistSongs;
-                var playlistSongCount = playlistSongs.Count();
-                var inQueueCount = playlistSongs
-                    .Where(x => x.InQueue)
-                    .Count();
-                var inQueuePercentage = (decimal)inQueueCount / playlistSongCount;
-
-                if ((1 - inQueuePercentage) > playlist.PercentUntilReplayable)
-                {
-                    var addToQueueCount = (int)Math.Ceiling(((1 - inQueuePercentage) - playlist.PercentUntilReplayable) * playlistSongCount);
-                    var playlistSongsToAdd = playlistSongs
-                        .Where(x => !x.InQueue)
-                        .OrderBy(x => x.LastPlayed)
-                        .Take(addToQueueCount)
-                        .ToList();
-
-                    foreach (var playlistSong in playlistSongsToAdd)
-                    {
-                        playlistSong.InQueue = true;
-                        playlistSong.LastAddedToQueue = DateTime.UtcNow;
-                    }
-                }
-            }
         }
     }
 }

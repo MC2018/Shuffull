@@ -5,21 +5,24 @@ using Microsoft.Extensions.FileProviders;
 using Shuffull.Site.Database;
 using Shuffull.Site.Configuration;
 using Shuffull.Site.Tools;
-using Shuffull.Site.Services;
 using System.Net;
 using Shuffull.Site;
+using Shuffull.Site.Tools.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
-builder.Services.AddSingleton<SongImportService>();
+builder.Services.AddSingleton<SongImporter>();
+builder.Services.AddScoped<JwtHelper>();
 builder.Services.AddDbContext<ShuffullContext>(options =>
 {
     options.UseSqlServer(builder.Configuration.GetConnectionString("Shuffull"));
 });
 
 var app = builder.Build();
+
+app.UseMiddleware<JwtMiddleware>();
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())

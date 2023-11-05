@@ -3,8 +3,8 @@ using Shuffull.Site.Database;
 using Shuffull.Site.Database.Models;
 using Shuffull.Site;
 using Shuffull.Site.Models;
-using Shuffull.Site.Services;
 using System.Diagnostics;
+using Shuffull.Site.Tools;
 
 namespace Shuffull.Tools.Controllers
 {
@@ -38,7 +38,7 @@ namespace Shuffull.Tools.Controllers
         {
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
-            var songImportService = scope.ServiceProvider.GetRequiredService<SongImportService>();
+            var songImportService = scope.ServiceProvider.GetRequiredService<SongImporter>();
             var user = context.Users.Where(x => x.Username == username).FirstOrDefault();
 
             if (user == null)

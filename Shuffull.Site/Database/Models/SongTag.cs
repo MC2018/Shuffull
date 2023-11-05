@@ -9,19 +9,19 @@ using System.Threading.Tasks;
 
 namespace Shuffull.Site.Database.Models
 {
-    [Index(nameof(PlaylistId)), Index(nameof(SongId))]
-    public class PlaylistSong
+    [Index(nameof(SongId)), Index(nameof(TagId))]
+    public class SongTag
     {
         [Key]
-        public long PlaylistSongId { get; set; }
-        [Required]
-        public long PlaylistId { get; set; }
+        public long SongTagId { get; set; }
         [Required]
         public long SongId { get; set; }
+        [Required]
+        public long TagId { get; set; }
 
         [Key]
-        public Playlist Playlist { get; set; }
-        [Key]
         public Song Song { get; set; }
+        [Key]
+        public Tag Tag { get; set; }
     }
 }

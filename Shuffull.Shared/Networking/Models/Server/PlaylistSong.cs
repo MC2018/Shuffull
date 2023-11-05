@@ -1,18 +1,13 @@
-﻿using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
+﻿using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace Shuffull.Site.Database.Models
+namespace Shuffull.Shared.Networking.Models.Server
 {
-    [Index(nameof(PlaylistId)), Index(nameof(SongId))]
+    [Serializable]
     public class PlaylistSong
     {
-        [Key]
+        [Key, DatabaseGenerated(DatabaseGeneratedOption.None)]
         public long PlaylistSongId { get; set; }
         [Required]
         public long PlaylistId { get; set; }

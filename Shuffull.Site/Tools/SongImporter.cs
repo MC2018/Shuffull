@@ -2,19 +2,18 @@
 using Murmur;
 using Shuffull.Site.Database.Models;
 using Shuffull.Site.Configuration;
-using Shuffull.Site.Tools;
 using System.Security.Cryptography;
 
-namespace Shuffull.Site.Services
+namespace Shuffull.Site.Tools
 {
-    public class SongImportService
+    public class SongImporter
     {
         private IServiceProvider _services;
         private string _songImportDirectory;
         private string _failedImportDirectory;
         private string[] _audioExtensions = new string[] { ".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac" };
 
-        public SongImportService(IConfiguration configuration, IServiceProvider services)
+        public SongImporter(IConfiguration configuration, IServiceProvider services)
         {
             _services = services;
             _songImportDirectory = configuration.GetSection(ShuffullFilesConfiguration.FilesConfigurationSection).Get<ShuffullFilesConfiguration>().SongImportDirectory;
@@ -112,7 +111,6 @@ namespace Shuffull.Site.Services
                 {
                     PlaylistId = playlistId,
                     SongId = song.SongId,
-                    InQueue = true
                 };
                 context.PlaylistSongs.Add(playlistSong);
             }
@@ -146,7 +144,7 @@ namespace Shuffull.Site.Services
             {
                 var filePath = Path.Combine(path, file.FileName);
                 using var stream = new FileStream(filePath, FileMode.Create);
-                
+
                 file.CopyTo(stream);
             }
 

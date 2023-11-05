@@ -6,9 +6,9 @@ using Shuffull.Site.Models;
 using System.Diagnostics;
 using Shuffull.Site;
 using Results = Shuffull.Shared.Networking.Models;
-using Shuffull.Shared.Networking.Models;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Shuffull.Shared.Networking.Models.Server;
 
 namespace Shuffull.Tools.Controllers
 {

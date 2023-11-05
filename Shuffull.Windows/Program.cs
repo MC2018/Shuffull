@@ -1,4 +1,5 @@
 using LibVLCSharp.Shared;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shuffull.Shared;
@@ -19,6 +20,7 @@ namespace Shuffull.Windows
         {
             // To customize application configuration such as set high DPI settings or default font,
             // see https://aka.ms/applicationconfiguration.
+            InitializeDatabase();
             ApplicationConfiguration.Initialize();
             Core.Initialize();
             ConfigureServices();
@@ -37,6 +39,24 @@ namespace Shuffull.Windows
                 return new ShuffullContext(Directories.DatabaseFileAbsolutePath);
             });
             ServiceProvider = services.BuildServiceProvider();
+        }
+
+        static void InitializeDatabase()
+        {
+            using var context = new ShuffullContext(Directories.DatabaseFileAbsolutePath);
+
+            if (context.Database.GetPendingMigrations().Any())
+            {
+                try
+                {
+                    context.Database.Migrate();
+                }
+                catch (Exception)
+                {
+                    File.Delete(Directories.DatabaseFileAbsolutePath);
+                    context.Database.Migrate();
+                }
+            }
         }
     }
 }

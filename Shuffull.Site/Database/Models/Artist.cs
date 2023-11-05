@@ -15,5 +15,7 @@ namespace Shuffull.Site.Database.Models
         public long ArtistId { get; set; }
         [Required]
         public string Name { get; set; }
+
+        public ICollection<SongArtist> SongArtists { get; set; }
     }
 }

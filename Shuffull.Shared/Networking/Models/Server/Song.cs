@@ -3,24 +3,21 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace Shuffull.Shared.Networking.Models
+namespace Shuffull.Shared.Networking.Models.Server
 {
     [Serializable]
-    public class Playlist
+    public class Song
     {
         [Key, DatabaseGenerated(DatabaseGeneratedOption.None)]
-        public long PlaylistId { get; set; }
+        public long SongId { get; set; }
         [Required]
-        public long UserId { get; set; }
+        public string Directory { get; set; }
         [Required]
         public string Name { get; set; }
-        [Required]
-        public long CurrentSongId { get; set; }
-        [Required]
-        public decimal PercentUntilReplayable { get; set; }
-        [Required]
-        public long VersionCounter { get; set; }
 
         public ICollection<PlaylistSong> PlaylistSongs { get; set; }
+        public ICollection<UserSong> UserSongs { get; set; }
+        public ICollection<SongArtist> SongArtists { get; set; }
+        public ICollection<SongTag> SongTags { get; set; }
     }
 }

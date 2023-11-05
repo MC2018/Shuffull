@@ -1,31 +1,22 @@
-﻿using Microsoft.EntityFrameworkCore.Metadata.Internal;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace Shuffull.Site.Database.Models
+namespace Shuffull.Shared.Networking.Models.Server
 {
-    [Microsoft.EntityFrameworkCore.Index(nameof(PlaylistId)), Microsoft.EntityFrameworkCore.Index(nameof(UserId))]
+    [Serializable]
     public class Playlist
     {
-        public const float PERCENT_UNTIL_REPLAYABLE_CAP = 0.9f;
-
-        [Key]
+        [Key, DatabaseGenerated(DatabaseGeneratedOption.None)]
         public long PlaylistId { get; set; }
         [Required]
         public long UserId { get; set; }
-        [Required, NotNull]
+        [Required]
         public string Name { get; set; }
         [Required]
         public long CurrentSongId { get; set; }
         [Required]
-        [Range(0, PERCENT_UNTIL_REPLAYABLE_CAP)]
-        [Column(TypeName = "decimal(2,2)")] // allows 2 digits to be saved, with up to 2 digits to the right of the decimal
         public decimal PercentUntilReplayable { get; set; }
         [Required]
         public DateTime Version { get; set; }

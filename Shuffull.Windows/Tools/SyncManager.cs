@@ -4,7 +4,6 @@ using Shuffull.Windows.Constants;
 using Shuffull.Windows.Extensions;
 using Shuffull.Shared;
 using Shuffull.Shared.Enums;
-using Shuffull.Shared.Networking.Models;
 using Shuffull.Shared.Networking.Models.Requests;
 using System;
 using System.Collections.Generic;
@@ -16,6 +15,7 @@ using Microsoft.Extensions.DependencyInjection;
 using MoreLinq.Extensions;
 using LibVLCSharp.Shared;
 using System.Net.Http.Headers;
+using Shuffull.Shared.Networking.Models.Server;
 
 namespace Shuffull.Windows.Tools
 {
@@ -168,11 +168,11 @@ namespace Shuffull.Windows.Tools
             {
                 var localPlaylist = localPlaylists.Where(x => x.PlaylistId == accessiblePlaylist.PlaylistId).FirstOrDefault();
 
-                if (localPlaylist == null || localPlaylist.VersionCounter < accessiblePlaylist.VersionCounter)
+                if (localPlaylist == null || localPlaylist.Version < accessiblePlaylist.Version)
                 {
                     playlistsToFetch.Add(accessiblePlaylist.PlaylistId);
                 }
-                else if (localPlaylist.VersionCounter > accessiblePlaylist.VersionCounter)
+                else if (localPlaylist.Version > accessiblePlaylist.Version)
                 {
                     // TODO: POST new info to server; could just be that something gets added to the request pile
                 }

@@ -1,27 +1,20 @@
-﻿using Microsoft.EntityFrameworkCore;
-using Newtonsoft.Json;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace Shuffull.Site.Database.Models
+namespace Shuffull.Shared.Networking.Models.Server
 {
-    [Index(nameof(Username)), Index(nameof(Version))]
+    [Serializable]
     public class User
     {
-        [Key]
+        [Key, DatabaseGenerated(DatabaseGeneratedOption.None)]
         public long UserId { get; set; }
-        [Required, NotNull]
+        [Required]
         public string Username { get; set; }
         [Required]
         public DateTime Version { get; set; }
-        [Required]
-        [JsonIgnore]
-        public string PasswordHash { get; set; }
 
         public ICollection<Playlist> Playlists { get; set; }
         public ICollection<UserSong> UserSongs { get; set; }

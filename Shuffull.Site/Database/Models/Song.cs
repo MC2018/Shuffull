@@ -19,6 +19,8 @@ namespace Shuffull.Site.Database.Models
         public string Name { get; set; } = string.Empty;
 
         public ICollection<PlaylistSong> PlaylistSongs { get; set; }
+        public ICollection<UserSong> UserSongs { get; set; }
         public ICollection<SongArtist> SongArtists { get; set; }
+        public ICollection<SongTag> SongTags { get; set; }
     }
 }

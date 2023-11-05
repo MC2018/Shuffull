@@ -1,27 +1,25 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Diagnostics.CodeAnalysis;
 
-namespace Shuffull.Shared.Networking.Models
+namespace Shuffull.Shared.Networking.Models.Server
 {
     [Serializable]
-    public class PlaylistSong
+    public class UserSong
     {
         [Key, DatabaseGenerated(DatabaseGeneratedOption.None)]
-        public long PlaylistSongId { get; set; }
+        public long UserSongId { get; set; }
         [Required]
-        public long PlaylistId { get; set; }
+        public long UserId { get; set; }
         [Required]
         public long SongId { get; set; }
         [Required]
-        public DateTime LastAddedToQueue { get; set; }
-        [Required]
         public DateTime LastPlayed { get; set; }
-        [Required]
-        public bool InQueue { get; set; }
 
         [Key]
-        public Playlist Playlist { get; set; }
+        public User User { get; set; }
         [Key]
         public Song Song { get; set; }
     }

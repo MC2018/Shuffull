@@ -11,7 +11,9 @@ namespace Shuffull.Shared.Networking.Models.Requests
     [Serializable]
     public class UpdateSongLastPlayedRequest : Request
     {
+        [Required]
         public long SongId { get; set; }
+        [Required]
         public DateTime LastPlayed { get; set; }
 
         public UpdateSongLastPlayedRequest()
@@ -22,19 +24,13 @@ namespace Shuffull.Shared.Networking.Models.Requests
 
         public override void UpdateLocalDb(ShuffullContext context)
         {
-            var song = context.Songs
+            var localSessionData = context.LocalSessionData.First();
+            var userSong = context.Songs
                 .Where(x => x.SongId == SongId)
-                .Include(x => x.PlaylistSongs)
-                .ThenInclude(x => x.Playlist)
+                .Select(x => x.UserSongs.Where(y => y.UserId == localSessionData.UserId).First())
                 .First();
 
-            foreach (var playlistSong in song.PlaylistSongs)
-            {
-                playlistSong.LastPlayed = LastPlayed;
-                playlistSong.InQueue = false;
-            }
-
-            context.UpdateQueue(SongId);
+            userSong.LastPlayed = LastPlayed;
         }
     }
 }
