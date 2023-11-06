@@ -36,6 +36,7 @@
             skipButton = new Button();
             playButton = new Button();
             activelyDownloadCheckBox = new CheckBox();
+            logoutButton = new Button();
             musicControllerPanel.SuspendLayout();
             SuspendLayout();
             // 
@@ -120,11 +121,22 @@
             activelyDownloadCheckBox.UseVisualStyleBackColor = true;
             activelyDownloadCheckBox.CheckedChanged += activelyDownloadCheckBox_CheckedChanged;
             // 
+            // logoutButton
+            // 
+            logoutButton.Location = new Point(650, 66);
+            logoutButton.Name = "logoutButton";
+            logoutButton.Size = new Size(75, 23);
+            logoutButton.TabIndex = 4;
+            logoutButton.Text = "Logout";
+            logoutButton.UseVisualStyleBackColor = true;
+            logoutButton.Click += logoutButton_Click;
+            // 
             // Home
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(800, 450);
+            Controls.Add(logoutButton);
             Controls.Add(activelyDownloadCheckBox);
             Controls.Add(musicControllerPanel);
             Controls.Add(playlistSelectorBox);
@@ -146,5 +158,6 @@
         private Button playButton;
         private CheckBox activelyDownloadCheckBox;
         private Button playPlaylistButton;
+        private Button logoutButton;
     }
 }

@@ -15,11 +15,14 @@ namespace Shuffull.Shared.Networking.Models.Responses
         public User User { get; set; }
         [Required]
         public string Token { get; set; }
+        [Required]
+        public DateTime Expiration { get; set; }
 
-        public AuthenticateResponse(User user, string token)
+        public AuthenticateResponse(User user, string token, DateTime expiration)
         {
             User = user;
             Token = token;
+            Expiration = expiration;
         }
     }
 }

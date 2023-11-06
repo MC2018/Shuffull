@@ -38,15 +38,7 @@ namespace Shuffull.Windows
 
             if (localSessionData == null)
             {
-                localSessionData = new LocalSessionData()
-                {
-                    UserId = 1,
-                    ActivelyDownload = false,
-                    CurrentPlaylistId = -1
-                };
-
-                context.LocalSessionData.Add(localSessionData);
-                context.SaveChanges();
+                throw new Exception("Local session data is null");
             }
 
             // Data loading
@@ -128,6 +120,12 @@ namespace Shuffull.Windows
                 localSessionData.ActivelyDownload = activelyDownloadCheckBox.Checked;
                 await context.SaveChangesAsync();
             }
+        }
+
+        async private void logoutButton_Click(object sender, EventArgs e)
+        {
+            await AuthManager.ClearAuthentication();
+            Dispose();
         }
     }
 }

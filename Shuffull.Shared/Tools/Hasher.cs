@@ -1,13 +1,9 @@
-﻿using Azure.Core;
-using Konscious.Security.Cryptography;
-using Microsoft.EntityFrameworkCore;
-using Shuffull.Shared.Networking.Models.Requests;
-using Shuffull.Shared.Networking.Models.Responses;
-using Shuffull.Site.Database.Models;
-using System.IdentityModel.Tokens.Jwt;
+﻿using Konscious.Security.Cryptography;
+using System;
 using System.Text;
+using System.Threading.Tasks;
 
-namespace Shuffull.Site.Tools
+namespace Shuffull.Shared.Tools
 {
     public class Hasher
     {
@@ -19,7 +15,7 @@ namespace Shuffull.Site.Tools
                 DegreeOfParallelism = 4,
                 Iterations = 5,
             };
-            var hash = await argon2.GetBytesAsync(16);
+            var hash = argon2.GetBytes(16);
             return BitConverter.ToString(hash).Replace("-", "").ToLower();
         }
     }

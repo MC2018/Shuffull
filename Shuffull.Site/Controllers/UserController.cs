@@ -6,6 +6,7 @@ using Shuffull.Shared.Networking.Models.Server;
 using Shuffull.Site.Tools.Authorization;
 using Shuffull.Shared.Networking.Models.Responses;
 using OpenAI_API.Moderation;
+using Shuffull.Shared.Tools;
 
 namespace Shuffull.Tools.Controllers
 {
@@ -23,9 +24,9 @@ namespace Shuffull.Tools.Controllers
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
             var jwtHelper = scope.ServiceProvider.GetRequiredService<JwtHelper>();
-            var passwordHash = await Hasher.Hash(userHash);
+            var serverHash = await Hasher.Hash(userHash);
             var user = await context.Users
-                .Where(x => x.Username == username && x.PasswordHash == passwordHash)
+                .Where(x => x.Username == username && x.ServerHash == serverHash)
                 .FirstOrDefaultAsync();
 
             if (user == null)
@@ -33,9 +34,10 @@ namespace Shuffull.Tools.Controllers
                 return BadRequest(new { message = "Username/password is incorrect" });
             }
 
-            var token = jwtHelper.GenerateJwtToken(user);
+            var expiration = DateTime.UtcNow.AddDays(30);
+            var token = jwtHelper.GenerateJwtToken(user, expiration);
             var mappedUser = ClassMapper.Mapper.Map<User>(user);
-            var response = new AuthenticateResponse(mappedUser, token);
+            var response = new AuthenticateResponse(mappedUser, token, expiration);
 
             return Ok(response);
         }
@@ -44,12 +46,19 @@ namespace Shuffull.Tools.Controllers
         {
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
+            var user = await context.Users.Where(x => x.Username == username).FirstOrDefaultAsync();
+
+            if (user != null)
+            {
+                return BadRequest($"User '{username}' already exists");
+            }
+
             var jwtHelper = scope.ServiceProvider.GetRequiredService<JwtHelper>();
-            var passwordHash = await Hasher.Hash(userHash);
-            var user = new Site.Database.Models.User()
+            var serverHash = await Hasher.Hash(userHash);
+            user = new Site.Database.Models.User()
             {
                 Username = username,
-                PasswordHash = passwordHash
+                ServerHash = serverHash
             };
 
             context.Users.Add(user);

@@ -21,7 +21,7 @@ namespace Shuffull.Site.Database.Models
         public DateTime Version { get; set; }
         [Required]
         [JsonIgnore]
-        public string PasswordHash { get; set; }
+        public string ServerHash { get; set; }
 
         public ICollection<Playlist> Playlists { get; set; }
         public ICollection<UserSong> UserSongs { get; set; }

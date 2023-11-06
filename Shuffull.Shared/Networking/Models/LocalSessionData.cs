@@ -14,5 +14,9 @@ namespace Shuffull.Shared.Networking.Models
         public long CurrentPlaylistId { get; set; }
         [Required]
         public bool ActivelyDownload { get; set; }
+        [Required]
+        public string Token { get; set; }
+        [Required]
+        public DateTime Expiration { get; set; }
     }
 }

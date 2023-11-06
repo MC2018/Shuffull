@@ -19,14 +19,14 @@ namespace Shuffull.Site.Tools.Authorization
                 .Get<JwtConfiguration>();
         }
 
-        public string GenerateJwtToken(User user)
+        public string GenerateJwtToken(User user, DateTime expiration)
         {
             var tokenHandler = new JwtSecurityTokenHandler();
             var key = Encoding.ASCII.GetBytes(_configuration.Secret);
             var tokenDescriptor = new SecurityTokenDescriptor
             {
                 Subject = new ClaimsIdentity(new[] { new Claim("UserId", user.UserId.ToString()) }),
-                Expires = DateTime.UtcNow.AddDays(30),
+                Expires = expiration,
                 SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
             };
             var token = tokenHandler.CreateToken(tokenDescriptor);
