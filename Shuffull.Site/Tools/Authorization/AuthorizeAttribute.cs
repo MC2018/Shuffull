@@ -4,9 +4,16 @@ using Shuffull.Site.Database.Models;
 
 namespace Shuffull.Site.Tools.Authorization
 {
+    /// <summary>
+    /// Runs authorization on the API endpoints
+    /// </summary>
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
     public class AuthorizeAttribute : Attribute, IAuthorizationFilter
     {
+        /// <summary>
+        /// Sets the result to unauthorized if the context hasn't been set
+        /// </summary>
+        /// <param name="context"></param>
         public void OnAuthorization(AuthorizationFilterContext context)
         {
             if (context.HttpContext.Items["User"] is not User)

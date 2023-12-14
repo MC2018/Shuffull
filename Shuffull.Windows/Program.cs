@@ -26,7 +26,6 @@ namespace Shuffull.Windows
             ConfigureServices();
             Directory.CreateDirectory(Directories.LocalDataAbsolutePath);
             Directory.CreateDirectory(Directories.MusicFolderAbsolutePath);
-            await SyncManager.Initialize();
             Application.Run(new Login());
         }
 

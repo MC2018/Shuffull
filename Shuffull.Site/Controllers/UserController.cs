@@ -5,8 +5,9 @@ using Shuffull.Site;
 using Shuffull.Shared.Networking.Models.Server;
 using Shuffull.Site.Tools.Authorization;
 using Shuffull.Shared.Networking.Models.Responses;
-using OpenAI_API.Moderation;
 using Shuffull.Shared.Tools;
+using System.Text.Json.Serialization;
+using System.Text.Json;
 
 namespace Shuffull.Tools.Controllers
 {
@@ -19,19 +20,21 @@ namespace Shuffull.Tools.Controllers
             _services = services;
         }
 
+        [HttpPost]
         public async Task<IActionResult> Authenticate(string username, string userHash)
         {
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
             var jwtHelper = scope.ServiceProvider.GetRequiredService<JwtHelper>();
-            var serverHash = await Hasher.Hash(userHash);
+            var serverHash = Hasher.Hash(userHash);
             var user = await context.Users
+                .AsNoTracking()
                 .Where(x => x.Username == username && x.ServerHash == serverHash)
                 .FirstOrDefaultAsync();
 
             if (user == null)
             {
-                return BadRequest(new { message = "Username/password is incorrect" });
+                return BadRequest("Username/password is incorrect");
             }
 
             var expiration = DateTime.UtcNow.AddDays(30);
@@ -42,6 +45,7 @@ namespace Shuffull.Tools.Controllers
             return Ok(response);
         }
 
+        [HttpPost]
         public async Task<IActionResult> Create(string username, string userHash)
         {
             using var scope = _services.CreateScope();
@@ -54,7 +58,7 @@ namespace Shuffull.Tools.Controllers
             }
 
             var jwtHelper = scope.ServiceProvider.GetRequiredService<JwtHelper>();
-            var serverHash = await Hasher.Hash(userHash);
+            var serverHash = Hasher.Hash(userHash);
             user = new Site.Database.Models.User()
             {
                 Username = username,

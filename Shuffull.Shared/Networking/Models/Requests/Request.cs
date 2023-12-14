@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Net.Http;
 using System.Text;
 
 namespace Shuffull.Shared.Networking.Models.Requests
@@ -18,6 +19,8 @@ namespace Shuffull.Shared.Networking.Models.Requests
         [Required]
         public string RequestName { get; protected set; }
 
+
+        // TODO: should get rid of this maybe? this logic should prob just be whereever the request is used
         public abstract void UpdateLocalDb(ShuffullContext context);
     }
 }

@@ -104,49 +104,55 @@ namespace Shuffull.Windows.Tools
             switch (requestType)
             {
                 case RequestType.UpdateSongLastPlayed:
-                    requestSuccessful = UpdateSongLastPlayed(requests.Cast<UpdateSongLastPlayedRequest>().ToList());
+                    requestSuccessful = await UpdateSongLastPlayed(requests.Cast<UpdateSongLastPlayedRequest>().ToList());
                     break;
                 case RequestType.UpdatePlaylists:
-                    requestSuccessful = await UpdatePlaylists();
+                    requestSuccessful = await RefreshLocalPlaylists();
                     break;
             }
 
             return requestSuccessful;
         }
 
-        private static bool UpdateSongLastPlayed(List<UpdateSongLastPlayedRequest> requests)
+        //private static async Task<bool> GetAllSongs()
+        //{
+
+        //}
+
+        private static async Task<bool> UpdateSongLastPlayed(List<UpdateSongLastPlayedRequest> requests)
         {
-            var client = Program.ServiceProvider.GetRequiredService<HttpClient>();
-            var parameters = new Dictionary<string, string>()
+            try
             {
-                { "requestsJson", JsonConvert.SerializeObject(requests) }
-            };
-
-            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-            if (!client.TryPost(new Uri($"{SiteInfo.Url}song/UpdateLastPlayed"), parameters, out object _))
+                await ApiRequestManager.UpdateSongLastPlayed(requests);
+                return true;
+            }
+            catch
             {
                 return false;
             }
-
-            return true;
         }
 
-        private async static Task<bool> UpdatePlaylists()
+        private async static Task<bool> RefreshLocalPlaylists()
         {
+            var context = Program.ServiceProvider.GetRequiredService<ShuffullContext>();
             var client = Program.ServiceProvider.GetRequiredService<HttpClient>();
+            var localSessionData = context.LocalSessionData.First();
             var parameters = new Dictionary<string, string>()
             {
-                { "userId", "1" }
+                { "userId", $"{localSessionData.UserId}" }
             };
+            List<Playlist> accessiblePlaylists;
 
-            if (!client.TryPost(new Uri($"{SiteInfo.Url}playlist/GetAllOverview"), parameters, out List<Playlist> accessiblePlaylists))
+            try
+            {
+                accessiblePlaylists = await client.PostAsync<List<Playlist>>(new Uri($"{SiteInfo.Url}playlist/GetAllOverview"), parameters);
+            }
+            catch
             {
                 return false;
             }
 
             // TODO: Will probably need to have this called every X minutes
-            var context = Program.ServiceProvider.GetRequiredService<ShuffullContext>();
             var accessiblePlaylistIds = accessiblePlaylists.Select(x => x.PlaylistId).ToArray();
             var localPlaylists = context.GetPlaylists();
             var playlistsToFetch = new List<long>();
@@ -185,17 +191,22 @@ namespace Shuffull.Windows.Tools
                     { "playlistIds", $"{string.Join(",", playlistsToFetch)}" }
                 };
 
-                if (!client.TryPost(new Uri($"{SiteInfo.Url}playlist/GetAll"), parameters, out List<Playlist> updatedPlaylists))
+                try
+                {
+                    var updatedPlaylists = await client.PostAsync<List<Playlist>>(new Uri($"{SiteInfo.Url}playlist/GetAll"), parameters);
+
+                    foreach (var updatedPlaylist in updatedPlaylists)
+                    {
+                        context.UpdatePlaylist(updatedPlaylist);
+                    }
+
+                    await context.SaveChangesAsync();
+                }
+                catch
                 {
                     return false;
                 }
 
-                foreach (var updatedPlaylist in updatedPlaylists)
-                {
-                    context.UpdatePlaylist(updatedPlaylist);
-                }
-
-                await context.SaveChangesAsync();
             }
 
             return true;

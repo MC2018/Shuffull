@@ -6,20 +6,31 @@ using System.Security.Cryptography;
 
 namespace Shuffull.Site.Tools
 {
+    /// <summary>
+    /// Handles logic regarding the downloading, file management, and database importing of songs
+    /// </summary>
     public class SongImporter
     {
-        private IServiceProvider _services;
-        private string _songImportDirectory;
-        private string _failedImportDirectory;
-        private string[] _audioExtensions = new string[] { ".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac" };
+        private readonly IServiceProvider _services;
+        private readonly ShuffullFilesConfiguration _fileConfig;
+        private readonly string[] _audioExtensions = new string[] { ".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac" };
 
+        /// <summary>
+        /// Constructor
+        /// </summary>
+        /// <param name="configuration">Configuration</param>
+        /// <param name="services">Service provider</param>
         public SongImporter(IConfiguration configuration, IServiceProvider services)
         {
             _services = services;
-            _songImportDirectory = configuration.GetSection(ShuffullFilesConfiguration.FilesConfigurationSection).Get<ShuffullFilesConfiguration>().SongImportDirectory;
-            _failedImportDirectory = configuration.GetSection(ShuffullFilesConfiguration.FilesConfigurationSection).Get<ShuffullFilesConfiguration>().FailedImportDirectory;
+            _fileConfig = configuration.GetSection(ShuffullFilesConfiguration.FilesConfigurationSection).Get<ShuffullFilesConfiguration>();
         }
 
+        /// <summary>
+        /// Imports a set of music into the database and attaches them to a playlist
+        /// </summary>
+        /// <param name="path">Path where the downloaded music files exist</param>
+        /// <param name="playlistId">Playlist to add the music to</param>
         private void ImportFiles(string path, long playlistId)
         {
             var files = Directory.GetFiles(path);
@@ -44,7 +55,7 @@ namespace Shuffull.Site.Tools
 
                 try
                 {
-                    newFile = MoveAndRenameFile(oldFile);
+                    newFile = MoveAndRenameSong(oldFile);
                 }
                 catch (IOException)
                 {
@@ -132,11 +143,16 @@ namespace Shuffull.Site.Tools
             Directory.Delete(path, true);
         }
 
+        /// <summary>
+        /// Downloads a list of files sent in, imports them, and adds them to a playlist
+        /// </summary>
+        /// <param name="files">List of music files to download</param>
+        /// <param name="playlistId">Playlist to add the music to</param>
         public void DownloadAndImportFiles(IEnumerable<IFormFile> files, long playlistId)
         {
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
-            var path = Path.Combine(_songImportDirectory, Guid.NewGuid().ToString().ToLower());
+            var path = Path.Combine(_fileConfig.SongImportDirectory, Guid.NewGuid().ToString().ToLower());
 
             Directory.CreateDirectory(path);
 
@@ -154,28 +170,36 @@ namespace Shuffull.Site.Tools
             });
         }
 
-        private string MoveAndRenameFile(string currentFileDirectory)
+        /// <summary>
+        /// Moves a song from the temporary download folder to its permanent location and renames the file to a UUID
+        /// </summary>
+        /// <param name="currentSongDirectory">Current song directory</param>
+        /// <returns>New song directory</returns>
+        private string MoveAndRenameSong(string currentSongDirectory)
         {
-            //using var sha256 = SHA256.Create();
             var murmur128 = MurmurHash.Create128();
-            var fileBytes = File.ReadAllBytes(currentFileDirectory);
+            var fileBytes = File.ReadAllBytes(currentSongDirectory);
             var hashValue = murmur128.ComputeHash(fileBytes);
             var hexStr = BitConverter.ToString(hashValue);
 
-            var fileExtension = Path.GetExtension(currentFileDirectory);
-            var newFileName = Path.GetFileName($"{hexStr}{fileExtension}");
-            var newFileDirectory = Path.Combine(FileRetrieval.RootDirectory, newFileName.Replace("-", "").ToLower());
+            var fileExtension = Path.GetExtension(currentSongDirectory);
+            var newSongName = Path.GetFileName($"{hexStr}{fileExtension}");
+            var newSongDirectory = Path.Combine(_fileConfig.MusicRootDirectory, newSongName.Replace("-", "").ToLower());
 
-            File.Move(currentFileDirectory, newFileDirectory);
+            File.Move(currentSongDirectory, newSongDirectory);
 
-            return newFileDirectory;
+            return newSongDirectory;
         }
 
-        private void AttemptMarkingAsFailure(string fileDirectory)
+        /// <summary>
+        /// Attempt to a song into the failed import directory
+        /// </summary>
+        /// <param name="songDirectory">Song directory</param>
+        private void AttemptMarkingAsFailure(string songDirectory)
         {
             try
             {
-                Directory.Move(fileDirectory, Path.Combine(_failedImportDirectory, Path.GetFileName(fileDirectory)));
+                Directory.Move(songDirectory, Path.Combine(_fileConfig.FailedImportDirectory, Path.GetFileName(songDirectory)));
             }
             catch { }
         }

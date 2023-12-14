@@ -34,15 +34,20 @@ namespace Shuffull.Windows
         {
             var username = usernameTextBox.Text;
             var password = passwordTextBox.Text;
-            var authorized = await AuthManager.RefreshAuthentication(username, password);
 
-            if (authorized)
+            try
             {
+                await AuthManager.RefreshAuthentication(username, password);
                 ShowHome();
             }
-            else
+            catch (HttpRequestException ex)
             {
-                errorLabel.Text = "Invalid username/password";
+                errorLabel.Text = ex.Message;
+            }
+            catch
+            {
+                errorLabel.Text = "An unknown error occurred";
+                return;
             }
         }
 
@@ -50,15 +55,20 @@ namespace Shuffull.Windows
         {
             var username = usernameTextBox.Text;
             var password = passwordTextBox.Text;
-            var authorized = await AuthManager.CreateAccount(username, password);
 
-            if (authorized)
+            try
             {
+                await AuthManager.CreateAccount(username, password);
                 ShowHome();
             }
-            else
+            catch (HttpRequestException ex)
             {
-                errorLabel.Text = "Issue occurred";
+                errorLabel.Text = ex.Message;
+            }
+            catch
+            {
+                errorLabel.Text = "An unknown error occurred";
+                return;
             }
         }
     }

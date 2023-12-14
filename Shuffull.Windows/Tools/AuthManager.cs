@@ -60,44 +60,46 @@ namespace Shuffull.Windows.Tools
             await context.SaveChangesAsync();
         }
 
-        async public static Task<bool> RefreshAuthentication(string username, string password)
+        public static async Task RefreshAuthentication(string username, string password)
         {
             var client = Program.ServiceProvider.GetRequiredService<HttpClient>();
-            var userHash = await Hasher.Hash($"{username};{password}");
+            var userHash = Hasher.Hash($"{username};{password}");
             var parameters = new Dictionary<string, string>()
             {
                 { "username", username },
                 { "userHash", userHash }
             };
 
-            // TODO: get reason for failure and print it to display, maybe just through Exception
-            if (client.TryPost(new Uri($"{SiteInfo.Url}user/authenticate"), parameters, out AuthenticateResponse response))
+            try
             {
+                var response = await client.PostAsync<AuthenticateResponse>(new Uri($"{SiteInfo.Url}user/authenticate"), parameters);
                 await LoadSessionData(response);
-                return true;
             }
-            
-            return false;
+            catch
+            {
+                throw;
+            }
         }
 
-        async public static Task<bool> CreateAccount(string username, string password)
+        public static async Task CreateAccount(string username, string password)
         {
             var client = Program.ServiceProvider.GetRequiredService<HttpClient>();
-            var userHash = await Hasher.Hash($"{username};{password}");
+            var userHash = Hasher.Hash($"{username};{password}");
             var parameters = new Dictionary<string, string>()
             {
                 { "username", username },
                 { "userHash", userHash }
             };
 
-            // TODO: get reason for failure and print it to display, maybe just through Exception
-            if (client.TryPost(new Uri($"{SiteInfo.Url}user/Create"), parameters, out AuthenticateResponse response))
+            try
             {
+                var response = await client.PostAsync<AuthenticateResponse>(new Uri($"{SiteInfo.Url}user/create"), parameters);
                 await LoadSessionData(response);
-                return true;
             }
-
-            return false;
+            catch
+            {
+                throw;
+            }
         }
 
         async public static Task LoadSessionData(AuthenticateResponse response)
