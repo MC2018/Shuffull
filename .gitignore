@@ -363,3 +363,4 @@ MigrationBackup/
 FodyWeavers.xsd
 /Shuffull.Site/music
 /Dockerfile
+/Shuffull.Shared/temp.db3

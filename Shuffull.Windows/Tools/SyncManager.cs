@@ -16,6 +16,7 @@ using MoreLinq.Extensions;
 using LibVLCSharp.Shared;
 using System.Net.Http.Headers;
 using Shuffull.Shared.Networking.Models.Server;
+using System.Net;
 
 namespace Shuffull.Windows.Tools
 {
@@ -69,84 +70,163 @@ namespace Shuffull.Windows.Tools
 
             _isSyncing = true;
 
-            // Update playlists
-            var context = Program.ServiceProvider.GetRequiredService<ShuffullContext>();
-            var updatePlaylistsRequest = new GetPlaylistsRequest()
+            try
             {
-                Guid = Guid.NewGuid().ToString(),
-                TimeRequested = DateTime.UtcNow
-            };
-            await SubmitRequest(updatePlaylistsRequest);
-
-            var requests = context.GetRequests();
-            var requestTypes = requests.Select(x => x.RequestType).Distinct().ToList();
-
-            // Run all requests
-            foreach (var requestType in requestTypes)
-            {
-                var requestsToRun = requests.Where(x => x.RequestType == requestType).ToList();
-                var requestSuccessful = await RunRequests(requestsToRun, requestType);
-
-                if (requestSuccessful)
+                // Update playlists
+                var context = Program.ServiceProvider.GetRequiredService<ShuffullContext>();
+                var updatePlaylistsRequest = new GetPlaylistsRequest()
                 {
-                    context.Requests.RemoveRange(requestsToRun);
+                    Guid = Guid.NewGuid().ToString(),
+                    TimeRequested = DateTime.UtcNow
+                };
+                await SubmitRequest(updatePlaylistsRequest);
+
+                var unorderedRequests = context.GetRequests();
+                var requestTypes = unorderedRequests.Select(x => x.RequestType).Distinct().ToList();
+                var requestBatches = new List<List<Request>>();
+                RequestType? lastRequestType = null;
+                var onlyOnceRequestsFound = new List<RequestType>();
+
+                foreach (var request in unorderedRequests)
+                {
+                    if (request.ProcessingMethod == ProcessingMethod.OnlyOnce)
+                    {
+                        if (onlyOnceRequestsFound.Contains(request.RequestType))
+                        {
+                            continue;
+                        }
+
+                        requestBatches.Add(new List<Request>() { request });
+                        onlyOnceRequestsFound.Add(request.RequestType);
+                    }
+                    else if (request.ProcessingMethod == ProcessingMethod.Individual)
+                    {
+                        requestBatches.Add(new List<Request>() { request });
+                    }
+                    else if (request.ProcessingMethod == ProcessingMethod.Batch)
+                    {
+                        if (request.RequestType != lastRequestType)
+                        {
+                            requestBatches.Add(new List<Request>() { request });
+                        }
+                        else
+                        {
+                            requestBatches.Last().Add(request);
+                        }
+                    }
+
+                    lastRequestType = request.RequestType;
+                }
+
+                /////////////////////////////////// FINISH THE BATCH PROCESSING LOGIC
+                // Run all requests
+                foreach (var requestBatch in requestBatches)
+                {
+                    var statusCode = await RunRequests(requestBatch);
+                    var statusCodeInt = (int)statusCode;
+
+                    if (statusCode == HttpStatusCode.Unauthorized)
+                    {
+                        // TODO: figure out a way for it to auto-log you out, pause any playing music
+                        await AuthManager.ClearAuthentication();
+                        break;
+                    }
+                    else if (statusCode == HttpStatusCode.Forbidden)
+                    {
+                        context.Requests.RemoveRange(requestBatch);
+                        await context.SaveChangesAsync();
+                    }
+                    else if (200 <= statusCodeInt && statusCodeInt <= 299)
+                    {
+                        context.Requests.RemoveRange(requestBatch);
+                        await context.SaveChangesAsync();
+                    }
+                    else if (400 <= statusCodeInt && statusCodeInt <= 499)
+                    {
+                        context.Requests.RemoveRange(requestBatch);
+                        await context.SaveChangesAsync();
+                    }
+                    else if (500 <= statusCodeInt)
+                    {
+                        break;
+                    }
                 }
             }
-
-            await context.SaveChangesAsync();
-            _isSyncing = false;
+            finally
+            {
+                _isSyncing = false;
+            }
         }
 
-        private async static Task<bool> RunRequests(List<Request> requests, RequestType requestType)
+        /// <summary>
+        /// Logic to run a list of requests of the same <see cref="RequestType"/>
+        /// There should only be more than one request when <see cref="ProcessingMethod"/> is of type <see cref="ProcessingMethod.Batch"/>
+        /// </summary>
+        /// <param name="requests">A list of requests</param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        private async static Task<HttpStatusCode> RunRequests(List<Request> requests)
         {
-            var requestSuccessful = false;
+            var singleRequest = requests.First();
+            var requestType = singleRequest.RequestType;
+            HttpStatusCode? statusCode = null;
 
             switch (requestType)
             {
                 case RequestType.UpdateSongLastPlayed:
-                    requestSuccessful = UpdateSongLastPlayed(requests.Cast<UpdateSongLastPlayedRequest>().ToList());
+                    statusCode = await UpdateSongLastPlayed(requests.Cast<UpdateSongLastPlayedRequest>().ToList());
                     break;
                 case RequestType.UpdatePlaylists:
-                    requestSuccessful = await UpdatePlaylists();
+                    statusCode = await RefreshLocalPlaylists();
                     break;
             }
 
-            return requestSuccessful;
-        }
-
-        private static bool UpdateSongLastPlayed(List<UpdateSongLastPlayedRequest> requests)
-        {
-            var client = Program.ServiceProvider.GetRequiredService<HttpClient>();
-            var parameters = new Dictionary<string, string>()
+            if (statusCode == null)
             {
-                { "requestsJson", JsonConvert.SerializeObject(requests) }
-            };
-
-            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-            if (!client.TryPost(new Uri($"{SiteInfo.Url}song/UpdateLastPlayed"), parameters, out object _))
-            {
-                return false;
+                throw new Exception("A request type has no method to call.");
             }
 
-            return true;
+            return statusCode.Value;
         }
 
-        private async static Task<bool> UpdatePlaylists()
+        //private static async Task<bool> GetAllSongs()
+        //{
+
+        //}
+
+        private static async Task<HttpStatusCode> UpdateSongLastPlayed(List<UpdateSongLastPlayedRequest> requests)
         {
-            var client = Program.ServiceProvider.GetRequiredService<HttpClient>();
+            try
+            {
+                await ApiRequestManager.UserSongUpdateLastPlayed(requests);
+                return HttpStatusCode.OK;
+            }
+            catch (HttpRequestException ex)
+            {
+                return ex.StatusCode ?? HttpStatusCode.InternalServerError;
+            }
+        }
+
+        private async static Task<HttpStatusCode> RefreshLocalPlaylists()
+        {
+            var context = Program.ServiceProvider.GetRequiredService<ShuffullContext>();
+            var localSessionData = context.LocalSessionData.First();
             var parameters = new Dictionary<string, string>()
             {
-                { "userId", "1" }
+                { "userId", $"{localSessionData.UserId}" }
             };
+            List<Playlist> accessiblePlaylists;
 
-            if (!client.TryPost(new Uri($"{SiteInfo.Url}playlist/GetAllOverview"), parameters, out List<Playlist> accessiblePlaylists))
+            try
             {
-                return false;
+                accessiblePlaylists = await ApiRequestManager.PlaylistGetAll();
+            }
+            catch (HttpRequestException ex)
+            {
+                return ex.StatusCode ?? HttpStatusCode.InternalServerError;
             }
 
             // TODO: Will probably need to have this called every X minutes
-            var context = Program.ServiceProvider.GetRequiredService<ShuffullContext>();
             var accessiblePlaylistIds = accessiblePlaylists.Select(x => x.PlaylistId).ToArray();
             var localPlaylists = context.GetPlaylists();
             var playlistsToFetch = new List<long>();
@@ -172,33 +252,28 @@ namespace Shuffull.Windows.Tools
                 {
                     playlistsToFetch.Add(accessiblePlaylist.PlaylistId);
                 }
-                else if (localPlaylist.Version > accessiblePlaylist.Version)
-                {
-                    // TODO: POST new info to server; could just be that something gets added to the request pile
-                }
             }
 
             if (playlistsToFetch.Any())
             {
-                parameters = new Dictionary<string, string>()
+                try
                 {
-                    { "playlistIds", $"{string.Join(",", playlistsToFetch)}" }
-                };
+                    var updatedPlaylists = await ApiRequestManager.PlaylistGetList(playlistsToFetch.ToArray());
 
-                if (!client.TryPost(new Uri($"{SiteInfo.Url}playlist/GetAll"), parameters, out List<Playlist> updatedPlaylists))
-                {
-                    return false;
+                    foreach (var updatedPlaylist in updatedPlaylists)
+                    {
+                        context.UpdatePlaylist(updatedPlaylist);
+                    }
+
+                    context.SaveChanges();
                 }
-
-                foreach (var updatedPlaylist in updatedPlaylists)
+                catch (HttpRequestException ex)
                 {
-                    context.UpdatePlaylist(updatedPlaylist);
+                    return ex.StatusCode ?? HttpStatusCode.InternalServerError;
                 }
-
-                await context.SaveChangesAsync();
             }
 
-            return true;
+            return HttpStatusCode.OK;
         }
     }
 }

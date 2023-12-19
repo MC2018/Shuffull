@@ -1,18 +1,13 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Database = Shuffull.Site.Database;
-using Shuffull.Shared.Networking.Models;
+using Microsoft.Extensions.Options;
+using Shuffull.Shared.Networking.Models.Server;
 using Shuffull.Site.Tools;
-using Shuffull.Site.Models;
-using System.Diagnostics;
-using Shuffull.Site;
-using Results = Shuffull.Shared.Networking.Models;
-using Shuffull.Shared.Networking.Models.Requests;
-using Shuffull.Site.Database.Models;
-using System.Collections.Generic;
-using Newtonsoft.Json;
+using Shuffull.Site.Tools.Authorization;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
-namespace Shuffull.Tools.Controllers
+namespace Shuffull.Site.Controllers
 {
     public class SongController : Controller
     {
@@ -23,42 +18,41 @@ namespace Shuffull.Tools.Controllers
             _services = services;
         }
 
-
-        /*// TODO: This will need to be shared amongst all requests
-        private List<IRequest> RemoveDuplicateRequests(List<IRequest> requests, ShuffullContext context)
-        {
-            var requestGuids = requests.Select(x => x.Guid).ToList();
-            var requestLogs = context.RequestLogs.Where(x => requestGuids.Contains(x.Guid)).ToList();
-
-            foreach ()
-        }*/
-
-        [HttpPost]
-        public async Task UpdateLastPlayed(string requestsJson)
+        [HttpGet]
+        [Authorize]
+        public async Task<IActionResult> Get(long songId)
         {
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
-            var requests = JsonConvert.DeserializeObject<List<UpdateSongLastPlayedRequest>>(requestsJson);
-            var userId = 1;
+            var song = await context.Songs.Where(x => x.SongId == songId).FirstOrDefaultAsync();
 
-            if (requests == null)
+            if (song == null)
             {
-                return;
+                return BadRequest("Song does not exist");
             }
 
-            var songIds = requests.Select(x => x.SongId).ToList();
-            var userSongs = context.Users
-                .Where(x => x.UserId == userId)
-                .SelectMany(x => x.UserSongs)
-                .Where(x => songIds.Contains(x.SongId))
-                .ToList();
+            return Ok(song);
+        }
 
-            foreach (var userSong in userSongs)
+        [HttpGet]
+        [Authorize]
+        public async Task<IActionResult> GetAll(int pageIndex)
+        {
+            using var scope = _services.CreateScope();
+            using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
+            var songs = await context.Songs
+                .AsNoTracking()
+                .Skip(pageIndex * 50)
+                .Take(50)
+                .ToListAsync();
+
+            if (!songs.Any())
             {
-                userSong.LastPlayed = requests.Where(x => x.SongId == userSong.SongId).First().LastPlayed;
+                return BadRequest("There are not this many songs in the database.");
             }
 
-            await context.SaveChangesAsync();
+            var result = ClassMapper.Mapper.Map<List<Song>>(songs);
+            return Ok(result);
         }
     }
 }

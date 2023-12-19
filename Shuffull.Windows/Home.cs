@@ -26,8 +26,7 @@ namespace Shuffull.Windows
         {
             InitializeComponent();
             Core.Initialize();
-
-            // sync
+            Task.Run(() => SyncManager.Initialize()).Wait();
             // set last played as current song
             MediaManager.QueueLastPlayedSong();
 

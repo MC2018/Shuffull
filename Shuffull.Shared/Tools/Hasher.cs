@@ -7,7 +7,7 @@ namespace Shuffull.Shared.Tools
 {
     public class Hasher
     {
-        public static async Task<string> Hash(string input)
+        public static string Hash(string input)
         {
             var argon2 = new Argon2id(Encoding.UTF8.GetBytes(input))
             {

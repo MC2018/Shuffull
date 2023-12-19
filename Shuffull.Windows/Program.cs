@@ -3,8 +3,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shuffull.Shared;
+using Shuffull.Shared.Networking.Models.Server;
 using Shuffull.Windows.Constants;
 using Shuffull.Windows.Tools;
+using System.Net.Http.Json;
 
 namespace Shuffull.Windows
 {
@@ -26,7 +28,6 @@ namespace Shuffull.Windows
             ConfigureServices();
             Directory.CreateDirectory(Directories.LocalDataAbsolutePath);
             Directory.CreateDirectory(Directories.MusicFolderAbsolutePath);
-            await SyncManager.Initialize();
             Application.Run(new Login());
         }
 
@@ -36,7 +37,9 @@ namespace Shuffull.Windows
             services.AddHttpClient();
             services.AddTransient(provider =>
             {
-                return new ShuffullContext(Directories.DatabaseFileAbsolutePath);
+                var context = new ShuffullContext(Directories.DatabaseFileAbsolutePath);
+                context.Database.SetCommandTimeout(5);
+                return context;
             });
             ServiceProvider = services.BuildServiceProvider();
         }

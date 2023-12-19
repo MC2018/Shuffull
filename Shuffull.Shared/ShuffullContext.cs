@@ -81,7 +81,8 @@ namespace Shuffull.Shared
                 .ToTable("Requests")
                 .HasDiscriminator<string>("RequestName")
                 .HasValue<GetPlaylistsRequest>(Enums.RequestType.UpdatePlaylists.ToString())
-                .HasValue<UpdateSongLastPlayedRequest>(Enums.RequestType.UpdateSongLastPlayed.ToString());
+                .HasValue<UpdateSongLastPlayedRequest>(Enums.RequestType.UpdateSongLastPlayed.ToString())
+                .HasValue<AuthenticateRequest>(Enums.RequestType.Authenticate.ToString());
 
             modelBuilder.Entity<RecentlyPlayedSong>()
                 .HasIndex(x => x.TimestampSeconds);

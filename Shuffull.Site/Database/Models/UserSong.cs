@@ -14,6 +14,8 @@ namespace Shuffull.Site.Database.Models
         public long SongId { get; set; }
         [Required]
         public DateTime LastPlayed { get; set; }
+        [Required]
+        public DateTime Version { get; set; }
 
         [Key]
         public User User { get; set; }

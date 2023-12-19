@@ -18,6 +18,7 @@ namespace Shuffull.Shared.Networking.Models.Requests
         {
             RequestType = RequestType.Authenticate;
             RequestName = RequestType.Authenticate.ToString();
+            ProcessingMethod = ProcessingMethod.OnlyOnce;
         }
 
         public override void UpdateLocalDb(ShuffullContext context)

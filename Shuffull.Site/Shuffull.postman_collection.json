@@ -1,0 +1,808 @@
+{
+	"info": {
+		"_postman_id": "79198fd3-2772-46cd-8607-d5db1f847b1f",
+		"name": "Shuffull",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "30953159"
+	},
+	"item": [
+		{
+			"name": "User",
+			"item": [
+				{
+					"name": "Create",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Response OK\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Set environment variable for username\", function () {\r",
+									"    const responseJSON = pm.response.json();\r",
+									"    pm.environment.set(\"username\", responseJSON.user.username);\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Token is a non-empty string\", function () {\r",
+									"  const responseData = pm.response.json();\r",
+									"  pm.expect(responseData.token).to.be.a('string').and.to.have.lengthOf.at.least(1, \"Token should not be empty\");\r",
+									"  pm.environment.set(\"token\", responseData.token);\r",
+									"});\r",
+									""
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"pm.environment.set(\"userHash\", \"NotARealHash\");"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/user/create?username={{$randomNoun}}{{$randomInt}}&userHash={{userHash}}",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"user",
+								"create"
+							],
+							"query": [
+								{
+									"key": "username",
+									"value": "{{$randomNoun}}{{$randomInt}}"
+								},
+								{
+									"key": "userHash",
+									"value": "{{userHash}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Authenticate",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Response status code is 200\", function () {\r",
+									"    pm.expect(pm.response.code).to.equal(200);\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Token is a non-empty string\", function () {\r",
+									"  const responseData = pm.response.json();\r",
+									"  pm.expect(responseData.token).to.be.a('string').and.to.have.lengthOf.at.least(1, \"Token should not be empty\");\r",
+									"  pm.environment.set(\"token\", responseData.token);\r",
+									"});\r",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/user/authenticate?username={{username}}&userHash={{userHash}}",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"user",
+								"authenticate"
+							],
+							"query": [
+								{
+									"key": "username",
+									"value": "{{username}}"
+								},
+								{
+									"key": "userHash",
+									"value": "{{userHash}}"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Song",
+			"item": [
+				{
+					"name": "GetAll",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Response status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Response is an array of objects with songId, directory, and name properties\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData).to.be.an('array');\r",
+									"    jsonData.forEach(function(song) {\r",
+									"        pm.expect(song).to.have.property('songId');\r",
+									"        pm.expect(song).to.have.property('directory');\r",
+									"        pm.expect(song).to.have.property('name');\r",
+									"    });\r",
+									"\r",
+									"    pm.environment.set(\"songId\", jsonData[0].songId);\r",
+									"});\r",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/song/getall?pageIndex=0",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"song",
+								"getall"
+							],
+							"query": [
+								{
+									"key": "pageIndex",
+									"value": "0"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Response status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Response is an object with songId property\", function () {\r",
+									"    pm.expect(pm.response.json()).to.be.an('object').that.has.property('songId');\r",
+									"});\r",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/song/get?songId={{songId}}",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"song",
+								"get"
+							],
+							"query": [
+								{
+									"key": "songId",
+									"value": "{{songId}}"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "UserSong",
+			"item": [
+				{
+					"name": "CreateMany",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Response status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Response is an array of objects\", function () {\r",
+									"    pm.expect(pm.response.json()).to.be.an('array').that.is.not.empty;\r",
+									"    pm.response.json().forEach(function(userSong) {\r",
+									"        pm.expect(userSong).to.be.an('object');\r",
+									"    });\r",
+									"});\r",
+									"\r",
+									"pm.test(\"At least one item has userSongId as environment songId\", function () {\r",
+									"    var userSongIds = pm.response.json().map(item => item.userSongId);\r",
+									"    pm.expect(userSongIds).to.include(pm.environment.get(\"userSongId\"));\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Each item in the array has userSongId property\", function () {\r",
+									"    pm.response.json().forEach(function(userSong) {\r",
+									"        pm.expect(userSong).to.have.property('userSongId');\r",
+									"    });\r",
+									"});\r",
+									"\r",
+									"// Set the userSongId of the first item in the array as an environment variable\r",
+									"pm.environment.set(\"userSongId\", pm.response.json()[0].userSongId);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/usersong/createmany?songIds={{songId}}",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"usersong",
+								"createmany"
+							],
+							"query": [
+								{
+									"key": "songIds",
+									"value": "{{songId}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "CreateMany (Already Exists)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Response status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Response is an array\", function () {\r",
+									"    pm.expect(pm.response.json()).to.be.an('array');\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Response array is empty\", function () {\r",
+									"    pm.expect(pm.response.json()).to.be.empty;\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/usersong/createmany?songIds={{songId}}",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"usersong",
+								"createmany"
+							],
+							"query": [
+								{
+									"key": "songIds",
+									"value": "{{songId}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "UpdateLastPlayed",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Response status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "[{\r\n    \"guid\": \"{{$guid}}\",\r\n    \"songId\": {{songId}},\r\n    \"lastPlayed\": \"2000-01-01T12:34:56\"\r\n}]",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url}}/usersong/updatelastplayed",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"usersong",
+								"updatelastplayed"
+							],
+							"query": [
+								{
+									"key": "",
+									"value": null,
+									"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "GetAll",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Response status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Response is an object with Items property\", function () {\r",
+									"    pm.expect(pm.response.json()).to.be.an('object').that.has.property('Items');\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Items property contains an array of values\", function () {\r",
+									"    pm.expect(pm.response.json().Items.$values).to.be.an('array');\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Response has the EndOfList variable set to true\", function () {\r",
+									"    pm.expect(pm.response.json()).to.have.property('EndOfList', true);\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Items property contains at least one item in the array\", function () {\r",
+									"    pm.expect(pm.response.json().Items.$values).to.be.an('array').that.is.not.empty;\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/usersong/getall",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"usersong",
+								"getall"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Playlist",
+			"item": [
+				{
+					"name": "Create",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Response status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Response is an object with playlistId property\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData).to.be.an('object').that.has.property('playlistId');\r",
+									"    pm.environment.set(\"playlistId\", jsonData.playlistId);\r",
+									"});\r",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/playlist/create?name=Postman Playlist",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"playlist",
+								"create"
+							],
+							"query": [
+								{
+									"key": "name",
+									"value": "Postman Playlist"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create (No Name)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Response status code is 400\", function () {\r",
+									"    pm.response.to.have.status(400);\r",
+									"});\r",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/playlist/create",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"playlist",
+								"create"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "AddSong",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Response status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/playlist/addsong?playlistId={{playlistId}}&songId={{songId}}",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"playlist",
+								"addsong"
+							],
+							"query": [
+								{
+									"key": "playlistId",
+									"value": "{{playlistId}}"
+								},
+								{
+									"key": "songId",
+									"value": "{{songId}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "GetAll",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Response status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Response is an array\", function () {\r",
+									"    pm.expect(pm.response.json()).to.be.an('array');\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Response is an array and contains playlistId of environment playlist\", function () {\r",
+									"    var playlistIds = pm.response.json().map(item => item.playlistId);\r",
+									"    pm.expect(playlistIds).to.include(pm.environment.get(\"playlistId\"));\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/playlist/getall",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"playlist",
+								"getall"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "GetList",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Response status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Response is an object\", function () {\r",
+									"    pm.expect(pm.response.json()).to.be.an('object').that.has.property('$values').to.be.an(\"array\");\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/playlist/getlist?playlistids={{playlistId}}",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"playlist",
+								"getlist"
+							],
+							"query": [
+								{
+									"key": "playlistids",
+									"value": "{{playlistId}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Response status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Response is an object with PlaylistId property\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData).to.be.an('object');\r",
+									"    pm.expect(jsonData).to.have.property('PlaylistId').that.is.a('number');\r",
+									"});\r",
+									"\r",
+									"pm.test(\"One song has the id of environment songId\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    var songIdCount = jsonData.PlaylistSongs.$values.filter(function(song) {\r",
+									"        return song.SongId === pm.environment.get(\"songId\");\r",
+									"    }).length;\r",
+									"    pm.expect(songIdCount).to.equal(1);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/playlist/get?playlistid={{playlistId}}",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"playlist",
+								"get"
+							],
+							"query": [
+								{
+									"key": "playlistid",
+									"value": "{{playlistId}}"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}

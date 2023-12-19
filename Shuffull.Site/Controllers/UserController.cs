@@ -5,8 +5,10 @@ using Shuffull.Site;
 using Shuffull.Shared.Networking.Models.Server;
 using Shuffull.Site.Tools.Authorization;
 using Shuffull.Shared.Networking.Models.Responses;
-using OpenAI_API.Moderation;
 using Shuffull.Shared.Tools;
+using System.Text.Json.Serialization;
+using System.Text.Json;
+using Newtonsoft.Json.Linq;
 
 namespace Shuffull.Tools.Controllers
 {
@@ -19,19 +21,21 @@ namespace Shuffull.Tools.Controllers
             _services = services;
         }
 
+        [HttpPost]
         public async Task<IActionResult> Authenticate(string username, string userHash)
         {
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
             var jwtHelper = scope.ServiceProvider.GetRequiredService<JwtHelper>();
-            var serverHash = await Hasher.Hash(userHash);
+            var serverHash = Hasher.Hash(userHash);
             var user = await context.Users
+                .AsNoTracking()
                 .Where(x => x.Username == username && x.ServerHash == serverHash)
                 .FirstOrDefaultAsync();
 
             if (user == null)
             {
-                return BadRequest(new { message = "Username/password is incorrect" });
+                return BadRequest("Username/password is incorrect");
             }
 
             var expiration = DateTime.UtcNow.AddDays(30);
@@ -42,6 +46,7 @@ namespace Shuffull.Tools.Controllers
             return Ok(response);
         }
 
+        [HttpPost]
         public async Task<IActionResult> Create(string username, string userHash)
         {
             using var scope = _services.CreateScope();
@@ -54,16 +59,48 @@ namespace Shuffull.Tools.Controllers
             }
 
             var jwtHelper = scope.ServiceProvider.GetRequiredService<JwtHelper>();
-            var serverHash = await Hasher.Hash(userHash);
+            var serverHash = Hasher.Hash(userHash);
             user = new Site.Database.Models.User()
             {
                 Username = username,
-                ServerHash = serverHash
+                ServerHash = serverHash,
+                Version = DateTime.UtcNow
             };
 
             context.Users.Add(user);
-            var response = ClassMapper.Mapper.Map<User>(user);
+            await context.SaveChangesAsync();
+
+            var expiration = DateTime.UtcNow.AddDays(30);
+            var token = jwtHelper.GenerateJwtToken(user, expiration);
+            var mappedUser = ClassMapper.Mapper.Map<User>(user);
+            var response = new AuthenticateResponse(mappedUser, token, expiration);
+
             return Ok(response);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> Test()
+        {
+            using var scope = _services.CreateScope();
+            using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
+
+            var user1 = new Site.Database.Models.User()
+            {
+                Username = "one",
+                Version = DateTime.UtcNow,
+                ServerHash = "one"
+            };
+            var user2 = new Site.Database.Models.User()
+            {
+                Username = "one",
+                Version = DateTime.UtcNow,
+                ServerHash = "one"
+            };
+
+            context.Users.Add(user1); context.Users.Add(user2);
+            await context.SaveChangesAsync();
+
+            return Ok();
         }
     }
 }

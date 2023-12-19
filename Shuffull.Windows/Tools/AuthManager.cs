@@ -4,6 +4,7 @@ using Newtonsoft.Json;
 using Shuffull.Shared;
 using Shuffull.Shared.Networking.Models;
 using Shuffull.Shared.Networking.Models.Responses;
+using Shuffull.Shared.Networking.Models.Server;
 using Shuffull.Shared.Tools;
 using Shuffull.Windows.Constants;
 using Shuffull.Windows.Extensions;
@@ -60,50 +61,38 @@ namespace Shuffull.Windows.Tools
             await context.SaveChangesAsync();
         }
 
-        async public static Task<bool> RefreshAuthentication(string username, string password)
+        public static async Task RefreshAuthentication(string username, string password)
         {
-            var client = Program.ServiceProvider.GetRequiredService<HttpClient>();
-            var userHash = await Hasher.Hash($"{username};{password}");
-            var parameters = new Dictionary<string, string>()
+            try
             {
-                { "username", username },
-                { "userHash", userHash }
-            };
-
-            // TODO: get reason for failure and print it to display, maybe just through Exception
-            if (client.TryPost(new Uri($"{SiteInfo.Url}user/authenticate"), parameters, out AuthenticateResponse response))
-            {
-                await LoadSessionData(response);
-                return true;
+                var userHash = Hasher.Hash($"{username};{password}");
+                var response = await ApiRequestManager.UserAuthenticate(username, userHash);
+                await LoadSessionData(response.User, response.Token, response.Expiration);
             }
-            
-            return false;
+            catch
+            {
+                throw;
+            }
         }
 
-        async public static Task<bool> CreateAccount(string username, string password)
+        public static async Task CreateAccount(string username, string password)
         {
-            var client = Program.ServiceProvider.GetRequiredService<HttpClient>();
-            var userHash = await Hasher.Hash($"{username};{password}");
-            var parameters = new Dictionary<string, string>()
+            try
             {
-                { "username", username },
-                { "userHash", userHash }
-            };
-
-            // TODO: get reason for failure and print it to display, maybe just through Exception
-            if (client.TryPost(new Uri($"{SiteInfo.Url}user/Create"), parameters, out AuthenticateResponse response))
-            {
-                await LoadSessionData(response);
-                return true;
+                var response = await ApiRequestManager.UserCreate(username, password);
+                await LoadSessionData(response.User, response.Token, response.Expiration);
             }
-
-            return false;
+            catch
+            {
+                throw;
+            }
         }
 
-        async public static Task LoadSessionData(AuthenticateResponse response)
+        async public static Task LoadSessionData(User user, string token, DateTime expiration)
         {
             var context = Program.ServiceProvider.GetRequiredService<ShuffullContext>();
             var localSessionData = await context.LocalSessionData.FirstOrDefaultAsync();
+            var userExists = await context.Users.Where(x => x.UserId == user.UserId).AnyAsync();
             var userChanged = false;
             var noDataFound = false;
 
@@ -115,7 +104,7 @@ namespace Shuffull.Windows.Tools
             }
             else
             {
-                if (response.User.UserId != localSessionData.UserId)
+                if (user.UserId != localSessionData.UserId)
                 {
                     userChanged = true;
                 }
@@ -123,13 +112,20 @@ namespace Shuffull.Windows.Tools
 
             if (userChanged)
             {
-                localSessionData.UserId = response.User.UserId;
+                localSessionData.UserId = user.UserId;
                 localSessionData.CurrentPlaylistId = -1;
                 localSessionData.ActivelyDownload = false;
             }
 
-            localSessionData.Token = response.Token;
-            localSessionData.Expiration = response.Expiration;
+            // If the user doesn't exist, change the version to ensure they get a full update on sync
+            if (!userExists)
+            {
+                user.Version = DateTime.MinValue;
+                context.Users.Add(user);
+            }
+
+            localSessionData.Token = token;
+            localSessionData.Expiration = expiration;
 
             if (noDataFound)
             {

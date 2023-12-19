@@ -20,6 +20,7 @@ namespace Shuffull.Shared.Networking.Models.Requests
         { 
             RequestType = RequestType.UpdateSongLastPlayed;
             RequestName = RequestType.UpdateSongLastPlayed.ToString();
+            ProcessingMethod = ProcessingMethod.Batch;
         }
 
         public override void UpdateLocalDb(ShuffullContext context)

@@ -2,15 +2,17 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Shuffull.Shared;
 
 namespace Shuffull.Shared.Migrations
 {
     [DbContext(typeof(ShuffullContext))]
-    partial class ShuffullContextModelSnapshot : ModelSnapshot
+    [Migration("20231218041657_ProcessingMethodAndUser")]
+    partial class ProcessingMethodAndUser
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -251,9 +253,6 @@ namespace Shuffull.Shared.Migrations
 
                     b.Property<long>("UserId")
                         .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("Version")
-                        .HasColumnType("TEXT");
 
                     b.HasKey("UserSongId");
 
