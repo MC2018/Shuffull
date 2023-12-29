@@ -127,6 +127,53 @@
 						}
 					},
 					"response": []
+				},
+				{
+					"name": "Get",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Response status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Response is an object with UserId property\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData).to.be.an('object').that.has.property('UserId');\r",
+									"});\r",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/user/get",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"user",
+								"get"
+							]
+						}
+					},
+					"response": []
 				}
 			]
 		},
@@ -144,16 +191,11 @@
 									"    pm.response.to.have.status(200);\r",
 									"});\r",
 									"\r",
-									"pm.test(\"Response is an array of objects with songId, directory, and name properties\", function () {\r",
-									"    var jsonData = pm.response.json();\r",
-									"    pm.expect(jsonData).to.be.an('array');\r",
-									"    jsonData.forEach(function(song) {\r",
-									"        pm.expect(song).to.have.property('songId');\r",
-									"        pm.expect(song).to.have.property('directory');\r",
-									"        pm.expect(song).to.have.property('name');\r",
-									"    });\r",
-									"\r",
-									"    pm.environment.set(\"songId\", jsonData[0].songId);\r",
+									"pm.test(\"Array of songs is not empty\", function () {\r",
+									"    const responseData = pm.response.json();\r",
+									"    \r",
+									"    pm.expect(responseData).to.be.an('object');\r",
+									"    pm.expect(responseData.$values).to.be.an('array').and.to.have.lengthOf.at.least(1, \"Array should not be empty\");\r",
 									"});\r",
 									""
 								],
@@ -244,6 +286,67 @@
 						}
 					},
 					"response": []
+				},
+				{
+					"name": "GetList",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Response status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Response is an object with $values property\", function () {\r",
+									"    pm.expect(pm.response.json()).to.be.an('object').that.has.property('$values');\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Each SongArtist in $values has SongArtists and SongTags properties\", function () {\r",
+									"    pm.response.json().$values.forEach(function(song) {\r",
+									"        pm.expect(song).to.have.property('SongArtists');\r",
+									"        pm.expect(song).to.have.property('SongTags');\r",
+									"    });\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "[{{songId}}]",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url}}/song/getlist",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"song",
+								"getlist"
+							]
+						}
+					},
+					"response": []
 				}
 			]
 		},
@@ -268,19 +371,11 @@
 									"    });\r",
 									"});\r",
 									"\r",
-									"pm.test(\"At least one item has userSongId as environment songId\", function () {\r",
-									"    var userSongIds = pm.response.json().map(item => item.userSongId);\r",
-									"    pm.expect(userSongIds).to.include(pm.environment.get(\"userSongId\"));\r",
+									"pm.test(\"At least one item has songId as environment songId\", function () {\r",
+									"    var songIds = pm.response.json().map(item => item.songId);\r",
+									"    pm.expect(songIds).to.include(pm.environment.get(\"songId\"));\r",
 									"});\r",
-									"\r",
-									"pm.test(\"Each item in the array has userSongId property\", function () {\r",
-									"    pm.response.json().forEach(function(userSong) {\r",
-									"        pm.expect(userSong).to.have.property('userSongId');\r",
-									"    });\r",
-									"});\r",
-									"\r",
-									"// Set the userSongId of the first item in the array as an environment variable\r",
-									"pm.environment.set(\"userSongId\", pm.response.json()[0].userSongId);"
+									""
 								],
 								"type": "text/javascript"
 							}
@@ -299,20 +394,23 @@
 						},
 						"method": "PUT",
 						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "[\r\n    {{songId}}\r\n]",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
 						"url": {
-							"raw": "{{url}}/usersong/createmany?songIds={{songId}}",
+							"raw": "{{url}}/usersong/createmany",
 							"host": [
 								"{{url}}"
 							],
 							"path": [
 								"usersong",
 								"createmany"
-							],
-							"query": [
-								{
-									"key": "songIds",
-									"value": "{{songId}}"
-								}
 							]
 						}
 					},
@@ -382,7 +480,8 @@
 								"exec": [
 									"pm.test(\"Response status code is 200\", function () {\r",
 									"    pm.response.to.have.status(200);\r",
-									"});"
+									"});\r",
+									""
 								],
 								"type": "text/javascript"
 							}
@@ -720,22 +819,25 @@
 								}
 							]
 						},
-						"method": "GET",
+						"method": "POST",
 						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "[{{playlistId}}]",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
 						"url": {
-							"raw": "{{url}}/playlist/getlist?playlistids={{playlistId}}",
+							"raw": "{{url}}/playlist/getlist",
 							"host": [
 								"{{url}}"
 							],
 							"path": [
 								"playlist",
 								"getlist"
-							],
-							"query": [
-								{
-									"key": "playlistids",
-									"value": "{{playlistId}}"
-								}
 							]
 						}
 					},

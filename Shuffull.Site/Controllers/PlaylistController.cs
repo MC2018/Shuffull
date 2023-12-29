@@ -110,18 +110,23 @@ namespace Shuffull.Tools.Controllers
         }
 
         // TODO: remove songs from playlist get and getall
-        [HttpGet]
+        [HttpPost]
         [Authorize]
-        public async Task<IActionResult> GetList(long[] playlistIds)
+        public async Task<IActionResult> GetList([FromBody] long[] playlistIds)
         {
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
             var contextUser = HttpContext.Items["User"] as Site.Database.Models.User;
+
+            if (playlistIds == null || playlistIds.Length == 0)
+            {
+                return BadRequest("No playlist ids were received.");
+            }
+
             var playlist = await context.Playlists
                 .AsNoTracking()
                 .Where(x => x.UserId == contextUser.UserId && playlistIds.Contains(x.PlaylistId))
                 .Include(x => x.PlaylistSongs)
-                .ThenInclude(x => x.Song)
                 .ToListAsync();
             var result = ClassMapper.Mapper.Map<List<Playlist>>(playlist);
 

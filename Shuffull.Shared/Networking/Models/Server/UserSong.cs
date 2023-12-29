@@ -9,8 +9,6 @@ namespace Shuffull.Shared.Networking.Models.Server
     [Serializable]
     public class UserSong
     {
-        [Key, DatabaseGenerated(DatabaseGeneratedOption.None)]
-        public long UserSongId { get; set; }
         [Required]
         public long UserId { get; set; }
         [Required]

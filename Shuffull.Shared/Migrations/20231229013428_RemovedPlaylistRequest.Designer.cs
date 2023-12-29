@@ -9,8 +9,8 @@ using Shuffull.Shared;
 namespace Shuffull.Shared.Migrations
 {
     [DbContext(typeof(ShuffullContext))]
-    [Migration("20231104110808_TagReform")]
-    partial class TagReform
+    [Migration("20231229013428_RemovedPlaylistRequest")]
+    partial class RemovedPlaylistRequest
     {
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
@@ -28,6 +28,13 @@ namespace Shuffull.Shared.Migrations
 
                     b.Property<long>("CurrentPlaylistId")
                         .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("Expiration")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.HasKey("UserId");
 
@@ -61,6 +68,9 @@ namespace Shuffull.Shared.Migrations
                 {
                     b.Property<string>("Guid")
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("ProcessingMethod")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("RequestName")
                         .IsRequired()
@@ -232,11 +242,43 @@ namespace Shuffull.Shared.Migrations
 
             modelBuilder.Entity("Shuffull.Shared.Networking.Models.Server.UserSong", b =>
                 {
-                    b.Property<long>("UserSongId")
+                    b.Property<long>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("SongId")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("LastPlayed")
                         .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("Version")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("UserId", "SongId");
+
+                    b.HasIndex("SongId");
+
+                    b.ToTable("UserSongs");
+                });
+
+            modelBuilder.Entity("Shuffull.Shared.Networking.Models.Requests.AuthenticateRequest", b =>
+                {
+                    b.HasBaseType("Shuffull.Shared.Networking.Models.Requests.Request");
+
+                    b.Property<string>("UserHash")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasDiscriminator().HasValue("Authenticate");
+                });
+
+            modelBuilder.Entity("Shuffull.Shared.Networking.Models.Requests.CreateUserSongRequest", b =>
+                {
+                    b.HasBaseType("Shuffull.Shared.Networking.Models.Requests.Request");
 
                     b.Property<long>("SongId")
                         .HasColumnType("INTEGER");
@@ -244,20 +286,14 @@ namespace Shuffull.Shared.Migrations
                     b.Property<long>("UserId")
                         .HasColumnType("INTEGER");
 
-                    b.HasKey("UserSongId");
-
-                    b.HasIndex("SongId");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("UserSongs");
+                    b.HasDiscriminator().HasValue("CreateUserSong");
                 });
 
-            modelBuilder.Entity("Shuffull.Shared.Networking.Models.Requests.GetPlaylistsRequest", b =>
+            modelBuilder.Entity("Shuffull.Shared.Networking.Models.Requests.OverallSyncRequest", b =>
                 {
                     b.HasBaseType("Shuffull.Shared.Networking.Models.Requests.Request");
 
-                    b.HasDiscriminator().HasValue("UpdatePlaylists");
+                    b.HasDiscriminator().HasValue("OverallSync");
                 });
 
             modelBuilder.Entity("Shuffull.Shared.Networking.Models.Requests.UpdateSongLastPlayedRequest", b =>
@@ -268,6 +304,7 @@ namespace Shuffull.Shared.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<long>("SongId")
+                        .HasColumnName("UpdateSongLastPlayedRequest_SongId")
                         .HasColumnType("INTEGER");
 
                     b.HasDiscriminator().HasValue("UpdateSongLastPlayed");

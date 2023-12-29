@@ -6,8 +6,9 @@ namespace Shuffull.Shared.Enums
 {
     public enum RequestType
     {
-        UpdateSongLastPlayed,
-        UpdatePlaylists,
-        Authenticate
+        UpdateSongLastPlayed = 0,
+        Authenticate = 1,
+        OverallSync = 2,
+        CreateUserSong = 3
     }
 }

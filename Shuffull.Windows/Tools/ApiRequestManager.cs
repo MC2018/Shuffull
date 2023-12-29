@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using MoreLinq;
 using Newtonsoft.Json;
 using Shuffull.Shared;
 using Shuffull.Shared.Networking.Models.Requests;
@@ -17,6 +18,7 @@ using System.Reflection.Metadata;
 using System.Security.Policy;
 using System.Text;
 using System.Threading.Tasks;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.StartPanel;
 
 namespace Shuffull.Windows.Tools
 {
@@ -25,7 +27,7 @@ namespace Shuffull.Windows.Tools
         private static HttpClient GetAuthorizedClient()
         {
             var client = Program.ServiceProvider.GetRequiredService<HttpClient>();
-            var context = Program.ServiceProvider.GetRequiredService<ShuffullContext>();
+            using var context = Program.ServiceProvider.GetRequiredService<ShuffullContext>();
             var localSessionDate = context.LocalSessionData.First();
 
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", localSessionDate.Token);
@@ -59,11 +61,12 @@ namespace Shuffull.Windows.Tools
         public static async Task<List<Playlist>> PlaylistGetList(long[] playlistIds)
         {
             var client = GetAuthorizedClient();
-            var parameters = $"playlistIds={string.Join(",", playlistIds)}";
+            var playlistIdsJson = $"[{string.Join(",", playlistIds)}]";
+            var parameters = new StringContent(playlistIdsJson, Encoding.UTF8, "application/json");
 
             try
             {
-                var response = await client.GetAsync(new Uri($"{SiteInfo.Url}/playlist/getlist?{parameters}"));
+                var response = await client.PostAsync(new Uri($"{SiteInfo.Url}/playlist/getlist"), parameters);
                 response.EnsureSuccessStatusCode();
 
                 using var content = response.Content;
@@ -131,6 +134,30 @@ namespace Shuffull.Windows.Tools
                 throw new HttpRequestException("Issue with sending a request to the server", ex);
             }
         }
+
+        public static async Task<User> UserGet()
+        {
+            var client = GetAuthorizedClient();
+
+            try
+            {
+                var response = await client.GetAsync(new Uri($"{SiteInfo.Url}/user/get"));
+                response.EnsureSuccessStatusCode();
+
+                //var result = await response.Content.ReadFromJsonAsync<User>();
+                var resultStr = await response.Content.ReadAsStringAsync();
+                var result = JsonConvert.DeserializeObject<User>(resultStr);
+                return result;
+            }
+            catch (HttpRequestException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                throw new HttpRequestException("Issue with sending a request to the server", ex);
+            }
+        }
         #endregion
 
         #region UserSong
@@ -143,15 +170,33 @@ namespace Shuffull.Windows.Tools
         public static async Task UserSongUpdateLastPlayed(List<UpdateSongLastPlayedRequest> requests)
         {
             var client = GetAuthorizedClient();
-            var parameters = new Dictionary<string, string>()
-            {
-                { "requests", JsonConvert.SerializeObject(requests) }
-            };
-            var encodedRequest = new FormUrlEncodedContent(parameters);
+            var requestsJson = JsonConvert.SerializeObject(requests);
+            var parameters = new StringContent(requestsJson, Encoding.UTF8, "application/json");
 
             try
             {
-                using var response = await client.PostAsync($"{SiteInfo.Url}/usersong/updatelastplayed", encodedRequest);
+                using var response = await client.PostAsync($"{SiteInfo.Url}/usersong/updatelastplayed", parameters);
+                response.EnsureSuccessStatusCode();
+            }
+            catch (HttpRequestException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                throw new HttpRequestException("Issue with sending a request to the server", ex);
+            }
+        }
+
+        public static async Task UserSongCreateMany(List<long> songIds)
+        {
+            var client = GetAuthorizedClient();
+            var songIdsJson = JsonConvert.SerializeObject(songIds);
+            var parameters = new StringContent(songIdsJson, Encoding.UTF8, "application/json");
+
+            try
+            {
+                using var response = await client.PutAsync($"{SiteInfo.Url}/usersong/createmany", parameters);
                 response.EnsureSuccessStatusCode();
             }
             catch (HttpRequestException)
@@ -177,6 +222,34 @@ namespace Shuffull.Windows.Tools
                 using var content = response.Content;
                 var resultStr = await content.ReadAsStringAsync();
                 var result = JsonConvert.DeserializeObject<PaginatedResponse<UserSong>>(resultStr);
+                return result;
+            }
+            catch (HttpRequestException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                throw new HttpRequestException("Issue with sending a request to the server", ex);
+            }
+        }
+        #endregion
+
+        #region Song
+        public static async Task<List<Song>> SongGetList(long[] songIds)
+        {
+            var client = GetAuthorizedClient();
+            var songIdsJson = $"[{string.Join(",", songIds)}]";
+            var parameters = new StringContent(songIdsJson, Encoding.UTF8, "application/json");
+
+            try
+            {
+                using var response = await client.PostAsync($"{SiteInfo.Url}/song/getlist", parameters);
+                response.EnsureSuccessStatusCode();
+
+                using var content = response.Content;
+                var resultStr = await content.ReadAsStringAsync();
+                var result = JsonConvert.DeserializeObject<List<Song>>(resultStr);
                 return result;
             }
             catch (HttpRequestException)

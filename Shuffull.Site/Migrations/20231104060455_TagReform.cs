@@ -136,11 +136,6 @@ namespace Shuffull.Site.Migrations
                 name: "IX_UserSongs_SongId",
                 table: "UserSongs",
                 column: "SongId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_UserSongs_UserId",
-                table: "UserSongs",
-                column: "UserId");
         }
 
         /// <inheritdoc />

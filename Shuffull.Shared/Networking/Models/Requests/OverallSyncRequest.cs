@@ -1,17 +1,19 @@
-﻿using Shuffull.Shared.Enums;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
+using Shuffull.Shared.Enums;
 
 namespace Shuffull.Shared.Networking.Models.Requests
 {
     [Serializable]
-    public class GetPlaylistsRequest : Request
+    public class OverallSyncRequest : Request
     {
-        public GetPlaylistsRequest()
+        public OverallSyncRequest()
         {
-            RequestType = RequestType.UpdatePlaylists;
-            RequestName = RequestType.UpdatePlaylists.ToString();
+            RequestType = RequestType.OverallSync;
+            RequestName = RequestType.OverallSync.ToString();
             ProcessingMethod = ProcessingMethod.OnlyOnce;
         }
 

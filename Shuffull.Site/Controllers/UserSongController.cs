@@ -40,7 +40,7 @@ namespace Shuffull.Tools.Controllers
 
         [HttpPut]
         [Authorize]
-        public async Task<IActionResult> CreateMany(long[] songIds)
+        public async Task<IActionResult> CreateMany([FromBody] long[] songIds)
         {
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
@@ -76,12 +76,6 @@ namespace Shuffull.Tools.Controllers
             var contextUser = HttpContext.Items["User"] as User;
             var userSongs = await context.UserSongs
                 .Where(x => x.UserId == contextUser.UserId && x.Version > afterDate)
-                .Include(x => x.Song)
-                .ThenInclude(x => x.SongTags)
-                .ThenInclude(x => x.Tag)
-                .Include(x => x.Song)
-                .ThenInclude(x => x.SongArtists)
-                .ThenInclude(x => x.Artist)
                 .OrderBy(x => x.Version)
                 .Take(MAX_PAGE_LENGTH + 1)
                 .ToListAsync();

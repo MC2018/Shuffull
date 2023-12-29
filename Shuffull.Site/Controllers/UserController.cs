@@ -79,28 +79,24 @@ namespace Shuffull.Tools.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Test()
+        [Authorize]
+        public async Task<IActionResult> Get()
         {
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
-
-            var user1 = new Site.Database.Models.User()
+            var contextUser = HttpContext.Items["User"] as Site.Database.Models.User;
+            var user = await context.Users
+                .AsNoTracking()
+                .Where(x => x.UserId == contextUser.UserId)
+                .FirstAsync();
+            var result = ClassMapper.Mapper.Map<User>(user);
+            var options = new JsonSerializerOptions
             {
-                Username = "one",
-                Version = DateTime.UtcNow,
-                ServerHash = "one"
+                ReferenceHandler = ReferenceHandler.Preserve
             };
-            var user2 = new Site.Database.Models.User()
-            {
-                Username = "one",
-                Version = DateTime.UtcNow,
-                ServerHash = "one"
-            };
+            var resultStr = JsonSerializer.Serialize(result, options);
 
-            context.Users.Add(user1); context.Users.Add(user2);
-            await context.SaveChangesAsync();
-
-            return Ok();
+            return Ok(resultStr);
         }
     }
 }

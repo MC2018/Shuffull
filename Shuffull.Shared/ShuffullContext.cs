@@ -80,9 +80,13 @@ namespace Shuffull.Shared
             modelBuilder.Entity<Request>()
                 .ToTable("Requests")
                 .HasDiscriminator<string>("RequestName")
-                .HasValue<GetPlaylistsRequest>(Enums.RequestType.UpdatePlaylists.ToString())
                 .HasValue<UpdateSongLastPlayedRequest>(Enums.RequestType.UpdateSongLastPlayed.ToString())
-                .HasValue<AuthenticateRequest>(Enums.RequestType.Authenticate.ToString());
+                .HasValue<AuthenticateRequest>(Enums.RequestType.Authenticate.ToString())
+                .HasValue<CreateUserSongRequest>(Enums.RequestType.CreateUserSong.ToString())
+                .HasValue<OverallSyncRequest>(Enums.RequestType.OverallSync.ToString());
+
+            modelBuilder.Entity<UserSong>()
+                .HasKey(us => new { us.UserId, us.SongId });
 
             modelBuilder.Entity<RecentlyPlayedSong>()
                 .HasIndex(x => x.TimestampSeconds);
@@ -203,29 +207,42 @@ namespace Shuffull.Shared
             return query.FirstOrDefault();
         }
 
-        // Playlist
-        public void UpdatePlaylist(Playlist playlist)
+        // User Song
+        public async Task UpdateUserSongs(List<UserSong> userSongs)
         {
-            var localPlaylist = Playlists
+            var localSessionData = LocalSessionData.First();
+            var songIds = userSongs.Select(x => x.SongId).ToList();
+            var localUserSongs = await UserSongs
+                .Where(x => x.UserId == localSessionData.UserId && songIds.Contains(x.SongId))
+                .ToListAsync();
+
+            if (localUserSongs != null)
+            {
+                UserSongs.RemoveRange(localUserSongs);
+                UserSongs.AddRange(userSongs);
+            }
+            else
+            {
+                UserSongs.AddRange(userSongs);
+            }
+        }
+
+        // Playlist
+        public async Task UpdatePlaylist(Playlist playlist)
+        {
+            var localPlaylist = await Playlists
                 .Where(x => x.PlaylistId == playlist.PlaylistId)
                 .Include(x => x.PlaylistSongs)
-                .ThenInclude(x => x.Song)
-                .FirstOrDefault();
+                .FirstOrDefaultAsync();
 
             if (localPlaylist != null)
             {
-                foreach (var playlistSong in localPlaylist.PlaylistSongs)
-                {
-                    Songs.Remove(playlistSong.Song);
-                    PlaylistSongs.Remove(playlistSong);
-                }
-
+                PlaylistSongs.RemoveRange(localPlaylist.PlaylistSongs);
                 Playlists.Remove(localPlaylist);
                 Playlists.Add(playlist);
             }
             else
             {
-                //playlist.PlaylistSongs = new List<PlaylistSong>();
                 Playlists.Add(playlist);
             }
         }
@@ -259,36 +276,47 @@ namespace Shuffull.Shared
             RecentlyPlayedSongs.RemoveRange(RecentlyPlayedSongs.ToList());
         }
 
-        public Song GetNextSong(long playlistId)
+        public async Task<Song> GetNextSong(long playlistId)
         {
             var localSessionData = LocalSessionData.First();
             var playlist = Playlists.Where(x => x.PlaylistId == playlistId).FirstOrDefault();
-            var userSongs = PlaylistSongs.Where(x => x.PlaylistId == playlistId)
+            /*var userSongs = PlaylistSongs.Where(x => x.PlaylistId == playlistId)
                 .SelectMany(x => x.Song.UserSongs)
                 .Where(x => x.UserId == localSessionData.UserId)
                 .OrderBy(x => x.LastPlayed)
-                .ToList();
+                .ToList();*/
+            var songs = await PlaylistSongs.Where(x => x.PlaylistId == playlistId)
+                .Select(x => new
+                {
+                    x.Song,
+                    LastPlayed = x.Song.UserSongs
+                        .Where(y => y.UserId == localSessionData.UserId)
+                        .Select(y => y.LastPlayed)
+                        .FirstOrDefault()
+                })
+                .OrderBy(x => x.LastPlayed)
+                .ToListAsync();
 
-            if (!userSongs.Any())
+            if (!songs.Any())
             {
                 throw new Exception("No song available");
             }
 
-            var thresholdIndex = (int)Math.Ceiling(userSongs.Count * playlist.PercentUntilReplayable);
-            var lastNeverPlayedSong = userSongs
-                .Select((x, index) => new { UserSong = x, Index = index })
-                .Where(x => x.UserSong.LastPlayed <= DateTime.MinValue)
+            var thresholdIndex = (int)Math.Ceiling(songs.Count * playlist.PercentUntilReplayable);
+            var lastNeverPlayedSong = songs
+                .Select((x, index) => new { SongInfo = x, Index = index })
+                .Where(x => x.SongInfo.LastPlayed <= DateTime.MinValue)
                 .Select(x => x.Index)
                 .Last();
 
             thresholdIndex = lastNeverPlayedSong > thresholdIndex ? lastNeverPlayedSong : thresholdIndex;
 
             var randomIndex = new Random().Next(0, thresholdIndex);
-            var selectedUserSong = userSongs
+            var selectedUserSong = songs
                 .Skip(randomIndex)
                 .Take(1)
                 .First();
-            var result = Songs.Where(x => x.SongId == selectedUserSong.SongId).First();
+            var result = Songs.Where(x => x.SongId == selectedUserSong.Song.SongId).First();
             return result;
         }
     }

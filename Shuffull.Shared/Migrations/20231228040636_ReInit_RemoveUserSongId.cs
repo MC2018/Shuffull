@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace Shuffull.Shared.Migrations
 {
-    public partial class TagReform : Migration
+    public partial class ReInit_RemoveUserSongId : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)
         {
@@ -25,7 +25,9 @@ namespace Shuffull.Shared.Migrations
                 {
                     UserId = table.Column<long>(nullable: false),
                     CurrentPlaylistId = table.Column<long>(nullable: false),
-                    ActivelyDownload = table.Column<bool>(nullable: false)
+                    ActivelyDownload = table.Column<bool>(nullable: false),
+                    Token = table.Column<string>(nullable: false),
+                    Expiration = table.Column<DateTime>(nullable: false)
                 },
                 constraints: table =>
                 {
@@ -39,8 +41,13 @@ namespace Shuffull.Shared.Migrations
                     Guid = table.Column<string>(nullable: false),
                     TimeRequested = table.Column<DateTime>(nullable: false),
                     RequestType = table.Column<int>(nullable: false),
+                    ProcessingMethod = table.Column<int>(nullable: false),
                     RequestName = table.Column<string>(nullable: false),
+                    Username = table.Column<string>(nullable: true),
+                    UserHash = table.Column<string>(nullable: true),
+                    UserId = table.Column<long>(nullable: true),
                     SongId = table.Column<long>(nullable: true),
+                    UpdateSongLastPlayedRequest_SongId = table.Column<long>(nullable: true),
                     LastPlayed = table.Column<DateTime>(nullable: true)
                 },
                 constraints: table =>
@@ -182,14 +189,14 @@ namespace Shuffull.Shared.Migrations
                 name: "UserSongs",
                 columns: table => new
                 {
-                    UserSongId = table.Column<long>(nullable: false),
                     UserId = table.Column<long>(nullable: false),
                     SongId = table.Column<long>(nullable: false),
-                    LastPlayed = table.Column<DateTime>(nullable: false)
+                    LastPlayed = table.Column<DateTime>(nullable: false),
+                    Version = table.Column<DateTime>(nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_UserSongs", x => x.UserSongId);
+                    table.PrimaryKey("PK_UserSongs", x => new { x.UserId, x.SongId });
                     table.ForeignKey(
                         name: "FK_UserSongs_Songs_SongId",
                         column: x => x.SongId,
@@ -278,11 +285,6 @@ namespace Shuffull.Shared.Migrations
                 name: "IX_UserSongs_SongId",
                 table: "UserSongs",
                 column: "SongId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_UserSongs_UserId",
-                table: "UserSongs",
-                column: "UserId");
         }
 
         protected override void Down(MigrationBuilder migrationBuilder)

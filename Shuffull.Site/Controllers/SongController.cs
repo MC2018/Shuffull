@@ -12,6 +12,7 @@ namespace Shuffull.Site.Controllers
     public class SongController : Controller
     {
         private readonly IServiceProvider _services;
+        private readonly int MAX_PAGE_LENGTH = 500;
 
         public SongController(IServiceProvider services)
         {
@@ -42,8 +43,8 @@ namespace Shuffull.Site.Controllers
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
             var songs = await context.Songs
                 .AsNoTracking()
-                .Skip(pageIndex * 50)
-                .Take(50)
+                .Skip(pageIndex * MAX_PAGE_LENGTH)
+                .Take(MAX_PAGE_LENGTH)
                 .ToListAsync();
 
             if (!songs.Any())
@@ -52,7 +53,46 @@ namespace Shuffull.Site.Controllers
             }
 
             var result = ClassMapper.Mapper.Map<List<Song>>(songs);
-            return Ok(result);
+            var options = new JsonSerializerOptions
+            {
+                ReferenceHandler = ReferenceHandler.Preserve
+            };
+            var resultStr = JsonSerializer.Serialize(result, options);
+            return Ok(resultStr);
+        }
+
+        [HttpPost]
+        [Authorize]
+        public async Task<IActionResult> GetList([FromBody] long[] songIds)
+        {
+            using var scope = _services.CreateScope();
+            using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
+            
+            if (songIds == null || !songIds.Any())
+            {
+                return BadRequest("Song IDs were not provided.");
+            }
+            else if (songIds.Length > MAX_PAGE_LENGTH)
+            {
+                return BadRequest($"Cannot provide more than {MAX_PAGE_LENGTH} songs at one time.");
+            }
+
+            var songs = await context.Songs
+                .AsNoTracking()
+                .Where(x => songIds.Contains(x.SongId))
+                .Include(x => x.SongTags)
+                .ThenInclude(x => x.Tag)
+                .Include(x => x.SongArtists)
+                .ThenInclude(x => x.Artist)
+                .ToListAsync();
+
+            var result = ClassMapper.Mapper.Map<List<Song>>(songs);
+            var options = new JsonSerializerOptions
+            {
+                ReferenceHandler = ReferenceHandler.Preserve
+            };
+            var resultStr = JsonSerializer.Serialize(result, options);
+            return Ok(resultStr);
         }
     }
 }

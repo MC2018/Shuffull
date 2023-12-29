@@ -31,7 +31,7 @@ namespace Shuffull.Windows
             MediaManager.QueueLastPlayedSong();
 
             label1.Text = Directories.MusicFolderAbsolutePath;
-            var context = Program.ServiceProvider.GetRequiredService<ShuffullContext>();
+            using var context = Program.ServiceProvider.GetRequiredService<ShuffullContext>();
             var playlists = context.Playlists.ToList();
             var localSessionData = context.LocalSessionData.FirstOrDefault();
 
@@ -111,7 +111,7 @@ namespace Shuffull.Windows
                 return;
             }
 
-            var context = Program.ServiceProvider.GetRequiredService<ShuffullContext>();
+            using var context = Program.ServiceProvider.GetRequiredService<ShuffullContext>();
             var localSessionData = context.LocalSessionData.FirstOrDefault();
 
             if (localSessionData != null)

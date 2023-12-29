@@ -24,7 +24,7 @@ namespace Shuffull.Windows.Tools
         {
             get
             {
-                var context = Program.ServiceProvider.GetRequiredService<ShuffullContext>();
+                using var context = Program.ServiceProvider.GetRequiredService<ShuffullContext>();
                 var localSessionData = context.LocalSessionData.FirstOrDefault();
 
                 if (localSessionData == null)
@@ -53,7 +53,7 @@ namespace Shuffull.Windows.Tools
 
         async public static Task ClearAuthentication()
         {
-            var context = Program.ServiceProvider.GetRequiredService<ShuffullContext>();
+            using var context = Program.ServiceProvider.GetRequiredService<ShuffullContext>();
             var localSessionData = await context.LocalSessionData.FirstOrDefaultAsync();
 
             localSessionData.Token = string.Empty;
@@ -90,7 +90,7 @@ namespace Shuffull.Windows.Tools
 
         async public static Task LoadSessionData(User user, string token, DateTime expiration)
         {
-            var context = Program.ServiceProvider.GetRequiredService<ShuffullContext>();
+            using var context = Program.ServiceProvider.GetRequiredService<ShuffullContext>();
             var localSessionData = await context.LocalSessionData.FirstOrDefaultAsync();
             var userExists = await context.Users.Where(x => x.UserId == user.UserId).AnyAsync();
             var userChanged = false;

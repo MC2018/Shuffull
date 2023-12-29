@@ -240,26 +240,21 @@ namespace Shuffull.Shared.Migrations
 
             modelBuilder.Entity("Shuffull.Shared.Networking.Models.Server.UserSong", b =>
                 {
-                    b.Property<long>("UserSongId")
+                    b.Property<long>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("SongId")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("LastPlayed")
                         .HasColumnType("TEXT");
 
-                    b.Property<long>("SongId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<long>("UserId")
-                        .HasColumnType("INTEGER");
-
                     b.Property<DateTime>("Version")
                         .HasColumnType("TEXT");
 
-                    b.HasKey("UserSongId");
+                    b.HasKey("UserId", "SongId");
 
                     b.HasIndex("SongId");
-
-                    b.HasIndex("UserId");
 
                     b.ToTable("UserSongs");
                 });
@@ -279,11 +274,24 @@ namespace Shuffull.Shared.Migrations
                     b.HasDiscriminator().HasValue("Authenticate");
                 });
 
-            modelBuilder.Entity("Shuffull.Shared.Networking.Models.Requests.GetPlaylistsRequest", b =>
+            modelBuilder.Entity("Shuffull.Shared.Networking.Models.Requests.CreateUserSongRequest", b =>
                 {
                     b.HasBaseType("Shuffull.Shared.Networking.Models.Requests.Request");
 
-                    b.HasDiscriminator().HasValue("UpdatePlaylists");
+                    b.Property<long>("SongId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasDiscriminator().HasValue("CreateUserSong");
+                });
+
+            modelBuilder.Entity("Shuffull.Shared.Networking.Models.Requests.OverallSyncRequest", b =>
+                {
+                    b.HasBaseType("Shuffull.Shared.Networking.Models.Requests.Request");
+
+                    b.HasDiscriminator().HasValue("OverallSync");
                 });
 
             modelBuilder.Entity("Shuffull.Shared.Networking.Models.Requests.UpdateSongLastPlayedRequest", b =>
@@ -294,6 +302,7 @@ namespace Shuffull.Shared.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<long>("SongId")
+                        .HasColumnName("UpdateSongLastPlayedRequest_SongId")
                         .HasColumnType("INTEGER");
 
                     b.HasDiscriminator().HasValue("UpdateSongLastPlayed");
