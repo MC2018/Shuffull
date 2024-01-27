@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using Shuffull.Site.Enums;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -16,6 +17,8 @@ namespace Shuffull.Site.Database.Models
         public long TagId { get; set; }
         [Required, NotNull]
         public string Name { get; set; }
+        [Required, NotNull]
+        public TagType Type { get; set; }
 
         public ICollection<SongTag> SongTags { get; set; }
     }

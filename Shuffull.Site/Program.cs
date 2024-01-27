@@ -8,17 +8,20 @@ using Shuffull.Site.Tools;
 using System.Net;
 using Shuffull.Site;
 using Shuffull.Site.Tools.Authorization;
+using static System.Formats.Asn1.AsnWriter;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
 builder.Services.AddSingleton<SongImporter>();
+builder.Services.AddHostedService<GenreImporter>();
 builder.Services.AddScoped<JwtHelper>();
 builder.Services.AddDbContext<ShuffullContext>(options =>
 {
     options.UseSqlServer(builder.Configuration.GetConnectionString("Shuffull"));
 });
+builder.Services.AddSingleton<OpenAIManager>();
 
 var app = builder.Build();
 
@@ -37,6 +40,7 @@ var filesConfig = builder.Configuration.GetSection(ShuffullFilesConfiguration.Fi
 Directory.CreateDirectory(filesConfig.FailedImportDirectory);
 Directory.CreateDirectory(filesConfig.MusicRootDirectory);
 Directory.CreateDirectory(filesConfig.SongImportDirectory);
+Directory.CreateDirectory(filesConfig.SavedAiResponsesDirectory);
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();

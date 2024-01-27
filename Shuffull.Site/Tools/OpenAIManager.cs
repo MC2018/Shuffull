@@ -1,38 +1,74 @@
-﻿using OpenAI_API;
+﻿using Newtonsoft.Json;
+using OpenAI_API;
 using OpenAI_API.Chat;
+using OpenAI_API.Models;
+using Shuffull.Site.Configuration;
 using Shuffull.Site.Database.Models;
+using Shuffull.Site.Models;
+using System.Text.Json;
 
 namespace Shuffull.Site.Tools
 {
-    public static class OpenAIManager
+    public class OpenAIManager
     {
-        private static OpenAIAPI _api;
-        private static Conversation _tagConversation = null;
+        private readonly IServiceProvider _services;
+        private readonly OpenAIConfiguration _config;
+        private readonly ShuffullFilesConfiguration _fileConfig;
+        private OpenAIAPI _api;
+        private Model _model;
+        public bool Enabled { get { return _config.Enabled; } }
 
-        public static void Init(string apiKey)
+        public OpenAIManager(IConfiguration configuration, IServiceProvider services)
         {
-            _api = new OpenAIAPI(apiKey);
-
-            // Tag conversation setup
-            var instruction = "I will send you a song name and artist(s). Return a list of all genres ";
-            var chatRequest = new ChatRequest()
-            {
-                Model = OpenAI_API.Models.Model.ChatGPTTurbo,
-                TopP = 0.4f
-            };
-
-            _tagConversation = _api.Chat.CreateConversation(chatRequest);
-            _tagConversation.AppendSystemMessage(instruction);
+            _services = services;
+            _config = configuration.GetSection(OpenAIConfiguration.OpenAIConfigurationSection).Get<OpenAIConfiguration>();
+            _api = new OpenAIAPI(_config.ApiKey);
+            _model = new Model(_config.ModelName) { OwnedBy = "openai" };
+            _fileConfig = configuration.GetSection(ShuffullFilesConfiguration.FilesConfigurationSection).Get<ShuffullFilesConfiguration>();
         }
 
-        public static void RequestTagResponse(List<Tag> tags, string message)
+        public async Task<TagsToApply> RequestTagsToApply(Song song, List<Artist> artists, List<Tag> allTags)
         {
-
-            if (_tagConversation == null)
+            var chatRequest = new ChatRequest()
             {
-                
+                Model = _model,
+                Temperature = 0.15
+            };
+            var tagConversation = _api.Chat.CreateConversation(chatRequest);
+            var allGenres = allTags.Where(x => x.Type == Enums.TagType.Genre).ToList();
+            var message = $"{song.Name} ({string.Join(",", artists.Select(x => x.Name))})\nGenres: {string.Join(",", allGenres.Select(x => x.Name))}";
+            var result = new TagsToApply();
+            var resultNames = new List<string>();
+            var instruction = File.ReadAllText(_config.InstructionFile);
+            TagsResponse response;
+
+            tagConversation.AppendUserInput(instruction);
+            tagConversation.AppendExampleChatbotOutput("Understood. Send the information.");
+            tagConversation.AppendUserInput("Vermilion City (Pokémon Red & Blue Remix) (Mewmore)");
+            tagConversation.AppendExampleChatbotOutput("{\"genres\":[\"Electronic\",\"Pokemon\",\"Game\"],\"genresNotProvided\":[\"\"],languages\":[\"Orchestral\"],\"timePeriod\":\"2010s\"}\r\n");
+            tagConversation.AppendUserInput(message);
+
+            try
+            {
+                var responseStr = await tagConversation.GetResponseFromChatbotAsync();
+
+                response = JsonConvert.DeserializeObject<TagsResponse>(responseStr) ?? throw new Exception();
+                File.WriteAllText(Path.Combine(_fileConfig.SavedAiResponsesDirectory, $"{song.Directory}.json"), responseStr);
+            }
+            catch (Exception)
+            {
+                throw;
             }
 
+            var responseList = response.ToTagList();
+            var responseNames = responseList.Select(x => x.Name).ToList();
+
+            result.ExistingTags.AddRange(allTags.Where(x => responseNames.Contains(x.Name)));
+            result.NewTags.AddRange(
+                responseList.Where(x => x.Type != Enums.TagType.Genre && !result.ExistingTags.Select(y => y.Name).Contains(x.Name))
+                );
+
+            return result;
         }
     }
 }
