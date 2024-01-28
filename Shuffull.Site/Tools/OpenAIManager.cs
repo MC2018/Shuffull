@@ -37,10 +37,8 @@ namespace Shuffull.Site.Tools
             var tagConversation = _api.Chat.CreateConversation(chatRequest);
             var allGenres = allTags.Where(x => x.Type == Enums.TagType.Genre).ToList();
             var message = $"{song.Name} ({string.Join(",", artists.Select(x => x.Name))})\nGenres: {string.Join(",", allGenres.Select(x => x.Name))}";
-            var result = new TagsToApply();
             var resultNames = new List<string>();
             var instruction = File.ReadAllText(_config.InstructionFile);
-            TagsResponse response;
 
             tagConversation.AppendUserInput(instruction);
             tagConversation.AppendExampleChatbotOutput("Understood. Send the information.");
@@ -51,10 +49,10 @@ namespace Shuffull.Site.Tools
             try
             {
                 var responseStr = await tagConversation.GetResponseFromChatbotAsync();
+                var result = JsonConvert.DeserializeObject<TagsResponse>(responseStr) ?? throw new Exception();
 
-                response = JsonConvert.DeserializeObject<TagsResponse>(responseStr) ?? throw new Exception();
                 File.WriteAllText(Path.Combine(_fileConfig.SavedAiResponsesDirectory, $"{song.Directory}.json"), responseStr);
-                return response;
+                return result;
             }
             catch (Exception)
             {
