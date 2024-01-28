@@ -4,6 +4,8 @@ using Shuffull.Site.Database.Models;
 using Shuffull.Site.Configuration;
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
+using System.Linq;
+using System.Transactions;
 
 namespace Shuffull.Site.Tools
 {
@@ -37,13 +39,13 @@ namespace Shuffull.Site.Tools
             var files = Directory.GetFiles(path);
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
+            using var transaction = context.Database.BeginTransaction();
             var allTags = context.Tags.AsNoTracking().ToList();
             var playlist = context.Playlists.Where(x => x.PlaylistId == playlistId).First();
             var songArtistPairs = new Dictionary<Song, List<Artist>>();
             var songTagPairs = new Dictionary<Song, List<Tag>>();
             var songs = new List<Song>();
             var newArtists = new List<Artist>();
-            var newTags = new List<Tag>();
 
             foreach (var oldFile in files)
             {
@@ -115,15 +117,17 @@ namespace Shuffull.Site.Tools
                 if (openAiManager.Enabled)
                 {
                     var tagsToApply = openAiManager.RequestTagsToApply(song, artists, allTags).Result;
-                    songTagPairs.Add(song, tagsToApply.NewTags.Concat(tagsToApply.ExistingTags).ToList());
-                    newTags.AddRange(tagsToApply.NewTags.Where(x => !newTags.Select(y => y.Name).Contains(x.Name)));
-                }
-            }
+                    var newTags = tagsToApply.NewTags;
 
-            if (newTags.Any())
-            {
-                context.Tags.AddRange(newTags);
-                context.SaveChanges();
+                    if (newTags.Any())
+                    {
+                        context.Tags.AddRange(newTags);
+                        context.SaveChanges();
+                        allTags.AddRange(newTags);
+                    }
+
+                    songTagPairs.Add(song, tagsToApply.NewTags.Concat(tagsToApply.ExistingTags).ToList());
+                }
             }
 
             if (newArtists.Any())
@@ -160,7 +164,7 @@ namespace Shuffull.Site.Tools
 
             foreach (var songTagPair in songTagPairs)
             {
-                foreach ( var tag in songTagPair.Value)
+                foreach (var tag in songTagPair.Value)
                 {
                     var songTag = new SongTag()
                     {
@@ -172,6 +176,7 @@ namespace Shuffull.Site.Tools
             }
 
             context.SaveChanges();
+            transaction.Commit();
             Directory.Delete(path, true);
         }
 
