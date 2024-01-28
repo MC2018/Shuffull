@@ -15,8 +15,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
-builder.Services.AddHostedService<SongImporter>();
+builder.Services.AddSingleton<SongImporter>();
 builder.Services.AddHostedService<TagImporter>();
+builder.Services.AddHostedService<StartupImportService>();
 builder.Services.AddScoped<JwtHelper>();
 builder.Services.AddDbContext<ShuffullContext>(options =>
 {

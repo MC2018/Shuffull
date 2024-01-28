@@ -17,7 +17,7 @@ namespace Shuffull.Site.Tools
     /// <summary>
     /// Handles logic regarding the downloading, file management, and database importing of songs
     /// </summary>
-    public class SongImporter : IHostedService
+    public class SongImporter
     {
         private readonly IServiceProvider _services;
         private readonly ILogger<SongImporter> _logger;
@@ -42,9 +42,9 @@ namespace Shuffull.Site.Tools
         /// </summary>
         /// <param name="path">Path where the downloaded music files exist</param>
         /// <param name="playlistId">Playlist to add the music to</param>
-        private void ImportFiles(long playlistId = -1, bool manual = false)
+        private void ImportFiles(string path = "", long playlistId = -1, bool manual = false)
         {
-            var path = manual ? _fileConfig.ManualSongImportDirectory : _fileConfig.SongImportDirectory;
+            path = manual ? _fileConfig.ManualSongImportDirectory : path;
             var jsonFiles = Directory.GetFiles(path, "*.json").OrderBy(x => x).ToList();
             var songFiles = Directory.GetFiles(path).Where(x => Regex.Match(x, "\\.(mp3|wav)$").Success).ToList();
             using var scope = _services.CreateScope();
@@ -222,13 +222,18 @@ namespace Shuffull.Site.Tools
 
             foreach (var directory in directoryInfo.GetDirectories())
             {
-                directory.Delete();
+                directory.Delete(true);
             }
 
             foreach (var file in directoryInfo.GetFiles())
             {
                 file.Delete();
             }
+        }
+
+        public void ImportManualFiles()
+        {
+            ImportFiles(manual: true);
         }
 
         /// <summary>
@@ -254,7 +259,7 @@ namespace Shuffull.Site.Tools
 
             Task.Run(() =>
             {
-                ImportFiles(playlistId);
+                ImportFiles(path, playlistId);
             });
         }
 
@@ -274,6 +279,11 @@ namespace Shuffull.Site.Tools
             var newSongName = Path.GetFileName($"{hexStr}{fileExtension}");
             var newSongDirectory = Path.Combine(_fileConfig.MusicRootDirectory, newSongName.Replace("-", "").ToLower());
 
+            if (File.Exists(newSongDirectory))
+            {
+                File.Delete(newSongDirectory);
+            }
+
             File.Move(currentSongDirectory, newSongDirectory);
 
             return newSongDirectory;
@@ -290,17 +300,6 @@ namespace Shuffull.Site.Tools
                 Directory.Move(songDirectory, Path.Combine(_fileConfig.FailedImportDirectory, Path.GetFileName(songDirectory)));
             }
             catch { }
-        }
-
-        public Task StartAsync(CancellationToken cancellationToken)
-        {
-            ImportFiles(manual: true);
-            return Task.CompletedTask;
-        }
-
-        public Task StopAsync(CancellationToken cancellationToken)
-        {
-            return Task.CompletedTask;
         }
     }
 }

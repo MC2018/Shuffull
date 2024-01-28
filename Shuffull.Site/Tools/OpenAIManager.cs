@@ -32,7 +32,8 @@ namespace Shuffull.Site.Tools
             var chatRequest = new ChatRequest()
             {
                 Model = _model,
-                Temperature = 0.15
+                Temperature = 0.15,
+                ResponseFormat = ChatRequest.ResponseFormats.JsonObject
             };
             var tagConversation = _api.Chat.CreateConversation(chatRequest);
             var allGenres = allTags.Where(x => x.Type == Enums.TagType.Genre).ToList();
