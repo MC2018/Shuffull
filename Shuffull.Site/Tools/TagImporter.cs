@@ -5,18 +5,18 @@ using Shuffull.Site.Database.Models;
 
 namespace Shuffull.Site.Tools
 {
-    public class GenreImporter : IHostedService
+    public class TagImporter : IHostedService
     {
         private readonly IServiceProvider _services;
         private readonly ShuffullFilesConfiguration _fileConfig;
 
-        public GenreImporter(IConfiguration configuration, IServiceProvider services)
+        public TagImporter(IConfiguration configuration, IServiceProvider services)
         {
             _services = services;
             _fileConfig = configuration.GetSection(ShuffullFilesConfiguration.FilesConfigurationSection).Get<ShuffullFilesConfiguration>();
         }
 
-        public void ImportGenres()
+        public void ImportGenreList()
         {
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
@@ -43,7 +43,7 @@ namespace Shuffull.Site.Tools
 
         public Task StartAsync(CancellationToken cancellationToken)
         {
-            ImportGenres();
+            ImportGenreList();
 
             return Task.CompletedTask;
         }

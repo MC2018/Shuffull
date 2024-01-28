@@ -15,8 +15,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
-builder.Services.AddSingleton<SongImporter>();
-builder.Services.AddHostedService<GenreImporter>();
+builder.Services.AddHostedService<SongImporter>();
+builder.Services.AddHostedService<TagImporter>();
 builder.Services.AddScoped<JwtHelper>();
 builder.Services.AddDbContext<ShuffullContext>(options =>
 {
@@ -42,6 +42,7 @@ var filesConfig = builder.Configuration.GetSection(ShuffullFilesConfiguration.Fi
 
 Directory.CreateDirectory(filesConfig.FailedImportDirectory);
 Directory.CreateDirectory(filesConfig.MusicRootDirectory);
+Directory.CreateDirectory(filesConfig.ManualSongImportDirectory);
 Directory.CreateDirectory(filesConfig.SongImportDirectory);
 Directory.CreateDirectory(filesConfig.SavedAiResponsesDirectory);
 

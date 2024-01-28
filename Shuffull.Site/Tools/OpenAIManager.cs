@@ -27,7 +27,7 @@ namespace Shuffull.Site.Tools
             _fileConfig = configuration.GetSection(ShuffullFilesConfiguration.FilesConfigurationSection).Get<ShuffullFilesConfiguration>();
         }
 
-        public async Task<TagsToApply> RequestTagsToApply(Song song, List<Artist> artists, List<Tag> allTags)
+        public async Task<TagsResponse> RequestTagsResponse(Song song, List<Artist> artists, List<Tag> allTags)
         {
             var chatRequest = new ChatRequest()
             {
@@ -54,21 +54,12 @@ namespace Shuffull.Site.Tools
 
                 response = JsonConvert.DeserializeObject<TagsResponse>(responseStr) ?? throw new Exception();
                 File.WriteAllText(Path.Combine(_fileConfig.SavedAiResponsesDirectory, $"{song.Directory}.json"), responseStr);
+                return response;
             }
             catch (Exception)
             {
                 throw;
             }
-
-            var responseList = response.ToTagList();
-            var responseNames = responseList.Select(x => x.Name).ToList();
-
-            result.ExistingTags.AddRange(allTags.Where(x => responseNames.Contains(x.Name)));
-            result.NewTags.AddRange(
-                responseList.Where(x => x.Type != Enums.TagType.Genre && !result.ExistingTags.Select(y => y.Name).Contains(x.Name))
-                );
-
-            return result;
         }
     }
 }

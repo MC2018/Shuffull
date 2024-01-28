@@ -4,17 +4,23 @@ using Shuffull.Site.Database.Models;
 using Shuffull.Site.Configuration;
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
+using Shuffull.Site.Models;
 using System.Linq;
 using System.Transactions;
+using Newtonsoft.Json;
+using Azure;
+using OpenAI_API.Moderation;
+using System.Text.RegularExpressions;
 
 namespace Shuffull.Site.Tools
 {
     /// <summary>
     /// Handles logic regarding the downloading, file management, and database importing of songs
     /// </summary>
-    public class SongImporter
+    public class SongImporter : IHostedService
     {
         private readonly IServiceProvider _services;
+        private readonly ILogger<SongImporter> _logger;
         private readonly ShuffullFilesConfiguration _fileConfig;
         private readonly string[] _audioExtensions = new string[] { ".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac" };
 
@@ -23,61 +29,66 @@ namespace Shuffull.Site.Tools
         /// </summary>
         /// <param name="configuration">Configuration</param>
         /// <param name="services">Service provider</param>
-        public SongImporter(IConfiguration configuration, IServiceProvider services)
+        public SongImporter(IConfiguration configuration, IServiceProvider services, ILogger<SongImporter> logger)
         {
             _services = services;
             _fileConfig = configuration.GetSection(ShuffullFilesConfiguration.FilesConfigurationSection).Get<ShuffullFilesConfiguration>();
+            _logger = logger;
         }
 
+        // TODO: if two people upload at the same time and create the same new tag, it could create a duplicate!
         /// <summary>
         /// Imports a set of music into the database and attaches them to a playlist
         /// </summary>
         /// <param name="path">Path where the downloaded music files exist</param>
         /// <param name="playlistId">Playlist to add the music to</param>
-        private void ImportFiles(string path, long playlistId)
+        private void ImportFiles(long playlistId = -1, bool manual = false)
         {
-            var files = Directory.GetFiles(path);
+            var path = manual ? _fileConfig.ManualSongImportDirectory : _fileConfig.SongImportDirectory;
+            var jsonFiles = Directory.GetFiles(path, "*.json").OrderBy(x => x).ToList();
+            var songFiles = Directory.GetFiles(path).Where(x => Regex.Match(x, "\\.(mp3|wav)$").Success).ToList();
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
             using var transaction = context.Database.BeginTransaction();
             var allTags = context.Tags.AsNoTracking().ToList();
-            var playlist = context.Playlists.Where(x => x.PlaylistId == playlistId).First();
+            var playlist = context.Playlists.Where(x => x.PlaylistId == playlistId).FirstOrDefault();
             var songArtistPairs = new Dictionary<Song, List<Artist>>();
             var songTagPairs = new Dictionary<Song, List<Tag>>();
             var songs = new List<Song>();
             var newArtists = new List<Artist>();
 
-            foreach (var oldFile in files)
+            foreach (var oldSongFile in songFiles)
             {
-                var fileExtension = Path.GetExtension(oldFile).ToLowerInvariant();
+                var fileExtension = Path.GetExtension(oldSongFile).ToLowerInvariant();
                 var artists = new List<Artist>();
-                string newFile;
+                string newSongFile;
 
                 if (!_audioExtensions.Contains(fileExtension))
                 {
-                    AttemptMarkingAsFailure(oldFile);
+                    AttemptMarkingAsFailure(oldSongFile);
                     continue;
                 }
 
                 try
                 {
-                    newFile = MoveAndRenameSong(oldFile);
+                    newSongFile = MoveAndRenameSong(oldSongFile);
                 }
                 catch (IOException)
                 {
-                    AttemptMarkingAsFailure(oldFile);
+                    AttemptMarkingAsFailure(oldSongFile);
                     continue;
                 }
 
                 var openAiManager = _services.GetRequiredService<OpenAIManager>();
-                var musicFile = TagLib.File.Create(newFile);
+                var musicFile = TagLib.File.Create(newSongFile);
                 var song = new Song()
                 {
                     Name = musicFile.Tag.Title ?? Path.GetFileNameWithoutExtension(musicFile.Name),
-                    Directory = Path.GetFileName(newFile)
+                    Directory = Path.GetFileName(newSongFile)
                 };
                 songs.Add(song);
 
+                // Add artists
                 var performerNames = musicFile.Tag.Performers;
 
                 for (int i = 0; i < performerNames.Length; i++)
@@ -114,10 +125,36 @@ namespace Shuffull.Site.Tools
                 songArtistPairs.Add(song, artists);
 
                 // Adding tags
-                if (openAiManager.Enabled)
+                TagsResponse? tagsResponse = null;
+
+                if (manual)
                 {
-                    var tagsToApply = openAiManager.RequestTagsToApply(song, artists, allTags).Result;
-                    var newTags = tagsToApply.NewTags;
+                    var jsonFileIndex = jsonFiles.BinarySearch($"{oldSongFile}.json");
+
+                    if (jsonFileIndex != -1)
+                    {
+                        var jsonFile = jsonFiles[jsonFileIndex];
+                        tagsResponse = JsonConvert.DeserializeObject<TagsResponse>(File.ReadAllText(jsonFile)) ?? new TagsResponse();
+                    }
+                }
+                else if (openAiManager.Enabled)
+                {
+                    tagsResponse = openAiManager.RequestTagsResponse(song, artists, allTags).Result;
+                }
+
+                if (tagsResponse != null)
+                {
+                    var responseList = tagsResponse.ToTagList();
+                    var responseNames = responseList.Select(x => x.Name).ToList();
+                    var tagsToApply = new TagsToApply();
+                    var newTags = tagsToApply.NewTags.Where(x => !allTags.Select(y => y.Name).Contains(x.Name));
+
+                    tagsToApply.ExistingTags.AddRange(allTags.Where(x => responseNames.Contains(x.Name)));
+                    tagsToApply.NewTags.AddRange(
+                        responseList.Where(x => x.Type != Enums.TagType.Genre && !tagsToApply.ExistingTags.Select(y => y.Name).Contains(x.Name))
+                        );
+
+                    songTagPairs.Add(song, tagsToApply.NewTags.Concat(tagsToApply.ExistingTags).ToList());
 
                     if (newTags.Any())
                     {
@@ -125,8 +162,6 @@ namespace Shuffull.Site.Tools
                         context.SaveChanges();
                         allTags.AddRange(newTags);
                     }
-
-                    songTagPairs.Add(song, tagsToApply.NewTags.Concat(tagsToApply.ExistingTags).ToList());
                 }
             }
 
@@ -139,14 +174,17 @@ namespace Shuffull.Site.Tools
             context.Songs.AddRange(songs);
             context.SaveChanges();
 
-            foreach (var song in songs)
+            if (playlist != null)
             {
-                var playlistSong = new PlaylistSong()
+                foreach (var song in songs)
                 {
-                    PlaylistId = playlistId,
-                    SongId = song.SongId,
-                };
-                context.PlaylistSongs.Add(playlistSong);
+                    var playlistSong = new PlaylistSong()
+                    {
+                        PlaylistId = playlistId,
+                        SongId = song.SongId,
+                    };
+                    context.PlaylistSongs.Add(playlistSong);
+                }
             }
 
             foreach (var songArtistPair in songArtistPairs)
@@ -175,9 +213,22 @@ namespace Shuffull.Site.Tools
                 }
             }
 
+            // Save
             context.SaveChanges();
             transaction.Commit();
-            Directory.Delete(path, true);
+
+            // Delete contents
+            var directoryInfo = new DirectoryInfo(path);
+
+            foreach (var directory in directoryInfo.GetDirectories())
+            {
+                directory.Delete();
+            }
+
+            foreach (var file in directoryInfo.GetFiles())
+            {
+                file.Delete();
+            }
         }
 
         /// <summary>
@@ -203,7 +254,7 @@ namespace Shuffull.Site.Tools
 
             Task.Run(() =>
             {
-                ImportFiles(path, playlistId);
+                ImportFiles(playlistId);
             });
         }
 
@@ -239,6 +290,17 @@ namespace Shuffull.Site.Tools
                 Directory.Move(songDirectory, Path.Combine(_fileConfig.FailedImportDirectory, Path.GetFileName(songDirectory)));
             }
             catch { }
+        }
+
+        public Task StartAsync(CancellationToken cancellationToken)
+        {
+            ImportFiles(manual: true);
+            return Task.CompletedTask;
+        }
+
+        public Task StopAsync(CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
         }
     }
 }
