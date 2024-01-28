@@ -9,12 +9,13 @@ using System.Net;
 using Shuffull.Site;
 using Shuffull.Site.Tools.Authorization;
 using static System.Formats.Asn1.AsnWriter;
+using NLog.Web;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
-builder.Services.AddSingleton<SongImporter>();
+builder.Services.AddHostedService<SongImporter>();
 builder.Services.AddHostedService<GenreImporter>();
 builder.Services.AddScoped<JwtHelper>();
 builder.Services.AddDbContext<ShuffullContext>(options =>
@@ -22,6 +23,8 @@ builder.Services.AddDbContext<ShuffullContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("Shuffull"));
 });
 builder.Services.AddSingleton<OpenAIManager>();
+builder.Logging.ClearProviders();
+builder.Host.UseNLog();
 
 var app = builder.Build();
 
