@@ -452,20 +452,23 @@
 						},
 						"method": "PUT",
 						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "[\r\n    {{songId}}\r\n]",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
 						"url": {
-							"raw": "{{url}}/usersong/createmany?songIds={{songId}}",
+							"raw": "{{url}}/usersong/createmany",
 							"host": [
 								"{{url}}"
 							],
 							"path": [
 								"usersong",
 								"createmany"
-							],
-							"query": [
-								{
-									"key": "songIds",
-									"value": "{{songId}}"
-								}
 							]
 						}
 					},
