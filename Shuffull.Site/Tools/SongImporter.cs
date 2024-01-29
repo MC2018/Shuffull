@@ -83,7 +83,7 @@ namespace Shuffull.Site.Tools
                 var musicFile = TagLib.File.Create(newSongFile);
                 var song = new Song()
                 {
-                    Name = musicFile.Tag.Title ?? Path.GetFileNameWithoutExtension(musicFile.Name),
+                    Name = musicFile.Tag.Title ?? Path.GetFileNameWithoutExtension(oldSongFile),
                     Directory = Path.GetFileName(newSongFile)
                 };
                 songs.Add(song);
