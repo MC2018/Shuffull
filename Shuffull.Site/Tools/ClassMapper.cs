@@ -1,17 +1,16 @@
 ﻿using AutoMapper;
-using Shuffull.Site.Database.Models;
 using Shuffull.Site.Migrations;
 using System.Text.Json.Serialization;
 using System.Text.Json;
-using Artist = Shuffull.Site.Database.Models.Artist;
-using Playlist = Shuffull.Site.Database.Models.Playlist;
-using PlaylistSong = Shuffull.Site.Database.Models.PlaylistSong;
-using Song = Shuffull.Site.Database.Models.Song;
-using SongArtist = Shuffull.Site.Database.Models.SongArtist;
-using SongTag = Shuffull.Site.Database.Models.SongTag;
-using Tag = Shuffull.Site.Database.Models.Tag;
-using User = Shuffull.Site.Database.Models.User;
-using UserSong = Shuffull.Site.Database.Models.UserSong;
+using Artist = Shuffull.Site.Models.Database.Artist;
+using Playlist = Shuffull.Site.Models.Database.Playlist;
+using PlaylistSong = Shuffull.Site.Models.Database.PlaylistSong;
+using Song = Shuffull.Site.Models.Database.Song;
+using SongArtist = Shuffull.Site.Models.Database.SongArtist;
+using SongTag = Shuffull.Site.Models.Database.SongTag;
+using Tag = Shuffull.Site.Models.Database.Tag;
+using User = Shuffull.Site.Models.Database.User;
+using UserSong = Shuffull.Site.Models.Database.UserSong;
 
 namespace Shuffull.Site.Tools
 {

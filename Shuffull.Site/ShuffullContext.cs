@@ -1,5 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using Shuffull.Site.Database.Models;
+using Shuffull.Site.Models.Database;
 using System;
 using System.Collections.Generic;
 using System.Linq;

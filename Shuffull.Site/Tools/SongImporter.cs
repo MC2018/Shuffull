@@ -1,6 +1,5 @@
 ﻿using Microsoft.Identity.Client;
 using Murmur;
-using Shuffull.Site.Database.Models;
 using Shuffull.Site.Configuration;
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +10,7 @@ using Newtonsoft.Json;
 using Azure;
 using OpenAI_API.Moderation;
 using System.Text.RegularExpressions;
+using Shuffull.Site.Models.Database;
 
 namespace Shuffull.Site.Tools
 {

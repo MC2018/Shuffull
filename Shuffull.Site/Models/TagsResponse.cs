@@ -1,4 +1,4 @@
-﻿using Shuffull.Site.Database.Models;
+﻿using Shuffull.Site.Models.Database;
 
 namespace Shuffull.Site.Models
 {

@@ -1,13 +1,12 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Database = Shuffull.Site.Database;
+using Database = Shuffull.Site.Models.Database;
 using Shuffull.Shared.Models;
 using Shuffull.Site.Tools;
 using Shuffull.Site.Models;
 using System.Diagnostics;
 using Shuffull.Site;
 using Results = Shuffull.Shared.Models;
-using Shuffull.Site.Database.Models;
 using System.Collections.Generic;
 using Shuffull.Site.Tools.Authorization;
 using Shuffull.Shared.Models.Responses;
@@ -16,8 +15,8 @@ using System.Text.Json.Serialization;
 using System.Text.Json;
 using Shuffull.Shared.Models.Server;
 using Shuffull.Shared.Models.Requests;
-using User = Shuffull.Site.Database.Models.User;
-using UserSong = Shuffull.Site.Database.Models.UserSong;
+using User = Shuffull.Site.Models.Database.User;
+using UserSong = Shuffull.Site.Models.Database.UserSong;
 
 namespace Shuffull.Tools.Controllers
 {

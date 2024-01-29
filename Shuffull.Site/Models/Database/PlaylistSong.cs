@@ -7,7 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Shuffull.Site.Database.Models
+namespace Shuffull.Site.Models.Database
 {
     [Index(nameof(PlaylistId)), Index(nameof(SongId))]
     public class PlaylistSong

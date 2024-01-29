@@ -3,8 +3,8 @@ using OpenAI_API;
 using OpenAI_API.Chat;
 using OpenAI_API.Models;
 using Shuffull.Site.Configuration;
-using Shuffull.Site.Database.Models;
 using Shuffull.Site.Models;
+using Shuffull.Site.Models.Database;
 using System.Text.Json;
 
 namespace Shuffull.Site.Tools

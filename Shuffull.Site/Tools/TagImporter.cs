@@ -1,7 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using OpenAI_API.Moderation;
 using Shuffull.Site.Configuration;
-using Shuffull.Site.Database.Models;
+using Shuffull.Site.Models.Database;
 
 namespace Shuffull.Site.Tools
 {

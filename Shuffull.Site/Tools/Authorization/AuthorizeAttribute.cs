@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
-using Shuffull.Site.Database.Models;
+using Shuffull.Site.Models.Database;
 
 namespace Shuffull.Site.Tools.Authorization
 {

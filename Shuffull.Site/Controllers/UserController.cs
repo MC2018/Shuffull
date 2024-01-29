@@ -60,7 +60,7 @@ namespace Shuffull.Tools.Controllers
 
             var jwtHelper = scope.ServiceProvider.GetRequiredService<JwtHelper>();
             var serverHash = Hasher.Hash(userHash);
-            user = new Site.Database.Models.User()
+            user = new Site.Models.Database.User()
             {
                 Username = username,
                 ServerHash = serverHash,
@@ -84,7 +84,7 @@ namespace Shuffull.Tools.Controllers
         {
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
-            var contextUser = HttpContext.Items["User"] as Site.Database.Models.User;
+            var contextUser = HttpContext.Items["User"] as Site.Models.Database.User;
             var user = await context.Users
                 .AsNoTracking()
                 .Where(x => x.UserId == contextUser.UserId)
