@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Shuffull.Shared.Networking.Models.Responses
+namespace Shuffull.Shared.Models.Responses
 {
     public class PaginatedResponse<T>
     {

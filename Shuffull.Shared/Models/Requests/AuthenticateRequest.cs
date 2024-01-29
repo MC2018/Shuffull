@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Text;
 
-namespace Shuffull.Shared.Networking.Models.Requests
+namespace Shuffull.Shared.Models.Requests
 {
     [Serializable]
     public class AuthenticateRequest : Request

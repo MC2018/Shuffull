@@ -2,22 +2,24 @@
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using System.Text;
-using Shuffull.Shared.Networking.Models.Server;
+using System.Diagnostics.CodeAnalysis;
 
-namespace Shuffull.Shared.Networking.Models
+namespace Shuffull.Shared.Models.Server
 {
     [Serializable]
-    public class RecentlyPlayedSong
+    public class UserSong
     {
-        [Key]
-        public string RecentlyPlayedSongGuid { get; set; }
+        [Required]
+        public long UserId { get; set; }
         [Required]
         public long SongId { get; set; }
-        public int? TimestampSeconds { get; set; }
         [Required]
         public DateTime LastPlayed { get; set; }
+        [Required]
+        public DateTime Version { get; set; }
 
+        [Key]
+        public User User { get; set; }
         [Key]
         public Song Song { get; set; }
     }

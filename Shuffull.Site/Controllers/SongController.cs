@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using Shuffull.Shared.Networking.Models.Server;
+using Shuffull.Shared.Models.Server;
 using Shuffull.Site.Tools;
 using Shuffull.Site.Tools.Authorization;
 using System.Text.Json;

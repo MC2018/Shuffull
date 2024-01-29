@@ -1,9 +1,9 @@
 ﻿using LibVLCSharp.Shared;
 using Microsoft.Extensions.DependencyInjection;
 using Shuffull.Shared;
-using Shuffull.Shared.Networking.Models;
-using Shuffull.Shared.Networking.Models.Requests;
-using Shuffull.Shared.Networking.Models.Server;
+using Shuffull.Shared.Models;
+using Shuffull.Shared.Models.Server;
+using Shuffull.Shared.Models.Requests;
 using Shuffull.Windows.Constants;
 using System;
 using System.Collections.Generic;

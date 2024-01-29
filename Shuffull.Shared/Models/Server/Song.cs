@@ -2,20 +2,22 @@
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace Shuffull.Shared.Networking.Models.Server
+namespace Shuffull.Shared.Models.Server
 {
     [Serializable]
-    public class Artist
+    public class Song
     {
         [Key, DatabaseGenerated(DatabaseGeneratedOption.None)]
-        public long ArtistId { get; set; }
+        public long SongId { get; set; }
+        [Required]
+        public string Directory { get; set; }
         [Required]
         public string Name { get; set; }
 
+        public ICollection<PlaylistSong> PlaylistSongs { get; set; }
+        public ICollection<UserSong> UserSongs { get; set; }
         public ICollection<SongArtist> SongArtists { get; set; }
+        public ICollection<SongTag> SongTags { get; set; }
     }
 }

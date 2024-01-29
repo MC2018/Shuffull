@@ -2,13 +2,13 @@
 using Microsoft.EntityFrameworkCore;
 using Shuffull.Site.Tools;
 using Shuffull.Site;
-using Shuffull.Shared.Networking.Models.Server;
 using Shuffull.Site.Tools.Authorization;
-using Shuffull.Shared.Networking.Models.Responses;
+using Shuffull.Shared.Models.Responses;
 using Shuffull.Shared.Tools;
 using System.Text.Json.Serialization;
 using System.Text.Json;
 using Newtonsoft.Json.Linq;
+using Shuffull.Shared.Models.Server;
 
 namespace Shuffull.Tools.Controllers
 {

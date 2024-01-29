@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shuffull.Shared;
-using Shuffull.Shared.Networking.Models.Server;
+using Shuffull.Shared.Models.Server;
 using Shuffull.Windows.Constants;
 using Shuffull.Windows.Tools;
 using System.Net.Http.Json;

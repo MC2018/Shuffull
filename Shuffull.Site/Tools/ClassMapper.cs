@@ -1,5 +1,4 @@
 ﻿using AutoMapper;
-using Shuffull.Shared.Networking.Models.Server;
 using Shuffull.Site.Database.Models;
 using Shuffull.Site.Migrations;
 using System.Text.Json.Serialization;
@@ -30,15 +29,15 @@ namespace Shuffull.Site.Tools
         {
             var config = new MapperConfiguration(x =>
             {
-                x.CreateMap<Artist, Shared.Networking.Models.Server.Artist>();
-                x.CreateMap<Playlist, Shared.Networking.Models.Server.Playlist>();
-                x.CreateMap<PlaylistSong, Shared.Networking.Models.Server.PlaylistSong>();
-                x.CreateMap<Song, Shared.Networking.Models.Server.Song>();
-                x.CreateMap<SongArtist, Shared.Networking.Models.Server.SongArtist>();
-                x.CreateMap<SongTag, Shared.Networking.Models.Server.SongTag>();
-                x.CreateMap<Tag, Shared.Networking.Models.Server.Tag>();
-                x.CreateMap<User, Shared.Networking.Models.Server.User>();
-                x.CreateMap<UserSong, Shared.Networking.Models.Server.UserSong>();
+                x.CreateMap<Artist, Shared.Models.Server.Artist>();
+                x.CreateMap<Playlist, Shared.Models.Server.Playlist>();
+                x.CreateMap<PlaylistSong, Shared.Models.Server.PlaylistSong>();
+                x.CreateMap<Song, Shared.Models.Server.Song>();
+                x.CreateMap<SongArtist, Shared.Models.Server.SongArtist>();
+                x.CreateMap<SongTag, Shared.Models.Server.SongTag>();
+                x.CreateMap<Tag, Shared.Models.Server.Tag>();
+                x.CreateMap<User, Shared.Models.Server.User>();
+                x.CreateMap<UserSong, Shared.Models.Server.UserSong>();
             });
 
             Mapper = config.CreateMapper();

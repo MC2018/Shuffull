@@ -4,7 +4,6 @@ using Shuffull.Windows.Constants;
 using Shuffull.Windows.Extensions;
 using Shuffull.Shared;
 using Shuffull.Shared.Enums;
-using Shuffull.Shared.Networking.Models.Requests;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -13,8 +12,9 @@ using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 using LibVLCSharp.Shared;
 using System.Net.Http.Headers;
-using Shuffull.Shared.Networking.Models.Server;
 using System.Net;
+using Shuffull.Shared.Models.Server;
+using Shuffull.Shared.Models.Requests;
 
 namespace Shuffull.Windows.Tools
 {
@@ -280,10 +280,7 @@ namespace Shuffull.Windows.Tools
                     {
                         await context.UpdatePlaylist(updatedPlaylist);
                     }
-
-                    //await context.SaveChangesAsync();
                 }
-
 
                 // Refresh user songs
                 // TODO: test to make sure this works w/an updated usersong at the end that was already added to context

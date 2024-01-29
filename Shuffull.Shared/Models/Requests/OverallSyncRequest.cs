@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Shuffull.Shared.Enums;
 
-namespace Shuffull.Shared.Networking.Models.Requests
+namespace Shuffull.Shared.Models.Requests
 {
     [Serializable]
     public class OverallSyncRequest : Request

@@ -6,7 +6,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Text;
 
-namespace Shuffull.Shared.Networking.Models.Requests
+namespace Shuffull.Shared.Models.Requests
 {
     [Serializable]
     public class UpdateSongLastPlayedRequest : Request
@@ -17,7 +17,7 @@ namespace Shuffull.Shared.Networking.Models.Requests
         public DateTime LastPlayed { get; set; }
 
         public UpdateSongLastPlayedRequest()
-        { 
+        {
             RequestType = RequestType.UpdateSongLastPlayed;
             RequestName = RequestType.UpdateSongLastPlayed.ToString();
             ProcessingMethod = ProcessingMethod.Batch;

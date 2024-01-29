@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Diagnostics.CodeAnalysis;
 
-namespace Shuffull.Shared.Networking.Models.Server
+namespace Shuffull.Shared.Models.Server
 {
     [Serializable]
     public class Tag

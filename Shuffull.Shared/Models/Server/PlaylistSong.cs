@@ -2,7 +2,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace Shuffull.Shared.Networking.Models.Server
+namespace Shuffull.Shared.Models.Server
 {
     [Serializable]
     public class PlaylistSong

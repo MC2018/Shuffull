@@ -4,9 +4,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Shuffull.Shared.Networking.Models.Server;
+using Shuffull.Shared.Models.Server;
 
-namespace Shuffull.Shared.Networking.Models.Requests
+namespace Shuffull.Shared.Models.Requests
 {
     public class CreateUserSongRequest : Request
     {

@@ -5,7 +5,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Net.Http;
 using System.Text;
 
-namespace Shuffull.Shared.Networking.Models.Requests
+namespace Shuffull.Shared.Models.Requests
 {
     [Serializable]
     public abstract class Request

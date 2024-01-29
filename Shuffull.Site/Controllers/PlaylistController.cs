@@ -5,13 +5,13 @@ using Shuffull.Site.Tools;
 using Shuffull.Site.Models;
 using System.Diagnostics;
 using Shuffull.Site;
-using Results = Shuffull.Shared.Networking.Models;
+using Results = Shuffull.Shared.Models;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Shuffull.Site.Tools.Authorization;
-using Shuffull.Shared.Networking.Models.Server;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.IdentityModel.Tokens;
+using Shuffull.Shared.Models.Server;
 
 namespace Shuffull.Tools.Controllers
 {

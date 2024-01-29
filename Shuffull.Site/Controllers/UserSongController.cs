@@ -1,20 +1,23 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Database = Shuffull.Site.Database;
-using Shuffull.Shared.Networking.Models;
+using Shuffull.Shared.Models;
 using Shuffull.Site.Tools;
 using Shuffull.Site.Models;
 using System.Diagnostics;
 using Shuffull.Site;
-using Results = Shuffull.Shared.Networking.Models;
-using Shuffull.Shared.Networking.Models.Requests;
+using Results = Shuffull.Shared.Models;
 using Shuffull.Site.Database.Models;
 using System.Collections.Generic;
 using Shuffull.Site.Tools.Authorization;
-using Shuffull.Shared.Networking.Models.Responses;
+using Shuffull.Shared.Models.Responses;
 using OpenAI_API.Moderation;
 using System.Text.Json.Serialization;
 using System.Text.Json;
+using Shuffull.Shared.Models.Server;
+using Shuffull.Shared.Models.Requests;
+using User = Shuffull.Site.Database.Models.User;
+using UserSong = Shuffull.Site.Database.Models.UserSong;
 
 namespace Shuffull.Tools.Controllers
 {
@@ -87,9 +90,9 @@ namespace Shuffull.Tools.Controllers
                 userSongs.RemoveAt(MAX_PAGE_LENGTH);
             }
 
-            var response = new PaginatedResponse<Shared.Networking.Models.Server.UserSong>()
+            var response = new PaginatedResponse<Shared.Models.Server.UserSong>()
             {
-                Items = ClassMapper.Mapper.Map<List<Shared.Networking.Models.Server.UserSong>>(userSongs),
+                Items = ClassMapper.Mapper.Map<List<Shared.Models.Server.UserSong>>(userSongs),
                 EndOfList = endOfList
             };
 

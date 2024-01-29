@@ -2,9 +2,9 @@
 using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
 using Shuffull.Shared;
-using Shuffull.Shared.Networking.Models;
-using Shuffull.Shared.Networking.Models.Responses;
-using Shuffull.Shared.Networking.Models.Server;
+using Shuffull.Shared.Models.Server;
+using Shuffull.Shared.Models;
+using Shuffull.Shared.Models.Responses;
 using Shuffull.Shared.Tools;
 using Shuffull.Windows.Constants;
 using Shuffull.Windows.Extensions;

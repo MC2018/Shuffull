@@ -1,4 +1,4 @@
-﻿using Shuffull.Shared.Networking.Models.Server;
+﻿using Shuffull.Shared.Models.Server;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Shuffull.Shared.Networking.Models.Responses
+namespace Shuffull.Shared.Models.Responses
 {
     [Serializable]
     public class AuthenticateResponse
