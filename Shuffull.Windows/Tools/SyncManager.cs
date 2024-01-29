@@ -319,7 +319,7 @@ namespace Shuffull.Windows.Tools
                 var existingArtistIds = context.Artists.Select(x => x.ArtistId).ToHashSet();
 
                 // Get cross-verified songs, add to context
-                for (int i = 0; i < newSongIds.Count(); i += 500)
+                for (int i = 0; i * 500 < newSongIds.Count(); i++)
                 {
                     var songIdsSubset = newSongIds.Skip(i * 500).Take(500).ToArray();
                     var newSongs = await ApiRequestManager.SongGetList(songIdsSubset);
