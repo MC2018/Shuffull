@@ -126,5 +126,13 @@ namespace Shuffull.Windows
             await AuthManager.ClearAuthentication();
             Dispose();
         }
+
+        private void form_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            if (e.CloseReason != CloseReason.None)
+            {
+                Application.Exit();
+            }
+        }
     }
 }

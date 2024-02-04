@@ -143,6 +143,7 @@
             Controls.Add(label1);
             Name = "Home";
             Text = "Home";
+            FormClosing += form_FormClosing;
             musicControllerPanel.ResumeLayout(false);
             ResumeLayout(false);
             PerformLayout();
