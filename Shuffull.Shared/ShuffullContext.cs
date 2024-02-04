@@ -99,17 +99,17 @@ namespace Shuffull.Shared
                 .HasIndex(x => x.TimestampSeconds);
         }
 
-        public RecentlyPlayedSong GetCurrentlyPlayingSong()
+        public async Task<RecentlyPlayedSong> GetCurrentlyPlayingSong()
         {
-            return RecentlyPlayedSongs
+            return await RecentlyPlayedSongs
                 .Where(x => x.TimestampSeconds != null)
                 .Include(x => x.Song)
-                .FirstOrDefault();
+                .FirstOrDefaultAsync();
         }
 
-        public void ClearCurrentlyPlayingSong()
+        public async Task ClearCurrentlyPlayingSong()
         {
-            var lastPlayedSongs = RecentlyPlayedSongs.Where(x => x.TimestampSeconds != null).ToList();
+            var lastPlayedSongs = await RecentlyPlayedSongs.Where(x => x.TimestampSeconds != null).ToListAsync();
 
             if (!lastPlayedSongs.Any())
             {
@@ -122,10 +122,10 @@ namespace Shuffull.Shared
             }
         }
 
-        public void SetCurrentlyPlayingSong(long songId, string recentlyPlayedSongGuid = null)
+        public async Task SetCurrentlyPlayingSong(long songId, string recentlyPlayedSongGuid = null)
         {
-            ClearCurrentlyPlayingSong();
-            var song = Songs.Where(x => x.SongId == songId).FirstOrDefault();
+            await ClearCurrentlyPlayingSong();
+            var song = await Songs.Where(x => x.SongId == songId).FirstOrDefaultAsync();
 
             if (song == null)
             {
@@ -139,9 +139,9 @@ namespace Shuffull.Shared
 
                 if (recentlyPlayedSongGuid != null)
                 {
-                    recentlyPlayedSong = RecentlyPlayedSongs
+                    recentlyPlayedSong = await RecentlyPlayedSongs
                         .Where(x => x.RecentlyPlayedSongGuid == recentlyPlayedSongGuid)
-                        .FirstOrDefault();
+                        .FirstOrDefaultAsync();
 
                     if (recentlyPlayedSong != null)
                     {
@@ -164,9 +164,9 @@ namespace Shuffull.Shared
             }
         }
 
-        public void UpdateCurrentlyPlayingSong(int timestampSeconds)
+        public async Task UpdateCurrentlyPlayingSong(int timestampSeconds)
         {
-            var recentlyPlayedSong = RecentlyPlayedSongs.Where(x => x.TimestampSeconds != null).FirstOrDefault();
+            var recentlyPlayedSong = await RecentlyPlayedSongs.Where(x => x.TimestampSeconds != null).FirstOrDefaultAsync();
 
             if (recentlyPlayedSong == null)
             {
@@ -176,24 +176,24 @@ namespace Shuffull.Shared
             recentlyPlayedSong.TimestampSeconds = timestampSeconds;
         }
 
-        public RecentlyPlayedSong CheckForLastRecentlyPlayedSong()
+        public async Task<RecentlyPlayedSong> CheckForLastRecentlyPlayedSong()
         {
-            return CheckForRecentlyPlayedSong(false);
+            return await CheckForRecentlyPlayedSong(false);
         }
 
-        public RecentlyPlayedSong CheckForNextRecentlyPlayedSong()
+        public async Task<RecentlyPlayedSong> CheckForNextRecentlyPlayedSong()
         {
-            return CheckForRecentlyPlayedSong(true);
+            return await CheckForRecentlyPlayedSong(true);
         }
 
-        private RecentlyPlayedSong CheckForRecentlyPlayedSong(bool next)
+        private async Task<RecentlyPlayedSong> CheckForRecentlyPlayedSong(bool next)
         {
-            var lastPlayed = RecentlyPlayedSongs
+            var lastPlayed = await RecentlyPlayedSongs
                 .Where(x => x.TimestampSeconds != null)
                 .Select(x => x.LastPlayed)
-                .FirstOrDefault();
+                .FirstOrDefaultAsync();
 
-            if (lastPlayed == null)
+            if (lastPlayed == default)
             {
                 return null;
             }
@@ -211,7 +211,7 @@ namespace Shuffull.Shared
                 query = query.OrderByDescending(x => x.LastPlayed);
             }
 
-            return query.FirstOrDefault();
+            return await query.FirstOrDefaultAsync();
         }
 
         // User Song
@@ -271,28 +271,28 @@ namespace Shuffull.Shared
             await Tags.AddRangeAsync(tags);
         }
 
-        public List<Playlist> GetPlaylists()
+        public async Task<List<Playlist>> GetPlaylists()
         {
-            return Playlists
+            return await Playlists
                 .OrderBy(x => x.PlaylistId)
-                .ToList();
+                .ToListAsync();
         }
 
-        public Playlist GetPlaylistWithSongs(long playlistId)
+        public async Task<Playlist> GetPlaylistWithSongs(long playlistId)
         {
-            return Playlists
+            return await Playlists
                 .Where(x => x.PlaylistId == playlistId)
                 .Include(x => x.PlaylistSongs)
                 .ThenInclude(x => x.Song)
                 .OrderBy(x => x.PlaylistId)
-                .FirstOrDefault();
+                .FirstOrDefaultAsync();
         }
 
-        public List<Request> GetRequests()
+        public async Task<List<Request>> GetRequests()
         {
-            return Requests
+            return await Requests
                 .OrderBy(x => x.TimeRequested)
-                .ToList();
+                .ToListAsync();
         }
 
         public void ClearRecentlyPlayedSongs()
@@ -302,8 +302,8 @@ namespace Shuffull.Shared
 
         public async Task<Song> GetNextSong(long playlistId)
         {
-            var localSessionData = LocalSessionData.First();
-            var playlist = Playlists.Where(x => x.PlaylistId == playlistId).FirstOrDefault();
+            var localSessionData = await LocalSessionData.FirstAsync();
+            var playlist = await Playlists.Where(x => x.PlaylistId == playlistId).FirstOrDefaultAsync();
             /*var userSongs = PlaylistSongs.Where(x => x.PlaylistId == playlistId)
                 .SelectMany(x => x.Song.UserSongs)
                 .Where(x => x.UserId == localSessionData.UserId)
@@ -340,7 +340,7 @@ namespace Shuffull.Shared
                 .Skip(randomIndex)
                 .Take(1)
                 .First();
-            var result = Songs.Where(x => x.SongId == selectedUserSong.Song.SongId).First();
+            var result = await Songs.Where(x => x.SongId == selectedUserSong.Song.SongId).FirstAsync();
             return result;
         }
     }

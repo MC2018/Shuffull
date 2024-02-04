@@ -73,7 +73,7 @@ namespace Shuffull.Windows.Tools
                 // Update playlists
                 using var context = Program.ServiceProvider.GetRequiredService<ShuffullContext>();
 
-                var unorderedRequests = context.GetRequests();
+                var unorderedRequests = await context.GetRequests();
                 var requestTypes = unorderedRequests.Select(x => x.RequestType).Distinct().ToList();
                 var requestBatches = new List<List<Request>>();
                 RequestType? lastRequestType = null;
@@ -249,7 +249,7 @@ namespace Shuffull.Windows.Tools
                 };
                 var accessiblePlaylists = await ApiRequestManager.PlaylistGetAll();
                 var accessiblePlaylistIds = accessiblePlaylists.Select(x => x.PlaylistId).ToArray();
-                var localPlaylists = context.GetPlaylists();
+                var localPlaylists = await context.GetPlaylists();
                 var playlistsToFetch = new List<long>();
                 var playlistsToAdd = new List<Playlist>();
                 var updatedPlaylists = new List<Playlist>();

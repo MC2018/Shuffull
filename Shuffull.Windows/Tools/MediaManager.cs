@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 
 namespace Shuffull.Windows.Tools
 {
@@ -102,10 +103,10 @@ namespace Shuffull.Windows.Tools
         /**
          * Only run at initialization
          */
-        public static void QueueLastPlayedSong()
+        public static async Task QueueLastPlayedSong()
         {
             using var context = Program.ServiceProvider.GetRequiredService<ShuffullContext>();
-            var recentlyPlayedSong = context.GetCurrentlyPlayingSong();
+            var recentlyPlayedSong = await context.GetCurrentlyPlayingSong();
 
             if (recentlyPlayedSong != null)
             {
@@ -139,14 +140,14 @@ namespace Shuffull.Windows.Tools
         async private static Task Play(Song song, RecentlyPlayedSong? recentlyPlayedSong = null)
         {
             using var context = Program.ServiceProvider.GetRequiredService<ShuffullContext>();
-            var localSessionData = context.LocalSessionData.First();
+            var localSessionData = await context.LocalSessionData.FirstAsync();
             var url = $"{SiteInfo.Url}/music/{song.Directory}";
             var uri = new Uri(url);
             using var media = new Media(_libvlc, uri);
 
             if (recentlyPlayedSong == null)
             {
-                recentlyPlayedSong = context.GetCurrentlyPlayingSong();
+                recentlyPlayedSong = await context.GetCurrentlyPlayingSong();
                 
                 if (song.SongId != recentlyPlayedSong?.SongId)
                 {
@@ -159,18 +160,18 @@ namespace Shuffull.Windows.Tools
             if (recentlyPlayedSong != null)
             {
                 _mediaPlayer.Time = (recentlyPlayedSong.TimestampSeconds ?? 0) * 1000;
-                context.SetCurrentlyPlayingSong(song.SongId, recentlyPlayedSong.RecentlyPlayedSongGuid);
+                await context.SetCurrentlyPlayingSong(song.SongId, recentlyPlayedSong.RecentlyPlayedSongGuid);
             }
             else
             {
-                context.SetCurrentlyPlayingSong(song.SongId);
+                await context.SetCurrentlyPlayingSong(song.SongId);
             }
 
             await context.SaveChangesAsync();
 
-            var userSong = context.UserSongs
+            var userSong = await context.UserSongs
                 .Where(x => x.UserId == localSessionData.UserId && x.SongId == song.SongId)
-                .FirstOrDefault();
+                .FirstOrDefaultAsync();
 
             if (userSong == null)
             {
@@ -216,7 +217,7 @@ namespace Shuffull.Windows.Tools
         public static async Task Previous()
         {
             using var context = Program.ServiceProvider.GetRequiredService<ShuffullContext>();
-            var recentlyPlayedSong = context.CheckForLastRecentlyPlayedSong();
+            var recentlyPlayedSong = await context.CheckForLastRecentlyPlayedSong();
 
             if (recentlyPlayedSong != null)
             {
@@ -237,7 +238,7 @@ namespace Shuffull.Windows.Tools
             else
             {
                 using var context = Program.ServiceProvider.GetRequiredService<ShuffullContext>();
-                recentlyPlayedSong = context.CheckForNextRecentlyPlayedSong();
+                recentlyPlayedSong = await context.CheckForNextRecentlyPlayedSong();
 
                 if (recentlyPlayedSong != null)
                 {
