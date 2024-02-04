@@ -262,5 +262,31 @@ namespace Shuffull.Windows.Tools
             }
         }
         #endregion
+
+        #region Tag
+        public static async Task<List<Tag>> TagGetAll()
+        {
+            var client = GetAuthorizedClient();
+
+            try
+            {
+                using var response = await client.GetAsync($"{SiteInfo.Url}/tag/getall");
+                response.EnsureSuccessStatusCode();
+
+                using var content = response.Content;
+                var resultStr = await content.ReadAsStringAsync();
+                var result = JsonConvert.DeserializeObject<List<Tag>>(resultStr);
+                return result;
+            }
+            catch (HttpRequestException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                throw new HttpRequestException("Issue with sending a request to the server", ex);
+            }
+        }
+        #endregion
     }
 }

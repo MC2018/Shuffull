@@ -229,13 +229,18 @@ namespace Shuffull.Windows.Tools
                 // Update user version
                 var newUser = await ApiRequestManager.UserGet();
 
-                if (newUser.Version == localUser.Version)
-                {
-                    return HttpStatusCode.OK;
-                }
+                //if (newUser.Version == localUser.Version)
+                //{
+                //    return HttpStatusCode.OK;
+                //}
 
                 context.Users.Remove(localUser);
                 context.Users.Add(newUser);
+
+                // Refresh tags
+                var tags = await ApiRequestManager.TagGetAll();
+                context.UpdateTags(tags);
+                await context.SaveChangesAsync();
 
                 // Refresh playlists
                 var parameters = new Dictionary<string, string>()
@@ -316,34 +321,39 @@ namespace Shuffull.Windows.Tools
                 var existingArtistIds = context.Artists.Select(x => x.ArtistId).ToHashSet();
 
                 // Get cross-verified songs, add to context
-                for (int i = 0; i * 500 < newSongIds.Count(); i++)
+                for (int i = 0; i * 500 < newSongIds.Count; i++)
                 {
                     var songIdsSubset = newSongIds.Skip(i * 500).Take(500).ToArray();
                     var newSongs = await ApiRequestManager.SongGetList(songIdsSubset);
-                    var newSongsCopy = newSongs.ToList();
-                    var artists = newSongs
+                    var newSongsCopy = newSongs.ToList(); // TODO: do the same thing for songtags as this; load in all tags separately
+                    /*var artists = newSongs
                         .SelectMany(x => x.SongArtists)
                         .Select(x => x.Artist)
                         .DistinctBy(x => x.ArtistId)
                         .Where(x => !existingArtistIds.Contains(x.ArtistId))
-                        .ToList();
-
-                    foreach (var artist in artists)
+                        .ToList();*/
+                    context.Songs.AddRange(newSongs);
+                    /*foreach (var artist in artists)
                     {
                         artist.SongArtists = null;
                         context.Artists.Add(artist);
                         existingArtistIds.Add(artist.ArtistId);
                     }
 
-                    foreach (var newSongCopy in newSongsCopy)
+                    foreach (var newSongCopy in newSongsCopy) // TODO: do i need this separate addition of artists?
                     {
                         MoreLinq.Extensions.ForEachExtension.ForEach(newSongCopy.SongArtists, x => x.Artist = null);
                     }
 
-                    context.Songs.AddRange(newSongsCopy);
+                    foreach (var newSongCopy in newSongsCopy) // TODO: do i need this separate addition of artists?
+                    {
+                        MoreLinq.Extensions.ForEachExtension.ForEach(newSongCopy.SongArtists, x => x.Artist = null);
+                    }
+
+                    context.Songs.AddRange(newSongsCopy);*/
                 }
 
-                // TODO: Request updated songs based on Version here
+                // TODO: Request updated songs based on Version here (song.version should be implemented)
                 // requires new data structure to tie all affected users with updated songs
 
                 await context.SaveChangesAsync();

@@ -247,6 +247,23 @@ namespace Shuffull.Shared
             }
         }
 
+        public async void UpdateTags(List<Tag> tags)
+        {
+            var localTags = await Tags.ToListAsync();
+
+            foreach (var tag in tags)
+            {
+                var tagToRemove = localTags.Where(x => x.TagId == tag.TagId).FirstOrDefault();
+
+                if (tagToRemove != null)
+                {
+                    Tags.Remove(tagToRemove);
+                }
+            }
+
+            await Tags.AddRangeAsync(tags);
+        }
+
         public List<Playlist> GetPlaylists()
         {
             return Playlists
