@@ -46,9 +46,16 @@ namespace Shuffull.Shared
             {
                 try
                 {
+                    var directory = Path.GetDirectoryName(context._path);
+
+                    if (!Directory.Exists(directory) && directory != string.Empty)
+                    {
+                        Directory.CreateDirectory(directory);
+                    }
+
                     context.Database.Migrate();
                 }
-                catch (Exception) // when the database changes too much, the schema needs to be rebuilt
+                catch (Exception e) // when the database changes too much, the schema needs to be rebuilt
                 {
                     File.Delete(context._path);
                     context.Database.Migrate();
@@ -319,12 +326,12 @@ namespace Shuffull.Shared
                 throw new Exception("No song available");
             }
 
-            var thresholdIndex = (int)Math.Ceiling(songs.Count * playlist.PercentUntilReplayable);
+            var thresholdIndex = (int)Math.Ceiling(songs.Count * (1 - playlist.PercentUntilReplayable));
             var lastNeverPlayedSong = songs
                 .Select((x, index) => new { SongInfo = x, Index = index })
                 .Where(x => x.SongInfo.LastPlayed <= DateTime.MinValue)
                 .Select(x => x.Index)
-                .Last();
+                .LastOrDefault();
 
             thresholdIndex = lastNeverPlayedSong > thresholdIndex ? lastNeverPlayedSong : thresholdIndex;
 
