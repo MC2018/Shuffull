@@ -332,7 +332,16 @@ namespace Shuffull.Windows.Tools
                         .DistinctBy(x => x.ArtistId)
                         .Where(x => !existingArtistIds.Contains(x.ArtistId))
                         .ToList();*/
+
+                    // TODO: this is likely still broken when changing songtags on a song
+                    // may also be broken for changing artist info
+                    foreach (var newSong in newSongs)
+                    {
+                        MoreLinq.Extensions.ForEachExtension.ForEach(newSong.SongTags, x => x.Tag = null);
+                    }
+
                     context.Songs.AddRange(newSongs);
+
                     /*foreach (var artist in artists)
                     {
                         artist.SongArtists = null;
