@@ -212,7 +212,7 @@ namespace Shuffull.Windows.Tools
         public static async Task<PaginatedResponse<UserSong>> UserSongGetAll(DateTime afterDate)
         {
             var client = GetAuthorizedClient();
-            var parameters = $"afterDate{afterDate:yyyy-MM-ddTHH:mm:ss.fffffff}";
+            var parameters = $"afterDate={afterDate:yyyy-MM-ddTHH:mm:ss.fffffff}";
 
             try
             {
