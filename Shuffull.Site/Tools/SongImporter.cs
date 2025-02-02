@@ -1,5 +1,4 @@
 ﻿using Microsoft.Identity.Client;
-using Murmur;
 using Shuffull.Site.Configuration;
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +10,7 @@ using Azure;
 using OpenAI_API.Moderation;
 using System.Text.RegularExpressions;
 using Shuffull.Site.Models.Database;
+using Shuffull.Shared.Tools;
 
 namespace Shuffull.Site.Tools
 {
@@ -266,27 +266,23 @@ namespace Shuffull.Site.Tools
         /// <summary>
         /// Moves a song from the temporary download folder to its permanent location and renames the file to a UUID
         /// </summary>
-        /// <param name="currentSongDirectory">Current song directory</param>
+        /// <param name="currentSongPath">Current song path</param>
         /// <returns>New song directory</returns>
-        private string MoveAndRenameSong(string currentSongDirectory)
+        private string MoveAndRenameSong(string currentSongPath)
         {
-            var murmur128 = MurmurHash.Create128();
-            var fileBytes = File.ReadAllBytes(currentSongDirectory);
-            var hashValue = murmur128.ComputeHash(fileBytes);
-            var hexStr = BitConverter.ToString(hashValue);
-
-            var fileExtension = Path.GetExtension(currentSongDirectory);
+            var hexStr = Hasher.ShaHash(currentSongPath).Substring(0, 32);
+            var fileExtension = Path.GetExtension(currentSongPath).ToLower();
             var newSongName = Path.GetFileName($"{hexStr}{fileExtension}");
-            var newSongDirectory = Path.Combine(_fileConfig.MusicRootDirectory, newSongName.Replace("-", "").ToLower());
+            var newSongPath = Path.Combine(_fileConfig.MusicRootDirectory, newSongName);
 
-            if (File.Exists(newSongDirectory))
+            if (File.Exists(newSongPath))
             {
-                File.Delete(newSongDirectory);
+                File.Delete(newSongPath);
             }
 
-            File.Move(currentSongDirectory, newSongDirectory);
+            File.Move(currentSongPath, newSongPath);
 
-            return newSongDirectory;
+            return newSongPath;
         }
 
         /// <summary>

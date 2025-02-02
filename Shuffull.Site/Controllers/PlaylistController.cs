@@ -105,7 +105,7 @@ namespace Shuffull.Tools.Controllers
                 .ToListAsync();
             var result = ClassMapper.Mapper.Map<List<Playlist>>(playlists);
 
-            return Ok(result);
+            return Ok(Serializer.Serialize(result));
         }
 
         // TODO: remove songs from playlist get and getall
@@ -129,13 +129,7 @@ namespace Shuffull.Tools.Controllers
                 .ToListAsync();
             var result = ClassMapper.Mapper.Map<List<Playlist>>(playlist);
 
-            var options = new JsonSerializerOptions
-            {
-                ReferenceHandler = ReferenceHandler.Preserve
-            };
-            var resultStr = JsonSerializer.Serialize(result, options);
-
-            return Ok(resultStr);
+            return Ok(Serializer.Serialize(result));
         }
 
         [HttpGet]

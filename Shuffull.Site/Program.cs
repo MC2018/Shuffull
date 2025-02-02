@@ -46,6 +46,11 @@ Directory.CreateDirectory(filesConfig.ManualSongImportDirectory);
 Directory.CreateDirectory(filesConfig.SongImportDirectory);
 Directory.CreateDirectory(filesConfig.SavedAiResponsesDirectory);
 
+if (!File.Exists(filesConfig.GenresFile))
+{
+    File.WriteAllText(filesConfig.GenresFile, string.Empty);
+}
+
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseStaticFiles(new StaticFileOptions

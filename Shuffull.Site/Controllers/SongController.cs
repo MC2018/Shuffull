@@ -87,12 +87,7 @@ namespace Shuffull.Site.Controllers
                 .ToListAsync();
 
             var result = ClassMapper.Mapper.Map<List<Song>>(songs);
-            var options = new JsonSerializerOptions
-            {
-                ReferenceHandler = ReferenceHandler.Preserve
-            };
-            var resultStr = JsonSerializer.Serialize(result, options);
-            return Ok(resultStr);
+            return Ok(Serializer.Serialize(result));
         }
     }
 }

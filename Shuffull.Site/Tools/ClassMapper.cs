@@ -20,6 +20,7 @@ namespace Shuffull.Site.Tools
     public class ClassMapper
     {
         public static readonly IMapper Mapper;
+        public static readonly JsonNamingPolicy NamingPolicy = new LowerCamelCaseNamingPolicy();
 
         /// <summary>
         /// Constructor, sets up the map
@@ -49,12 +50,13 @@ namespace Shuffull.Site.Tools
         /// <param name="item">Item to be mapped</param>
         /// <exception cref="NotSupportedException">Thrown if something in the item is not mapped or serializable</exception>
         /// <returns>Serialized JSON of the mapped item</returns>
-        public static string MapAndSerialize<T>(T item)
+        public static string MapAndSerialize<T>(object item)
         {
             var result = Mapper.Map<T>(item);
             var options = new JsonSerializerOptions
             {
-                ReferenceHandler = ReferenceHandler.Preserve
+                ReferenceHandler = ReferenceHandler.Preserve,
+                PropertyNamingPolicy = NamingPolicy
             };
 
             return JsonSerializer.Serialize(result, options);

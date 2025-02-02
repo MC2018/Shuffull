@@ -364,3 +364,5 @@ FodyWeavers.xsd
 /Shuffull.Site/music
 /Dockerfile
 /Shuffull.Shared/temp.db3
+/.git_deploy
+/.git_temp

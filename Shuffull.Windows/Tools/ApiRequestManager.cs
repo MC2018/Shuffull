@@ -113,7 +113,7 @@ namespace Shuffull.Windows.Tools
         public static async Task<AuthenticateResponse> UserCreate(string username, string password)
         {
             var client = Program.ServiceProvider.GetRequiredService<HttpClient>();
-            var userHash = Hasher.Hash($"{username};{password}");
+            var userHash = Hasher.Argon2Hash($"{username};{password}");
             var parameters = new Dictionary<string, string>()
             {
                 { "username", username },

@@ -27,7 +27,7 @@ namespace Shuffull.Tools.Controllers
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
             var jwtHelper = scope.ServiceProvider.GetRequiredService<JwtHelper>();
-            var serverHash = Hasher.Hash(userHash);
+            var serverHash = Hasher.Argon2Hash(userHash);
             var user = await context.Users
                 .AsNoTracking()
                 .Where(x => x.Username == username && x.ServerHash == serverHash)
@@ -43,7 +43,7 @@ namespace Shuffull.Tools.Controllers
             var mappedUser = ClassMapper.Mapper.Map<User>(user);
             var response = new AuthenticateResponse(mappedUser, token, expiration);
 
-            return Ok(response);
+            return Ok(Serializer.Serialize(response));
         }
 
         [HttpPost]
@@ -59,7 +59,7 @@ namespace Shuffull.Tools.Controllers
             }
 
             var jwtHelper = scope.ServiceProvider.GetRequiredService<JwtHelper>();
-            var serverHash = Hasher.Hash(userHash);
+            var serverHash = Hasher.Argon2Hash(userHash);
             user = new Site.Models.Database.User()
             {
                 Username = username,
@@ -90,13 +90,8 @@ namespace Shuffull.Tools.Controllers
                 .Where(x => x.UserId == contextUser.UserId)
                 .FirstAsync();
             var result = ClassMapper.Mapper.Map<User>(user);
-            var options = new JsonSerializerOptions
-            {
-                ReferenceHandler = ReferenceHandler.Preserve
-            };
-            var resultStr = JsonSerializer.Serialize(result, options);
 
-            return Ok(resultStr);
+            return Ok(Serializer.Serialize(result));
         }
     }
 }

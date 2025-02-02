@@ -95,12 +95,7 @@ namespace Shuffull.Tools.Controllers
                 EndOfList = endOfList
             };
 
-            var options = new JsonSerializerOptions
-            {
-                ReferenceHandler = ReferenceHandler.Preserve
-            };
-
-            return Ok(JsonSerializer.Serialize(response, options));
+            return Ok(Serializer.Serialize(response));
         }
 
         /// <summary>
@@ -112,7 +107,7 @@ namespace Shuffull.Tools.Controllers
         [Authorize]
         public async Task<IActionResult> UpdateLastPlayed([FromBody] List<UpdateSongLastPlayedRequest> requests)
         {
-            using var scope = _services.CreateScope();
+           using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
             var contextUser = HttpContext.Items["User"] as User;
 

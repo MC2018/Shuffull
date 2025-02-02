@@ -32,11 +32,12 @@ namespace Shuffull.Tools.Controllers
             var result = ClassMapper.Mapper.Map<List<Shared.Models.Server.Tag>>(tags);
             var options = new JsonSerializerOptions
             {
-                ReferenceHandler = ReferenceHandler.Preserve
+                ReferenceHandler = ReferenceHandler.IgnoreCycles,
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             };
             var resultStr = JsonSerializer.Serialize(result, options);
 
-            return Content(resultStr, "application/json");
+            return Ok(result);
         }
 
         [HttpPost]

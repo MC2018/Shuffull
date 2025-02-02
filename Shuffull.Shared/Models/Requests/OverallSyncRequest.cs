@@ -14,7 +14,7 @@ namespace Shuffull.Shared.Models.Requests
         {
             RequestType = RequestType.OverallSync;
             RequestName = RequestType.OverallSync.ToString();
-            ProcessingMethod = ProcessingMethod.OnlyOnce;
+            ProcessingMethod = ProcessingMethod.None;
         }
 
         public override void UpdateLocalDb(ShuffullContext context)

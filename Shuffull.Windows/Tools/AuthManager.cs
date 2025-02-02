@@ -65,7 +65,7 @@ namespace Shuffull.Windows.Tools
         {
             try
             {
-                var userHash = Hasher.Hash($"{username};{password}");
+                var userHash = Hasher.Argon2Hash($"{username};{password}");
                 var response = await ApiRequestManager.UserAuthenticate(username, userHash);
                 await LoadSessionData(response.User, response.Token, response.Expiration);
             }
