@@ -52,7 +52,7 @@ namespace Shuffull.Site.Tools
                 var responseStr = await tagConversation.GetResponseFromChatbotAsync();
                 var result = JsonConvert.DeserializeObject<TagsResponse>(responseStr) ?? throw new Exception();
 
-                File.WriteAllText(Path.Combine(_fileConfig.SavedAiResponsesDirectory, $"{song.Directory}.json"), responseStr);
+                File.WriteAllText(Path.Combine(_fileConfig.SavedAiResponsesDirectory, $"{song.FileHash}.json"), responseStr);
                 return result;
             }
             catch (Exception)

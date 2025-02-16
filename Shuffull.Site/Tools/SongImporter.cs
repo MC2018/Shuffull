@@ -87,7 +87,8 @@ namespace Shuffull.Site.Tools
                 var song = new Song()
                 {
                     Name = musicFile.Tag.Title ?? Path.GetFileNameWithoutExtension(oldSongFile),
-                    Directory = Path.GetFileName(newSongFile)
+                    SongFileExtension = Path.GetExtension(newSongFile),
+                    FileHash = Path.GetFileNameWithoutExtension(newSongFile)
                 };
                 songs.Add(song);
 
@@ -200,7 +201,7 @@ namespace Shuffull.Site.Tools
                     newAlbumArt = ImageManipulator.GenerateDefaultImage(resolution, resolution);
                 }
 
-                var outputFilePath = Path.Combine(_fileConfig.AlbumArtDirectory, $"{Path.GetFileNameWithoutExtension(newSongFile)}.jpg");
+                var outputFilePath = Path.Combine(_fileConfig.AlbumArtDirectory, $"{Path.GetFileNameWithoutExtension(song.FileHash)}.jpg");
                 newAlbumArt.Save(outputFilePath, new JpegEncoder());
             }
 
