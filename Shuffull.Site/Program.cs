@@ -61,6 +61,13 @@ app.UseStaticFiles(new StaticFileOptions
     ),
     RequestPath = "/music"
 });
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(
+        filesConfig.AlbumArtDirectory
+    ),
+    RequestPath = "/albumart"
+});
 
 app.UseRouting();
 
