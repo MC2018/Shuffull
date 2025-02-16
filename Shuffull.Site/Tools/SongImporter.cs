@@ -87,7 +87,7 @@ namespace Shuffull.Site.Tools
                 var song = new Song()
                 {
                     Name = musicFile.Tag.Title ?? Path.GetFileNameWithoutExtension(oldSongFile),
-                    SongFileExtension = Path.GetExtension(newSongFile),
+                    FileExtension = Path.GetExtension(newSongFile),
                     FileHash = Path.GetFileNameWithoutExtension(newSongFile)
                 };
                 songs.Add(song);
