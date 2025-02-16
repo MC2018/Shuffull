@@ -45,6 +45,7 @@ Directory.CreateDirectory(filesConfig.MusicRootDirectory);
 Directory.CreateDirectory(filesConfig.ManualSongImportDirectory);
 Directory.CreateDirectory(filesConfig.SongImportDirectory);
 Directory.CreateDirectory(filesConfig.SavedAiResponsesDirectory);
+Directory.CreateDirectory(filesConfig.AlbumArtDirectory);
 
 if (!File.Exists(filesConfig.GenresFile))
 {
