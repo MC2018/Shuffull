@@ -11,7 +11,9 @@ namespace Shuffull.Shared.Models.Server
         [Key, DatabaseGenerated(DatabaseGeneratedOption.None)]
         public long SongId { get; set; }
         [Required]
-        public string Directory { get; set; }
+        public string SongFileExtension { get; set; }
+        [Required]
+        public string FileHash { get; set; }
         [Required]
         public string Name { get; set; }
 

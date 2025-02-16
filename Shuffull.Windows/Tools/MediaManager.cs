@@ -141,7 +141,7 @@ namespace Shuffull.Windows.Tools
         {
             using var context = Program.ServiceProvider.GetRequiredService<ShuffullContext>();
             var localSessionData = await context.LocalSessionData.FirstAsync();
-            var url = $"{SiteInfo.Url}/music/{song.Directory}";
+            var url = $"{SiteInfo.Url}/music/{song.FileHash}.{song.SongFileExtension}";
             var uri = new Uri(url);
             using var media = new Media(_libvlc, uri);
 

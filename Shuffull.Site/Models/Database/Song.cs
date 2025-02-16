@@ -14,7 +14,9 @@ namespace Shuffull.Site.Models.Database
         [Key]
         public long SongId { get; set; }
         [Required]
-        public string Directory { get; set; } = string.Empty;
+        public string SongFileExtension { get; set; } = string.Empty;
+        [Required]
+        public string FileHash { get; set; } = string.Empty;
         [Required]
         public string Name { get; set; } = string.Empty;
 
