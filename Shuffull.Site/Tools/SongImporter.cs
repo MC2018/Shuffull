@@ -11,6 +11,8 @@ using OpenAI_API.Moderation;
 using System.Text.RegularExpressions;
 using Shuffull.Site.Models.Database;
 using Shuffull.Shared.Tools;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Jpeg;
 
 namespace Shuffull.Site.Tools
 {
@@ -23,6 +25,7 @@ namespace Shuffull.Site.Tools
         private readonly ILogger<SongImporter> _logger;
         private readonly ShuffullFilesConfiguration _fileConfig;
         private readonly string[] _audioExtensions = new string[] { ".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac" };
+        private readonly string[] _mimeImageExtensions = new string[] { "image/jpeg", "image/png", "image/gif", "image/bmp" };
 
         /// <summary>
         /// Constructor
@@ -163,6 +166,42 @@ namespace Shuffull.Site.Tools
                         allTags.AddRange(newTags);
                     }
                 }
+
+                // Save album art
+                Image newAlbumArt;
+                var resolution = 512;
+
+                if (musicFile.Tag.Pictures.Length > 0)
+                {
+                    var picture = musicFile.Tag.Pictures[0];
+                    var mimeType = picture.MimeType;
+
+                    if (_mimeImageExtensions.Contains(mimeType))
+                    {
+                        using var ms = new MemoryStream(picture.Data.Data);
+                        using var rawAlbumArt = Image.Load(ms);
+
+                        if (rawAlbumArt.Width != resolution || rawAlbumArt.Height != resolution)
+                        {
+                            newAlbumArt = ImageManipulator.ResizeWithPadding(rawAlbumArt, resolution, resolution);
+                        }
+                        else
+                        {
+                            newAlbumArt = rawAlbumArt;
+                        }
+                    }
+                    else
+                    {
+                        newAlbumArt = ImageManipulator.GenerateDefaultImage(resolution, resolution);
+                    }
+                }
+                else
+                {
+                    newAlbumArt = ImageManipulator.GenerateDefaultImage(resolution, resolution);
+                }
+
+                var outputFilePath = Path.Combine(_fileConfig.AlbumArtDirectory, $"{Path.GetFileNameWithoutExtension(newSongFile)}.jpg");
+                newAlbumArt.Save(outputFilePath, new JpegEncoder());
             }
 
             if (newArtists.Any())

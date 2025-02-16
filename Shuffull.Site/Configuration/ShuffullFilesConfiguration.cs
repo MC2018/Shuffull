@@ -12,5 +12,6 @@ namespace Shuffull.Site.Configuration
         public string FailedImportDirectory { get; set; } = string.Empty;
         public string SavedAiResponsesDirectory { get; set; } = string.Empty;
         public string GenresFile { get; set; } = string.Empty;
+        public string AlbumArtDirectory { get; set; } = string.Empty;
     }
 }
