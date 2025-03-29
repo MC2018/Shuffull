@@ -1,4 +1,5 @@
-﻿using Shuffull.Site.Models.Database;
+﻿using Shuffull.Shared.Enums;
+using Shuffull.Site.Models.Database;
 
 namespace Shuffull.Site.Models
 {
@@ -14,9 +15,9 @@ namespace Shuffull.Site.Models
         {
             var result = new List<Tag>();
 
-            result.AddRange(Genres.Select(x => new Tag() { Name = x, Type = Enums.TagType.Genre }));
-            result.AddRange(Languages.Select(x => new Tag() { Name = x, Type = Enums.TagType.Language }));
-            result.Add(new Tag() { Name = TimePeriod, Type = Enums.TagType.TimePeriod });
+            result.AddRange(Genres.Select(x => new Tag() { Name = x, Type = TagType.Genre }));
+            result.AddRange(Languages.Select(x => new Tag() { Name = x, Type = TagType.Language }));
+            result.Add(new Tag() { Name = TimePeriod, Type = TagType.TimePeriod });
 
             return result;
         }

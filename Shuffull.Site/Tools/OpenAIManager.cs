@@ -2,6 +2,7 @@
 using OpenAI_API;
 using OpenAI_API.Chat;
 using OpenAI_API.Models;
+using Shuffull.Shared.Enums;
 using Shuffull.Site.Configuration;
 using Shuffull.Site.Models;
 using Shuffull.Site.Models.Database;
@@ -32,11 +33,10 @@ namespace Shuffull.Site.Tools
             var chatRequest = new ChatRequest()
             {
                 Model = _model,
-                Temperature = 0.15,
                 ResponseFormat = ChatRequest.ResponseFormats.JsonObject
             };
             var tagConversation = _api.Chat.CreateConversation(chatRequest);
-            var allGenres = allTags.Where(x => x.Type == Enums.TagType.Genre).ToList();
+            var allGenres = allTags.Where(x => x.Type == TagType.Genre).ToList();
             var message = $"{song.Name} ({string.Join(",", artists.Select(x => x.Name))})\nGenres: {string.Join(",", allGenres.Select(x => x.Name))}";
             var resultNames = new List<string>();
             var instruction = File.ReadAllText(_config.InstructionFile);
@@ -44,7 +44,7 @@ namespace Shuffull.Site.Tools
             tagConversation.AppendUserInput(instruction);
             tagConversation.AppendExampleChatbotOutput("Understood. Send the information.");
             tagConversation.AppendUserInput("Vermilion City (Pokémon Red & Blue Remix) (Mewmore)");
-            tagConversation.AppendExampleChatbotOutput("{\"genres\":[\"Electronic\",\"Pokemon\",\"Game\"],\"genresNotProvided\":[\"\"],languages\":[\"Orchestral\"],\"timePeriod\":\"2010s\"}\r\n");
+            tagConversation.AppendExampleChatbotOutput("{\"genres\":[\"Electronic\",\"Pokemon\",\"Game\"],\"genresNotProvided\":[\"\"],languages\":[\"Instrumental\"],\"timePeriod\":\"2010s\"}\r\n");
             tagConversation.AppendUserInput(message);
 
             try

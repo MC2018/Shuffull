@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using OpenAI_API.Moderation;
+using Shuffull.Shared.Enums;
 using Shuffull.Site.Configuration;
 using Shuffull.Site.Models.Database;
 
@@ -22,7 +23,7 @@ namespace Shuffull.Site.Tools
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
             var currentGenreNames = context.Tags
                 .AsNoTracking()
-                .Where(x => x.Type == Enums.TagType.Genre)
+                .Where(x => x.Type == TagType.Genre)
                 .Select(x => x.Name)
                 .ToList();
             var genreNames = File.ReadAllLines(_fileConfig.GenresFile).ToList();
@@ -33,7 +34,7 @@ namespace Shuffull.Site.Tools
                 var newGenre = new Tag()
                 {
                     Name = newGenreName,
-                    Type = Enums.TagType.Genre
+                    Type = TagType.Genre
                 };
                 context.Add(newGenre);
             }
