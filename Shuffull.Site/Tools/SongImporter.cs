@@ -13,6 +13,7 @@ using Shuffull.Site.Models.Database;
 using Shuffull.Shared.Tools;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
+using Shuffull.Shared.Enums;
 
 namespace Shuffull.Site.Tools
 {
@@ -155,7 +156,7 @@ namespace Shuffull.Site.Tools
 
                     tagsToApply.ExistingTags.AddRange(allTags.Where(x => responseNames.Contains(x.Name)));
                     tagsToApply.NewTags.AddRange(
-                        responseList.Where(x => x.Type != Enums.TagType.Genre && !tagsToApply.ExistingTags.Select(y => y.Name).Contains(x.Name))
+                        responseList.Where(x => x.Type != TagType.Genre && !tagsToApply.ExistingTags.Select(y => y.Name).Contains(x.Name))
                         );
 
                     songTagPairs.Add(song, tagsToApply.NewTags.Concat(tagsToApply.ExistingTags).ToList());

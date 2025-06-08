@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Shuffull.Shared.Enums;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
@@ -13,6 +14,8 @@ namespace Shuffull.Shared.Models.Server
         public long TagId { get; set; }
         [Required]
         public string Name { get; set; }
+        [Required]
+        public TagType Type { get; set; }
 
         public ICollection<SongTag> SongTags { get; set; }
     }
