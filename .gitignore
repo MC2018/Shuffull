@@ -361,8 +361,13 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Custom
 /Shuffull.Site/music
-/Dockerfile
 /Shuffull.Shared/temp.db3
 /.git_deploy
 /.git_temp
+/data
+/Shuffull.Site/appsettings.Development.json
+/Shuffull.Site/appsettings.Production.json
+/Shuffull.Site/appsettings.Staging.json

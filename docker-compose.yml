@@ -1,11 +1,39 @@
-version: '3.8'
 services:
-  shuffullsql:
+  db:
     image: mcr.microsoft.com/mssql/server:2022-latest
     environment:
       ACCEPT_EULA: Y
       MSSQL_SA_PASSWORD: Password!
     ports:
       - "1433:1433"
-    container_name: shuffullsql
+    container_name: shuffull-db
     restart: unless-stopped
+    networks:
+      - shuffull-net
+    healthcheck:
+      test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "Password!", "-Q", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  site:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shuffull-site
+    ports:
+      - "7117:7117"
+      - "5117:5117"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - shuffull-net
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+    volumes:
+      - ./data/site:/root/shuffull_data
+
+networks:
+  shuffull-net:
+    driver: bridge
