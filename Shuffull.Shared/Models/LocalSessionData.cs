@@ -9,9 +9,9 @@ namespace Shuffull.Shared.Models
     public class LocalSessionData
     {
         [Key, DatabaseGenerated(DatabaseGeneratedOption.None)]
-        public long UserId { get; set; }
+        public string UserId { get; set; }
         [Required]
-        public long CurrentPlaylistId { get; set; }
+        public string CurrentPlaylistId { get; set; }
         [Required]
         public bool ActivelyDownload { get; set; }
         [Required]

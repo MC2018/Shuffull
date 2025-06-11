@@ -9,13 +9,13 @@ namespace Shuffull.Shared.Models.Server
     public class Playlist
     {
         [Key, DatabaseGenerated(DatabaseGeneratedOption.None)]
-        public long PlaylistId { get; set; }
+        public string PlaylistId { get; set; }
         [Required]
-        public long UserId { get; set; }
+        public string UserId { get; set; }
         [Required]
         public string Name { get; set; }
         [Required]
-        public long CurrentSongId { get; set; }
+        public string CurrentSongId { get; set; }
         [Required]
         public decimal PercentUntilReplayable { get; set; }
         [Required]

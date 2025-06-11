@@ -12,7 +12,7 @@ namespace Shuffull.Shared.Models.Requests
     {
         [Required]
         [Key]
-        public string Guid { get; set; }
+        public string RequestId { get; set; }
         [Required]
         public DateTime TimeRequested { get; set; }
         [Required]

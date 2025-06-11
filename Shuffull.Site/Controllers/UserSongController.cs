@@ -42,7 +42,7 @@ namespace Shuffull.Tools.Controllers
 
         [HttpPut]
         [Authorize]
-        public async Task<IActionResult> CreateMany([FromBody] long[] songIds)
+        public async Task<IActionResult> CreateMany([FromBody] string[] songIds)
         {
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
@@ -107,7 +107,7 @@ namespace Shuffull.Tools.Controllers
         [Authorize]
         public async Task<IActionResult> UpdateLastPlayed([FromBody] List<UpdateSongLastPlayedRequest> requests)
         {
-           using var scope = _services.CreateScope();
+            using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
             var contextUser = HttpContext.Items["User"] as User;
 

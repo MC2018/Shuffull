@@ -12,7 +12,7 @@ namespace Shuffull.Site.Models.Database
     public class Song
     {
         [Key]
-        public long SongId { get; set; }
+        public string SongId { get; set; }
         [Required]
         public string FileExtension { get; set; } = string.Empty;
         [Required]

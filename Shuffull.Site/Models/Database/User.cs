@@ -14,7 +14,7 @@ namespace Shuffull.Site.Models.Database
     public class User
     {
         [Key]
-        public long UserId { get; set; }
+        public string UserId { get; set; }
         [Required, NotNull]
         public string Username { get; set; }
         [Required]

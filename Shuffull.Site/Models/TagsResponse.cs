@@ -17,7 +17,7 @@ namespace Shuffull.Site.Models
 
             result.AddRange(Genres.Select(x => new Tag() { Name = x, Type = TagType.Genre }));
             result.AddRange(Languages.Select(x => new Tag() { Name = x, Type = TagType.Language }));
-            result.Add(new Tag() { Name = TimePeriod, Type = TagType.TimePeriod });
+            result.Add(new Tag() { TagId = Ulid.NewUlid().ToString(), Name = TimePeriod, Type = TagType.TimePeriod });
 
             return result;
         }

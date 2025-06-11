@@ -16,13 +16,12 @@ namespace Shuffull.Site.Models.Database
         public const float PERCENT_UNTIL_REPLAYABLE_CAP = 0.9f;
 
         [Key]
-        public long PlaylistId { get; set; }
+        public string PlaylistId { get; set; }
         [Required]
-        public long UserId { get; set; }
+        public string UserId { get; set; }
         [Required, NotNull]
         public string Name { get; set; }
-        [Required]
-        public long CurrentSongId { get; set; }
+        public string? CurrentSongId { get; set; }
         [Required]
         [Range(0, PERCENT_UNTIL_REPLAYABLE_CAP)]
         [Column(TypeName = "decimal(2,2)")] // allows 2 digits to be saved, with up to 2 digits to the right of the decimal

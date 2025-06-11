@@ -12,7 +12,7 @@ namespace Shuffull.Site.Models.Database
     public class Artist
     {
         [Key]
-        public long ArtistId { get; set; }
+        public string ArtistId { get; set; }
         [Required]
         public string Name { get; set; }
 

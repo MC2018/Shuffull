@@ -12,7 +12,7 @@ namespace Shuffull.Shared.Models.Requests
     public class UpdateSongLastPlayedRequest : Request
     {
         [Required]
-        public long SongId { get; set; }
+        public string SongId { get; set; }
         [Required]
         public DateTime LastPlayed { get; set; }
 

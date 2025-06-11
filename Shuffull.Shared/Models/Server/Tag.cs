@@ -11,7 +11,7 @@ namespace Shuffull.Shared.Models.Server
     public class Tag
     {
         [Key, DatabaseGenerated(DatabaseGeneratedOption.None)]
-        public long TagId { get; set; }
+        public string TagId { get; set; }
         [Required]
         public string Name { get; set; }
         [Required]

@@ -50,9 +50,10 @@ namespace Shuffull.Tools.Controllers
             {
                 playlist = new Playlist()
                 {
+                    PlaylistId = Ulid.NewUlid().ToString(),
                     UserId = user.UserId,
                     Name = playlistName,
-                    CurrentSongId = 0,
+                    CurrentSongId = null,
                     PercentUntilReplayable = 0.9m
                 };
 
