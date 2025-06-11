@@ -10,8 +10,8 @@ namespace Shuffull.Shared.Models.Requests
 {
     public class CreateUserSongRequest : Request
     {
-        public long UserId { get; set; }
-        public long SongId { get; set; }
+        public string UserId { get; set; }
+        public string SongId { get; set; }
 
         public CreateUserSongRequest()
         {

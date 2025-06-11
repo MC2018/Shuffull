@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Shuffull.Site;
 
@@ -11,9 +12,11 @@ using Shuffull.Site;
 namespace Shuffull.Site.Migrations
 {
     [DbContext(typeof(ShuffullContext))]
-    partial class ShuffullContextModelSnapshot : ModelSnapshot
+    [Migration("20250608143451_ReaddTablesWithStringIds")]
+    partial class ReaddTablesWithStringIds
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

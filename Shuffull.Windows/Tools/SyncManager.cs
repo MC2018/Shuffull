@@ -156,7 +156,7 @@ namespace Shuffull.Windows.Tools
                 // Pulling changes
                 var overallSyncRequest = new OverallSyncRequest()
                 {
-                    Guid = Guid.NewGuid().ToString(),
+                    RequestId = Ulid.NewUlid().ToString(),
                     TimeRequested = DateTime.UtcNow
                 };
                 var list = new List<Request>() { overallSyncRequest };

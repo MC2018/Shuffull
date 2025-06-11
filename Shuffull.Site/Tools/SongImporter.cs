@@ -46,7 +46,7 @@ namespace Shuffull.Site.Tools
         /// </summary>
         /// <param name="path">Path where the downloaded music files exist</param>
         /// <param name="playlistId">Playlist to add the music to</param>
-        private void ImportFiles(string path = "", long playlistId = -1, bool manual = false)
+        private void ImportFiles(string path = "", string? playlistId = null, bool manual = false)
         {
             path = manual ? _fileConfig.ManualSongImportDirectory : path;
             var jsonFiles = Directory.GetFiles(path, "*.json").OrderBy(x => x).ToList();
@@ -87,6 +87,7 @@ namespace Shuffull.Site.Tools
                 var musicFile = TagLib.File.Create(newSongFile);
                 var song = new Song()
                 {
+                    SongId = Ulid.NewUlid().ToString(),
                     Name = musicFile.Tag.Title ?? Path.GetFileNameWithoutExtension(oldSongFile),
                     FileExtension = Path.GetExtension(newSongFile),
                     FileHash = Path.GetFileNameWithoutExtension(newSongFile)
@@ -119,6 +120,7 @@ namespace Shuffull.Site.Tools
                     {
                         existingArtist = new Artist()
                         {
+                            ArtistId = Ulid.NewUlid().ToString(),
                             Name = performerName
                         };
                         newArtists.Add(existingArtist);
@@ -221,7 +223,8 @@ namespace Shuffull.Site.Tools
                 {
                     var playlistSong = new PlaylistSong()
                     {
-                        PlaylistId = playlistId,
+                        PlaylistSongId = Ulid.NewUlid().ToString(),
+                        PlaylistId = playlist.PlaylistId,
                         SongId = song.SongId,
                     };
                     context.PlaylistSongs.Add(playlistSong);
@@ -234,6 +237,7 @@ namespace Shuffull.Site.Tools
                 {
                     var songArtist = new SongArtist()
                     {
+                        SongArtistId = Ulid.NewUlid().ToString(),
                         SongId = songArtistPair.Key.SongId,
                         ArtistId = artist.ArtistId
                     };
@@ -247,6 +251,7 @@ namespace Shuffull.Site.Tools
                 {
                     var songTag = new SongTag()
                     {
+                        SongTagId = Ulid.NewUlid().ToString(),
                         SongId = songTagPair.Key.SongId,
                         TagId = tag.TagId
                     };
@@ -282,11 +287,11 @@ namespace Shuffull.Site.Tools
         /// </summary>
         /// <param name="files">List of music files to download</param>
         /// <param name="playlistId">Playlist to add the music to</param>
-        public void DownloadAndImportFiles(IEnumerable<IFormFile> files, long playlistId)
+        public void DownloadAndImportFiles(IEnumerable<IFormFile> files, string playlistId)
         {
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
-            var path = Path.Combine(_fileConfig.SongImportDirectory, Guid.NewGuid().ToString().ToLower());
+            var path = Path.Combine(_fileConfig.SongImportDirectory, Ulid.NewUlid().ToString().ToLower());
 
             Directory.CreateDirectory(path);
 

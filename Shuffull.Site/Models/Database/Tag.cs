@@ -14,7 +14,7 @@ namespace Shuffull.Site.Models.Database
     public class Tag
     {
         [Key]
-        public long TagId { get; set; }
+        public string TagId { get; set; }
         [Required, NotNull]
         public string Name { get; set; }
         [Required, NotNull]

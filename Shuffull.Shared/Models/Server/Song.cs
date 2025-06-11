@@ -9,7 +9,7 @@ namespace Shuffull.Shared.Models.Server
     public class Song
     {
         [Key, DatabaseGenerated(DatabaseGeneratedOption.None)]
-        public long SongId { get; set; }
+        public string SongId { get; set; }
         [Required]
         public string FileExtension { get; set; }
         [Required]

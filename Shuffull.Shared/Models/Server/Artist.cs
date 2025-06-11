@@ -12,7 +12,7 @@ namespace Shuffull.Shared.Models.Server
     public class Artist
     {
         [Key, DatabaseGenerated(DatabaseGeneratedOption.None)]
-        public long ArtistId { get; set; }
+        public string ArtistId { get; set; }
         [Required]
         public string Name { get; set; }
 

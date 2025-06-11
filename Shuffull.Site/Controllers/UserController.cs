@@ -62,6 +62,7 @@ namespace Shuffull.Tools.Controllers
             var serverHash = Hasher.Argon2Hash(userHash);
             user = new Site.Models.Database.User()
             {
+                UserId = Ulid.NewUlid().ToString(),
                 Username = username,
                 ServerHash = serverHash,
                 Version = DateTime.UtcNow

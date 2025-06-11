@@ -11,9 +11,9 @@ namespace Shuffull.Shared.Models
     public class RecentlyPlayedSong
     {
         [Key]
-        public string RecentlyPlayedSongGuid { get; set; }
+        public string RecentlyPlayedSongId { get; set; }
         [Required]
-        public long SongId { get; set; }
+        public string SongId { get; set; }
         public int? TimestampSeconds { get; set; }
         [Required]
         public DateTime LastPlayed { get; set; }

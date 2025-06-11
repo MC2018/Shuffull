@@ -122,7 +122,7 @@ namespace Shuffull.Shared
             }
         }
 
-        public async Task SetCurrentlyPlayingSong(long songId, string recentlyPlayedSongGuid = null)
+        public async Task SetCurrentlyPlayingSong(string songId, string recentlyPlayedSongId = null)
         {
             await ClearCurrentlyPlayingSong();
             var song = await Songs.Where(x => x.SongId == songId).FirstOrDefaultAsync();
@@ -132,15 +132,15 @@ namespace Shuffull.Shared
                 throw new Exception("No song available");
             }
 
-            if (songId != -1)
-            {
+            //if (songId != -1)
+            //{
                 RecentlyPlayedSong recentlyPlayedSong;
                 var existingRecordFound = false;
 
-                if (recentlyPlayedSongGuid != null)
+                if (recentlyPlayedSongId != null)
                 {
                     recentlyPlayedSong = await RecentlyPlayedSongs
-                        .Where(x => x.RecentlyPlayedSongGuid == recentlyPlayedSongGuid)
+                        .Where(x => x.RecentlyPlayedSongId == recentlyPlayedSongId)
                         .FirstOrDefaultAsync();
 
                     if (recentlyPlayedSong != null)
@@ -154,14 +154,14 @@ namespace Shuffull.Shared
                 {
                     recentlyPlayedSong = new RecentlyPlayedSong()
                     {
-                        RecentlyPlayedSongGuid = Guid.NewGuid().ToString(),
+                        RecentlyPlayedSongId = Ulid.NewUlid().ToString(),
                         SongId = songId,
                         TimestampSeconds = 0,
                         LastPlayed = DateTime.UtcNow
                     };
                     RecentlyPlayedSongs.Add(recentlyPlayedSong);
                 }
-            }
+            //}
         }
 
         public async Task UpdateCurrentlyPlayingSong(int timestampSeconds)
@@ -278,7 +278,7 @@ namespace Shuffull.Shared
                 .ToListAsync();
         }
 
-        public async Task<Playlist> GetPlaylistWithSongs(long playlistId)
+        public async Task<Playlist> GetPlaylistWithSongs(string playlistId)
         {
             return await Playlists
                 .Where(x => x.PlaylistId == playlistId)
@@ -300,7 +300,7 @@ namespace Shuffull.Shared
             RecentlyPlayedSongs.RemoveRange(RecentlyPlayedSongs.ToList());
         }
 
-        public async Task<Song> GetNextSong(long playlistId)
+        public async Task<Song> GetNextSong(string playlistId)
         {
             var localSessionData = await LocalSessionData.FirstAsync();
             var playlist = await Playlists.Where(x => x.PlaylistId == playlistId).FirstOrDefaultAsync();

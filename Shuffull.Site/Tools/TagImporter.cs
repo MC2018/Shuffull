@@ -33,6 +33,7 @@ namespace Shuffull.Site.Tools
             {
                 var newGenre = new Tag()
                 {
+                    TagId = Ulid.NewUlid().ToString(),
                     Name = newGenreName,
                     Type = TagType.Genre
                 };

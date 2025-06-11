@@ -9,11 +9,11 @@ namespace Shuffull.Shared.Models.Server
     public class SongTag
     {
         [Key, DatabaseGenerated(DatabaseGeneratedOption.None)]
-        public long SongTagId { get; set; }
+        public string SongTagId { get; set; }
         [Required]
-        public long SongId { get; set; }
+        public string SongId { get; set; }
         [Required]
-        public long TagId { get; set; }
+        public string TagId { get; set; }
 
         [Key]
         public Song Song { get; set; }

@@ -160,7 +160,7 @@ namespace Shuffull.Windows.Tools
             if (recentlyPlayedSong != null)
             {
                 _mediaPlayer.Time = (recentlyPlayedSong.TimestampSeconds ?? 0) * 1000;
-                await context.SetCurrentlyPlayingSong(song.SongId, recentlyPlayedSong.RecentlyPlayedSongGuid);
+                await context.SetCurrentlyPlayingSong(song.SongId, recentlyPlayedSong.RecentlyPlayedSongId);
             }
             else
             {
@@ -177,7 +177,7 @@ namespace Shuffull.Windows.Tools
             {
                 var newUserSongRequest = new CreateUserSongRequest()
                 {
-                    Guid = Guid.NewGuid().ToString(),
+                    RequestId = Ulid.NewUlid().ToString(),
                     SongId = song.SongId,
                     UserId = localSessionData.UserId,
                     TimeRequested = DateTime.UtcNow
@@ -188,7 +188,7 @@ namespace Shuffull.Windows.Tools
             var request = new UpdateSongLastPlayedRequest()
             {
                 LastPlayed = DateTime.UtcNow,
-                Guid = Guid.NewGuid().ToString(),
+                RequestId = Ulid.NewUlid().ToString(),
                 SongId = song.SongId,
                 TimeRequested = DateTime.UtcNow
             };

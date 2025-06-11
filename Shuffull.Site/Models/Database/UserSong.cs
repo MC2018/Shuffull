@@ -7,9 +7,9 @@ namespace Shuffull.Site.Models.Database
     public class UserSong
     {
         [Required]
-        public long UserId { get; set; }
+        public string UserId { get; set; }
         [Required]
-        public long SongId { get; set; }
+        public string SongId { get; set; }
         [Required]
         public DateTime LastPlayed { get; set; }
         [Required]

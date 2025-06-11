@@ -21,7 +21,7 @@ namespace Shuffull.Site.Controllers
 
         [HttpGet]
         [Authorize]
-        public async Task<IActionResult> Get(long songId)
+        public async Task<IActionResult> Get(string songId)
         {
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
@@ -63,7 +63,7 @@ namespace Shuffull.Site.Controllers
 
         [HttpPost]
         [Authorize]
-        public async Task<IActionResult> GetList([FromBody] long[] songIds)
+        public async Task<IActionResult> GetList([FromBody] string[] songIds)
         {
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();

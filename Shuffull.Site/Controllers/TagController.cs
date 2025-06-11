@@ -42,7 +42,7 @@ namespace Shuffull.Tools.Controllers
 
         [HttpPost]
         [Authorize]
-        public async Task<IActionResult> AddToSong(long tagId, long songId)
+        public async Task<IActionResult> AddToSong(string tagId, string songId)
         {
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
@@ -54,6 +54,7 @@ namespace Shuffull.Tools.Controllers
                 .FirstAsync();
             var songTag = new Site.Models.Database.SongTag()
             {
+                SongTagId = Ulid.NewUlid().ToString(),
                 SongId = songId,
                 TagId = tagId
             };

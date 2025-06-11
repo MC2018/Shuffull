@@ -10,7 +10,7 @@ namespace Shuffull.Shared.Models.Server
     public class User
     {
         [Key, DatabaseGenerated(DatabaseGeneratedOption.None)]
-        public long UserId { get; set; }
+        public string UserId { get; set; }
         [Required]
         public string Username { get; set; }
         [Required]

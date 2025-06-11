@@ -69,7 +69,7 @@ namespace Shuffull.Site.Tools.Authorization
                 });
 
                 var jwtToken = (JwtSecurityToken)tokenValidation.SecurityToken;
-                var userId = int.Parse(jwtToken.Claims.First(x => x.Type == "UserId").Value);
+                var userId = jwtToken.Claims.First(x => x.Type == "UserId").Value;
                 httpContext.Items["User"] = await dbContext.Users.Where(x => x.UserId == userId).AsNoTracking().FirstAsync();
             }
             catch

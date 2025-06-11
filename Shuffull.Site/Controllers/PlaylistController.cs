@@ -38,9 +38,10 @@ namespace Shuffull.Tools.Controllers
 
             var dbPlaylist = new Site.Models.Database.Playlist()
             {
+                PlaylistId = Ulid.NewUlid().ToString(),
                 UserId = contextUser.UserId,
                 Name = name,
-                CurrentSongId = 0,
+                CurrentSongId = null,
                 PercentUntilReplayable = 0.9m,
                 Version = DateTime.UtcNow
             };
@@ -53,7 +54,7 @@ namespace Shuffull.Tools.Controllers
 
         [HttpPost]
         [Authorize]
-        public async Task<IActionResult> AddSong(long playlistId, long songId)
+        public async Task<IActionResult> AddSong(string playlistId, string songId)
         {
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
@@ -81,6 +82,7 @@ namespace Shuffull.Tools.Controllers
 
             playlistSong = new Site.Models.Database.PlaylistSong()
             {
+                PlaylistSongId = Ulid.NewUlid().ToString(),
                 PlaylistId = playlistId,
                 SongId = songId
             };
@@ -111,7 +113,7 @@ namespace Shuffull.Tools.Controllers
         // TODO: remove songs from playlist get and getall
         [HttpPost]
         [Authorize]
-        public async Task<IActionResult> GetList([FromBody] long[] playlistIds)
+        public async Task<IActionResult> GetList([FromBody] string[] playlistIds)
         {
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
@@ -124,7 +126,7 @@ namespace Shuffull.Tools.Controllers
 
             var playlist = await context.Playlists
                 .AsNoTracking()
-                .Where(x => x.UserId == contextUser.UserId && playlistIds.Contains(x.PlaylistId))
+                .Where(x => x.UserId == contextUser!.UserId && playlistIds.Contains(x.PlaylistId))
                 .Include(x => x.PlaylistSongs)
                 .ToListAsync();
             var result = ClassMapper.Mapper.Map<List<Playlist>>(playlist);
@@ -134,7 +136,7 @@ namespace Shuffull.Tools.Controllers
 
         [HttpGet]
         [Authorize]
-        public string Get(long playlistId)
+        public string Get(string playlistId)
         {
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
