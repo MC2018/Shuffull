@@ -10,7 +10,6 @@ using Results = Shuffull.Shared.Models;
 using System.Collections.Generic;
 using Shuffull.Site.Tools.Authorization;
 using Shuffull.Shared.Models.Responses;
-using OpenAI_API.Moderation;
 using System.Text.Json.Serialization;
 using System.Text.Json;
 using Shuffull.Shared.Models.Server;

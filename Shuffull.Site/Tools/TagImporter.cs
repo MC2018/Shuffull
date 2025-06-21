@@ -1,5 +1,4 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using OpenAI_API.Moderation;
 using Shuffull.Shared.Enums;
 using Shuffull.Site.Configuration;
 using Shuffull.Site.Models.Database;
