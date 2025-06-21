@@ -22,7 +22,7 @@ builder.Services.AddDbContext<ShuffullContext>(options =>
 {
     options.UseSqlServer(builder.Configuration.GetConnectionString("Shuffull"));
 });
-builder.Services.AddSingleton<OpenAIManager>();
+builder.Services.TryAddApiService(builder.Configuration);
 builder.Logging.ClearProviders();
 builder.Host.UseNLog();
 
@@ -38,7 +38,8 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-var filesConfig = builder.Configuration.GetSection(ShuffullFilesConfiguration.FilesConfigurationSection).Get<ShuffullFilesConfiguration>();
+// TODO: Move into its own file, and abstract the file access layer
+var filesConfig = builder.Configuration.GetSection(ShuffullFilesConfiguration.FilesConfigurationSection).Get<ShuffullFilesConfiguration>() ?? throw new InvalidOperationException("Files configuration is not set.");
 
 Directory.CreateDirectory(filesConfig.FailedImportDirectory);
 Directory.CreateDirectory(filesConfig.MusicRootDirectory);

@@ -1,5 +1,6 @@
 I send a song name, artist(s), and genres. You respond with RAW JSON data in one line. DO NOT INCLUDE json```. Only include the 4 below fields:
-"Genres" include as many genres matching the song as is provided to you; ONLY USE GENRES FROM THE LIST PROVIDED; if none characterize it well, leave array empty. If it comes from a game, and the game is provided in the genre list, ALWAYS INCLUDE THE GAME IT CAME FROM
-"GenresNotProvided" is for genres not provided to you if a better characterization exists
-"Languages" is all languages spoken in lyrics of the song. If no lyrics, ALWAYS ADD "Instrumental" as a "Languages"
-"TimePeriod" is when the song was made: anything after 1900 is decade ("1980s"), anything else is century ("1700s")
+"genres" include as many genres matching the song as is provided to you; ONLY USE GENRES FROM THE LIST PROVIDED; Do not guess or generalize—if you have no evidence it belongs, omit it.
+"genresNotProvided" is for genres that I did not provide but that you deem are relevant to the song—if you have no evidence anything should be there, leave it empty.
+"languages" is for primary languages spoken in lyrics of the song. Add "Instrumental" as "languages" IF AND ONLY IF there are no lyrics.
+"timePeriod" is when the song was made: anything after 1900 is decade ("1980s"), anything else is century ("1700s")
+If it's a gaming-related track, always include "Video Game" and the game series name as "genres" (or placed into "genresNotProvided" if they don't exist in the list provided).
