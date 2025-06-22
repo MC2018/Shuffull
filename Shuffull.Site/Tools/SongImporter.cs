@@ -14,6 +14,8 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using Shuffull.Shared.Enums;
 using Shuffull.Site.Tools.AI;
+using Shuffull.Site.Services.FileStorage;
+using Nut.Results;
 
 namespace Shuffull.Site.Tools;
 
@@ -25,7 +27,8 @@ public class SongImporter
     private readonly IServiceProvider _services;
     private readonly ILogger<SongImporter> _logger;
     private readonly ShuffullFilesConfiguration _fileConfig;
-    private readonly string[] _audioExtensions = new string[] { ".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac" };
+    private readonly IFileStorageService _fileStorageService;
+    private readonly string[] _audioExtensions = new string[] { ".mp3", ".wav" };
     private readonly string[] _mimeImageExtensions = new string[] { "image/jpeg", "image/png", "image/gif", "image/bmp" };
 
     /// <summary>
@@ -33,11 +36,12 @@ public class SongImporter
     /// </summary>
     /// <param name="configuration">Configuration</param>
     /// <param name="services">Service provider</param>
-    public SongImporter(IConfiguration configuration, IServiceProvider services, ILogger<SongImporter> logger)
+    public SongImporter(IConfiguration configuration, IServiceProvider services, ILogger<SongImporter> logger, IFileStorageService fileStorageService)
     {
         _services = services;
-        _fileConfig = configuration.GetSection(ShuffullFilesConfiguration.FilesConfigurationSection).Get<ShuffullFilesConfiguration>();
+        _fileConfig = configuration.GetSection(ShuffullFilesConfiguration.FilesConfigurationSection).Get<ShuffullFilesConfiguration>() ?? throw new ArgumentNullException(nameof(_fileConfig));
         _logger = logger;
+        _fileStorageService = fileStorageService ?? throw new ArgumentNullException(nameof(fileStorageService));
     }
 
     // TODO: if two people upload at the same time and create the same new tag, it could create a duplicate!
@@ -46,11 +50,9 @@ public class SongImporter
     /// </summary>
     /// <param name="path">Path where the downloaded music files exist</param>
     /// <param name="playlistId">Playlist to add the music to</param>
-    private void ImportFiles(string path = "", string? playlistId = null, bool manual = false)
+    private async Task<Result> ImportFilesAsync(string path = "", string? playlistId = null, bool manual = false)
     {
         path = manual ? _fileConfig.ManualSongImportDirectory : path;
-        var jsonFiles = Directory.GetFiles(path, "*.json").OrderBy(x => x).ToList();
-        var songFiles = Directory.GetFiles(path).Where(x => Regex.Match(x, "\\.(mp3|wav)$").Success).ToList();
         using var scope = _services.CreateScope();
         using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
         using var transaction = context.Database.BeginTransaction();
@@ -61,36 +63,41 @@ public class SongImporter
         var songs = new List<Song>();
         var newArtists = new List<Artist>();
 
+        var songFilesResult = await _fileStorageService.GetFilesAsync(path);
+        if (songFilesResult.IsError)
+        {
+            return songFilesResult.PreserveErrorAs();
+        }
+        var songFiles = songFilesResult.Get().Where(x => Regex.Match(x, "\\.(mp3|wav)$").Success).ToList();
+
         foreach (var oldSongFile in songFiles)
         {
             var fileExtension = Path.GetExtension(oldSongFile).ToLowerInvariant();
             var artists = new List<Artist>();
-            string newSongFile;
+            string newSongPath;
 
             if (!_audioExtensions.Contains(fileExtension))
             {
-                AttemptMarkingAsFailure(oldSongFile);
+                await AttemptMarkingAsFailure(oldSongFile);
                 continue;
             }
 
-            try
+            var moveAndRenameResult = await MoveAndRenameSong(oldSongFile);
+            if (moveAndRenameResult.IsError)
             {
-                newSongFile = MoveAndRenameSong(oldSongFile);
-            }
-            catch (IOException)
-            {
-                AttemptMarkingAsFailure(oldSongFile);
+                await AttemptMarkingAsFailure(oldSongFile);
                 continue;
             }
+            newSongPath = moveAndRenameResult.Get();
 
             var aiManager = _services.GetService<IAIManager>();
-            var musicFile = TagLib.File.Create(newSongFile);
+            var musicFile = TagLib.File.Create(newSongPath);
             var song = new Song()
             {
                 SongId = Ulid.NewUlid().ToString(),
                 Name = musicFile.Tag.Title ?? Path.GetFileNameWithoutExtension(oldSongFile),
-                FileExtension = Path.GetExtension(newSongFile),
-                FileHash = Path.GetFileNameWithoutExtension(newSongFile)
+                FileExtension = Path.GetExtension(newSongPath),
+                FileHash = Path.GetFileNameWithoutExtension(newSongPath)
             };
             songs.Add(song);
 
@@ -136,6 +143,12 @@ public class SongImporter
 
             if (manual)
             {
+                var jsonFilesResult = await _fileStorageService.GetFilesAsync(path, "*.json");
+                if (jsonFilesResult.IsError)
+                {
+                    return jsonFilesResult.PreserveErrorAs();
+                }
+                var jsonFiles = jsonFilesResult.Get();
                 var jsonFileIndex = jsonFiles.BinarySearch($"{oldSongFile}.json");
 
                 if (jsonFileIndex != -1)
@@ -265,22 +278,18 @@ public class SongImporter
         transaction.Commit();
 
         // Delete contents
-        var directoryInfo = new DirectoryInfo(path);
-
-        foreach (var directory in directoryInfo.GetDirectories())
+        var deleteDirectoryResult = await _fileStorageService.DeleteDirectoryAsync(path);
+        if (deleteDirectoryResult.IsError)
         {
-            directory.Delete(true);
+            return deleteDirectoryResult;
         }
 
-        foreach (var file in directoryInfo.GetFiles())
-        {
-            file.Delete();
-        }
+        return Result.Ok();
     }
 
-    public void ImportManualFiles()
+    public async Task ImportManualFiles()
     {
-        ImportFiles(manual: true);
+        await ImportFilesAsync(manual: true);
     }
 
     /// <summary>
@@ -288,46 +297,54 @@ public class SongImporter
     /// </summary>
     /// <param name="files">List of music files to download</param>
     /// <param name="playlistId">Playlist to add the music to</param>
-    public void DownloadAndImportFiles(IEnumerable<IFormFile> files, string playlistId)
+    public async Task<Result> DownloadAndImportFilesAsync(IEnumerable<IFormFile> files, string playlistId)
     {
         using var scope = _services.CreateScope();
         using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
         var path = Path.Combine(_fileConfig.SongImportDirectory, Ulid.NewUlid().ToString().ToLower());
 
-        Directory.CreateDirectory(path);
-
         foreach (var file in files)
         {
             var filePath = Path.Combine(path, file.FileName);
-            using var stream = new FileStream(filePath, FileMode.Create);
-
-            file.CopyTo(stream);
+            var uploadFileResult = await _fileStorageService.UploadFileAsync(filePath, file, true);
+            if (uploadFileResult.IsError)
+            {
+                return uploadFileResult;
+            }
         }
 
-        Task.Run(() =>
+        // Start the import process in the background
+        Task.Run(async () =>
         {
-            ImportFiles(path, playlistId);
+            await ImportFilesAsync(path, playlistId);
         });
+        return Result.Ok();
     }
 
     /// <summary>
-    /// Moves a song from the temporary download folder to its permanent location and renames the file to a UUID
+    /// Moves a song from the temporary download folder to its permanent location and renames the file to a SHA hash
     /// </summary>
     /// <param name="currentSongPath">Current song path</param>
-    /// <returns>New song directory</returns>
-    private string MoveAndRenameSong(string currentSongPath)
+    /// <returns>New song path</returns>
+    private async Task<Result<string>> MoveAndRenameSong(string currentSongPath)
     {
-        var hexStr = Hasher.ShaHash(currentSongPath).Substring(0, 32);
+        // TODO: shouldn't need to re-download here
+        var fileBytesResult = await _fileStorageService.DownloadFileBytesAsync(currentSongPath);
+        if (fileBytesResult.IsError)
+        {
+            return fileBytesResult.PreserveErrorAs<string>();
+        }
+        var fileBytes = fileBytesResult.Get();
+        var hexStr = Hasher.ShaHash(fileBytes).Substring(0, 32);
         var fileExtension = Path.GetExtension(currentSongPath).ToLower();
         var newSongName = Path.GetFileName($"{hexStr}{fileExtension}");
         var newSongPath = Path.Combine(_fileConfig.MusicRootDirectory, newSongName);
 
-        if (File.Exists(newSongPath))
+        var moveFileResult = await _fileStorageService.MoveFileAsync(currentSongPath, newSongPath, true);
+        if (moveFileResult.IsError)
         {
-            File.Delete(newSongPath);
+            return moveFileResult.PreserveErrorAs<string>();
         }
-
-        File.Move(currentSongPath, newSongPath);
 
         return newSongPath;
     }
@@ -335,13 +352,15 @@ public class SongImporter
     /// <summary>
     /// Attempt to a song into the failed import directory
     /// </summary>
-    /// <param name="songDirectory">Song directory</param>
-    private void AttemptMarkingAsFailure(string songDirectory)
+    /// <param name="songPath">Song directory</param>
+    private async Task<Result> AttemptMarkingAsFailure(string songPath)
     {
-        try
+        var newSongPath = Path.Combine(_fileConfig.FailedImportDirectory, Path.GetFileName(songPath));
+        var moveFileResult = await _fileStorageService.MoveFileAsync(songPath, newSongPath, true);
+        if (moveFileResult.IsError)
         {
-            Directory.Move(songDirectory, Path.Combine(_fileConfig.FailedImportDirectory, Path.GetFileName(songDirectory)));
+            return moveFileResult;
         }
-        catch { }
+        return Result.Ok();
     }
 }
