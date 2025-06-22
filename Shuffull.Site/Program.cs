@@ -1,19 +1,17 @@
-using Microsoft.AspNetCore;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Shuffull.Site.Configuration;
 using Shuffull.Site.Tools;
-using System.Net;
 using Shuffull.Site;
 using Shuffull.Site.Tools.Authorization;
-using static System.Formats.Asn1.AsnWriter;
 using NLog.Web;
+using Shuffull.Site.Services.FileStorage;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
+builder.Services.AddSingleton<IFileStorageService, LocalFileStorageService>();
 builder.Services.AddSingleton<SongImporter>();
 builder.Services.AddHostedService<TagImporter>();
 builder.Services.AddHostedService<StartupImportService>();

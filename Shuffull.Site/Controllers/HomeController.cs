@@ -3,6 +3,7 @@ using Shuffull.Site.Models.Database;
 using Shuffull.Site;
 using System.Diagnostics;
 using Shuffull.Site.Tools;
+using Nut.Results;
 
 namespace Shuffull.Tools.Controllers
 {
@@ -61,8 +62,7 @@ namespace Shuffull.Tools.Controllers
                 await context.SaveChangesAsync();
             }
 
-            songImportService.DownloadAndImportFiles(files, playlist.PlaylistId);
-
+            var uploadFileResult = await songImportService.DownloadAndImportFilesAsync(files, playlist.PlaylistId).ThrowIfError();
 
             return RedirectToAction("Index");
         }

@@ -32,6 +32,8 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="NLog" Version="5.2.8" />
     <PackageReference Include="NLog.Web.AspNetCore" Version="5.3.8" />
+    <PackageReference Include="Nut.Results" Version="2.1.1" />
+    <PackageReference Include="Nut.Results.FluentAssertions" Version="2.1.1" />
     <PackageReference Include="OpenAI" Version="2.2.0-beta.4" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.7" />
     <PackageReference Include="TagLibSharp" Version="2.3.0" />

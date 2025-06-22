@@ -13,10 +13,9 @@ namespace Shuffull.Site.Tools
             _songImporter = _services.GetRequiredService<SongImporter>();
         }
 
-        public Task StartAsync(CancellationToken cancellationToken)
+        public async Task StartAsync(CancellationToken cancellationToken)
         {
-            _songImporter.ImportManualFiles();
-            return Task.CompletedTask;
+            await _songImporter.ImportManualFiles();
         }
 
         public Task StopAsync(CancellationToken cancellationToken)

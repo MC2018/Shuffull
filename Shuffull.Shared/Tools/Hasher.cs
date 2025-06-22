@@ -22,11 +22,11 @@ namespace Shuffull.Shared.Tools
             return BitConverter.ToString(hash).Replace("-", "").ToLower();
         }
 
-        public static string ShaHash(string filePath)
+        public static string ShaHash(byte[] fileBytes)
         {
             using (var sha256 = SHA256.Create())
             {
-                var fileBytes = File.ReadAllBytes(filePath);
+                //var fileBytes = File.ReadAllBytes(filePath);
                 var hashBytes = sha256.ComputeHash(fileBytes);
                 var hexStr = BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
                 return hexStr;
