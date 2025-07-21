@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Shuffull.Site;
 
@@ -11,9 +12,11 @@ using Shuffull.Site;
 namespace Shuffull.Site.Migrations
 {
     [DbContext(typeof(ShuffullContext))]
-    partial class ShuffullContextModelSnapshot : ModelSnapshot
+    [Migration("20250623124625_SongUpload")]
+    partial class SongUpload
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -36,28 +39,6 @@ namespace Shuffull.Site.Migrations
                     b.HasIndex("Name");
 
                     b.ToTable("Artists");
-                });
-
-            modelBuilder.Entity("Shuffull.Site.Models.Database.GenreRelation", b =>
-                {
-                    b.Property<string>("GenreRelationId")
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<string>("MainGenreId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<string>("SubGenreId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.HasKey("GenreRelationId");
-
-                    b.HasIndex("MainGenreId");
-
-                    b.HasIndex("SubGenreId");
-
-                    b.ToTable("GenreRelations");
                 });
 
             modelBuilder.Entity("Shuffull.Site.Models.Database.Playlist", b =>
@@ -190,9 +171,6 @@ namespace Shuffull.Site.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<DateTime>("LastUpdatedAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -230,13 +208,7 @@ namespace Shuffull.Site.Migrations
 
                     b.HasKey("TagId");
 
-                    b.HasIndex("Type");
-
                     b.ToTable("Tags");
-
-                    b.HasDiscriminator<int>("Type");
-
-                    b.UseTphMappingStrategy();
                 });
 
             modelBuilder.Entity("Shuffull.Site.Models.Database.User", b =>
@@ -287,46 +259,6 @@ namespace Shuffull.Site.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("UserSongs");
-                });
-
-            modelBuilder.Entity("Shuffull.Site.Models.Database.Genre", b =>
-                {
-                    b.HasBaseType("Shuffull.Site.Models.Database.Tag");
-
-                    b.HasDiscriminator().HasValue(0);
-                });
-
-            modelBuilder.Entity("Shuffull.Site.Models.Database.Language", b =>
-                {
-                    b.HasBaseType("Shuffull.Site.Models.Database.Tag");
-
-                    b.HasDiscriminator().HasValue(2);
-                });
-
-            modelBuilder.Entity("Shuffull.Site.Models.Database.TimePeriod", b =>
-                {
-                    b.HasBaseType("Shuffull.Site.Models.Database.Tag");
-
-                    b.HasDiscriminator().HasValue(1);
-                });
-
-            modelBuilder.Entity("Shuffull.Site.Models.Database.GenreRelation", b =>
-                {
-                    b.HasOne("Shuffull.Site.Models.Database.Genre", "MainGenre")
-                        .WithMany("GenreRelationsAsMain")
-                        .HasForeignKey("MainGenreId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Shuffull.Site.Models.Database.Genre", "SubGenre")
-                        .WithMany("GenreRelationsAsSub")
-                        .HasForeignKey("SubGenreId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("MainGenre");
-
-                    b.Navigation("SubGenre");
                 });
 
             modelBuilder.Entity("Shuffull.Site.Models.Database.Playlist", b =>
@@ -447,13 +379,6 @@ namespace Shuffull.Site.Migrations
                     b.Navigation("Playlists");
 
                     b.Navigation("UserSongs");
-                });
-
-            modelBuilder.Entity("Shuffull.Site.Models.Database.Genre", b =>
-                {
-                    b.Navigation("GenreRelationsAsMain");
-
-                    b.Navigation("GenreRelationsAsSub");
                 });
 #pragma warning restore 612, 618
         }

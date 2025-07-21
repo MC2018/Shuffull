@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore.Metadata.Internal;
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Shuffull.Shared.Enums;
 using System;
 using System.Collections.Generic;
@@ -11,14 +12,15 @@ using System.Threading.Tasks;
 
 namespace Shuffull.Site.Models.Database
 {
-    public class Tag
+    [Index(nameof(Type))]
+    public abstract class Tag
     {
         [Key]
         public string TagId { get; set; }
         [Required, NotNull]
         public string Name { get; set; }
-        [Required, NotNull]
-        public TagType Type { get; set; }
+        [Required]
+        public TagType Type { get; protected set; }
 
         public ICollection<SongTag> SongTags { get; set; }
     }

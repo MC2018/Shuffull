@@ -3,6 +3,7 @@ using MoreLinq.Extensions;
 using Shuffull.Shared.Models;
 using Shuffull.Shared.Models.Requests;
 using Shuffull.Shared.Models.Server;
+using Shuffull.Shared.Tools;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -154,7 +155,7 @@ namespace Shuffull.Shared
                 {
                     recentlyPlayedSong = new RecentlyPlayedSong()
                     {
-                        RecentlyPlayedSongId = Ulid.NewUlid().ToString(),
+                        RecentlyPlayedSongId = IdGenerator.Generate(),
                         SongId = songId,
                         TimestampSeconds = 0,
                         LastPlayed = DateTime.UtcNow

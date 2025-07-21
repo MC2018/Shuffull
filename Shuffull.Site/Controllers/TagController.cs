@@ -54,7 +54,7 @@ namespace Shuffull.Tools.Controllers
                 .FirstAsync();
             var songTag = new Site.Models.Database.SongTag()
             {
-                SongTagId = Ulid.NewUlid().ToString(),
+                SongTagId = IdGenerator.Generate(),
                 SongId = songId,
                 TagId = tagId
             };
