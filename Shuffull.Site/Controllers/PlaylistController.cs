@@ -11,6 +11,7 @@ using Shuffull.Site.Tools.Authorization;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.IdentityModel.Tokens;
 using Shuffull.Shared.Models.Server;
+using Shuffull.Shared.Tools;
 
 namespace Shuffull.Tools.Controllers
 {
@@ -38,7 +39,7 @@ namespace Shuffull.Tools.Controllers
 
             var dbPlaylist = new Site.Models.Database.Playlist()
             {
-                PlaylistId = Ulid.NewUlid().ToString(),
+                PlaylistId = IdGenerator.Generate(),
                 UserId = contextUser.UserId,
                 Name = name,
                 CurrentSongId = null,
@@ -82,7 +83,7 @@ namespace Shuffull.Tools.Controllers
 
             playlistSong = new Site.Models.Database.PlaylistSong()
             {
-                PlaylistSongId = Ulid.NewUlid().ToString(),
+                PlaylistSongId = IdGenerator.Generate(),
                 PlaylistId = playlistId,
                 SongId = songId
             };

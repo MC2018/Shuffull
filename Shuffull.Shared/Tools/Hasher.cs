@@ -26,7 +26,6 @@ namespace Shuffull.Shared.Tools
         {
             using (var sha256 = SHA256.Create())
             {
-                //var fileBytes = File.ReadAllBytes(filePath);
                 var hashBytes = sha256.ComputeHash(fileBytes);
                 var hexStr = BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
                 return hexStr;

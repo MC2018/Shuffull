@@ -1,26 +1,28 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Shuffull.Site.Configuration;
-using Shuffull.Site.Tools;
 using Shuffull.Site;
 using Shuffull.Site.Tools.Authorization;
 using NLog.Web;
 using Shuffull.Site.Services.FileStorage;
+using Shuffull.Site.Services;
+using System.Text.Json;
+using Shuffull.Site.Models.Files;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
 builder.Services.AddSingleton<IFileStorageService, LocalFileStorageService>();
-builder.Services.AddSingleton<SongImporter>();
-builder.Services.AddHostedService<TagImporter>();
-builder.Services.AddHostedService<StartupImportService>();
+builder.Services.AddHostedService<TagImporterService>();
+builder.Services.AddHostedService<StartupImporterService>();
 builder.Services.AddScoped<JwtHelper>();
 builder.Services.AddDbContext<ShuffullContext>(options =>
 {
     options.UseSqlServer(builder.Configuration.GetConnectionString("Shuffull"));
 });
-builder.Services.TryAddApiService(builder.Configuration);
+builder.Services.TryAddAIService(builder.Configuration);
+builder.Services.AddHostedService<SongImporterService>();
 builder.Logging.ClearProviders();
 builder.Host.UseNLog();
 
@@ -48,7 +50,7 @@ Directory.CreateDirectory(filesConfig.AlbumArtDirectory);
 
 if (!File.Exists(filesConfig.GenresFile))
 {
-    File.WriteAllText(filesConfig.GenresFile, string.Empty);
+    File.WriteAllText(filesConfig.GenresFile, JsonSerializer.Serialize(new GenresFile()));
 }
 
 app.UseHttpsRedirection();

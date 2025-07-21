@@ -1,11 +1,14 @@
-﻿using Nut.Results;
+﻿using Newtonsoft.Json;
+using Nut.Results;
 using System.IO;
 
 namespace Shuffull.Site.Services.FileStorage;
 
 public class LocalFileStorageService : IFileStorageService
 {
-    public Task<Result> DeleteFileAsync(string filePath)
+
+
+    public Task<Result> DeleteFileAsync(string filePath, CancellationToken cancellationToken = default!)
     {
         try
         {
@@ -21,11 +24,11 @@ public class LocalFileStorageService : IFileStorageService
         }
     }
 
-    public async Task<Result<byte[]>> DownloadFileBytesAsync(string filePath)
+    public async Task<Result<byte[]>> DownloadFileBytesAsync(string filePath, CancellationToken cancellationToken = default!)
     {
         try
         {
-            var fileBytes = await File.ReadAllBytesAsync(filePath);
+            var fileBytes = await File.ReadAllBytesAsync(filePath, cancellationToken);
             return Result.Ok(fileBytes);
         }
         catch (Exception ex)
@@ -34,7 +37,39 @@ public class LocalFileStorageService : IFileStorageService
         }
     }
 
-    public async Task<Result> UploadFileAsync(string filePath, IFormFile formFile, bool overwrite)
+    public async Task<Result<string>> DownloadRawTextAsync(string filePath, CancellationToken cancellationToken = default!)
+    {
+        try
+        {
+            var fileText = await File.ReadAllTextAsync(filePath, cancellationToken);
+            return Result.Ok(fileText);
+        }
+        catch (Exception ex)
+        {
+            return Result.Error<string>(ex);
+        }
+    }
+
+    public async Task<Result<T>> DownloadSerializableObjectAsync<T>(string filePath, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var fileText = await File.ReadAllTextAsync(filePath, cancellationToken);
+            var deserializedData = JsonConvert.DeserializeObject<T>(fileText);
+            if (deserializedData == null)
+            {
+                return Result.Error<T>($"Deserialization failed while downloading a file. Path: {filePath}");
+            }
+
+            return Result.Ok(deserializedData);
+        }
+        catch (Exception ex)
+        {
+            return Result.Error<T>(ex);
+        }
+    }
+
+    public async Task<Result> UploadFileAsync(string filePath, Stream stream, bool overwrite, CancellationToken cancellationToken = default!)
     {
         try
         {
@@ -47,8 +82,8 @@ public class LocalFileStorageService : IFileStorageService
                 }
                 File.Delete(filePath);
             }
-            using var stream = new FileStream(filePath, FileMode.Create);
-            await formFile.CopyToAsync(stream);
+            using var fileStream = new FileStream(filePath, FileMode.Create);
+            await stream.CopyToAsync(fileStream, cancellationToken);
 
             return Result.Ok();
         }
@@ -58,7 +93,36 @@ public class LocalFileStorageService : IFileStorageService
         }
     }
 
-    public async Task<Result> MoveFileAsync(string sourceFilePath, string destinationFilePath, bool overwrite)
+    public async Task<Result> UploadSerializableObjectAsync(string filePath, object data, bool overwrite, CancellationToken cancellationToken = default!)
+    {
+        try
+        {
+            EnsureDirectoryExists(filePath).ThrowIfError();
+            if (File.Exists(filePath))
+            {
+                if (!overwrite)
+                {
+                    return Result.Error("Destination file already exists and overwriting is not allowed.");
+                }
+                File.Delete(filePath);
+            }
+
+            var serializedText = JsonConvert.SerializeObject(data);
+            if (serializedText == null)
+            {
+                return Result.Error(new JsonSerializationException($"Serialization while saving an object failed. Path: {filePath}\tData: {data}"));
+            }
+            await File.WriteAllTextAsync(filePath, serializedText, cancellationToken);
+
+            return Result.Ok();
+        }
+        catch (Exception ex)
+        {
+            return Result.Error(ex);
+        }
+    }
+
+    public async Task<Result> MoveFileAsync(string sourceFilePath, string destinationFilePath, bool overwrite, CancellationToken cancellationToken = default!)
     {
         try
         {
@@ -74,7 +138,7 @@ public class LocalFileStorageService : IFileStorageService
                 {
                     return Result.Error("Destination file already exists and overwriting is not allowed.");
                 }
-                (await DeleteFileAsync(destinationFilePath)).ThrowIfError();
+                (await DeleteFileAsync(destinationFilePath, cancellationToken)).ThrowIfError();
             }
             File.Move(sourceFilePath, destinationFilePath);
             return Result.Ok();
@@ -85,7 +149,7 @@ public class LocalFileStorageService : IFileStorageService
         }
     }
 
-    private Result EnsureDirectoryExists(string filePath)
+    private static Result EnsureDirectoryExists(string filePath)
     {
         try
         {
@@ -102,7 +166,7 @@ public class LocalFileStorageService : IFileStorageService
         }
     }
 
-    public Task<Result<List<string>>> GetFilesAsync(string directoryPath, string searchPattern = "*")
+    public Task<Result<List<string>>> GetFilesAsync(string directoryPath, string searchPattern = "*", CancellationToken cancellationToken = default!)
     {
         try
         {
@@ -115,7 +179,7 @@ public class LocalFileStorageService : IFileStorageService
         }
     }
 
-    public Task<Result> DeleteDirectoryAsync(string directoryPath)
+    public Task<Result> DeleteDirectoryAsync(string directoryPath, CancellationToken cancellationToken = default!)
     {
         try
         {

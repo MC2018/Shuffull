@@ -1,0 +1,155 @@
+{
+  "mainGenres": [
+    {
+      "name": "Rock",
+      "subGenreNames": [
+      	"Rock",
+        "Classic Rock",
+        "Punk Rock",
+        "Alternative Rock",
+        "Indie Rock",
+        "Hard Rock",
+        "Progressive Rock",
+        "Grunge",
+        "Heavy Metal",
+        "Pop Rock",
+        "Psychedelic Rock",
+        "Soft Rock",
+        "Metalcore",
+        "K-Rock",
+        "J-Rock"
+      ]
+    },
+    {
+      "name": "Pop",
+      "subGenreNames": [
+      	"Pop",
+        "Pop Rock",
+        "Soft Rock",
+        "Indie Rock",
+        "Country Pop",
+        "Neo-Soul",
+        "Lo-fi",
+        "K-Pop",
+        "J-Pop",
+        "Vaporwave",
+        "Trap"
+      ]
+    },
+    {
+      "name": "Metal",
+      "subGenreNames": [
+      	"Metal",
+        "Heavy Metal",
+        "Death Metal",
+        "Metalcore",
+        "Progressive Rock",
+        "Hard Rock"
+      ]
+    },
+    {
+      "name": "Electronic",
+      "subGenreNames": [
+      	"Electronic",
+        "EDM",
+        "House",
+        "Techno",
+        "Trance",
+        "D&B",
+        "Dubstep",
+        "Trap",
+        "Lo-fi",
+        "Vaporwave",
+        "Video Game",
+        "Loud",
+        "High BPM",
+        "High Energy",
+      ]
+    },
+    {
+      "name": "Hip-Hop / R&B",
+      "subGenreNames": [
+      	"Hip-Hop",
+        "R&B",
+        "Trap",
+        "Neo-Soul",
+        "Funk",
+        "Soul"
+      ]
+    },
+    {
+      "name": "Jazz",
+      "subGenreNames": [
+      	"Jazz",
+        "Funk",
+        "Neo-Soul",
+        "Blues",
+        "Fusion"
+      ]
+    },
+    {
+      "name": "Blues",
+      "subGenreNames": [
+      	"Blues",
+        "Jazz",
+        "Soul",
+        "Gospel",
+        "Ragtime"
+      ]
+    },
+    {
+      "name": "Country",
+      "subGenreNames": [
+      	"Country",
+      	"Classic Country",
+        "Country Pop",
+      	"Alt-Country",
+        "Bluegrass",
+        "Americana",
+        "Folk"
+      ]
+    },
+    {
+      "name": "Latin",
+      "subGenreNames": [
+      	"Latin",
+      	"Salsa",
+      	"Latin Pop",
+      	"Latin Rock",
+      	"Samba",
+      	"Tango",
+      	"Bossa Nova",
+      	"Mambo"
+      ]
+    },
+    {
+      "name": "Reggae",
+      "subGenreNames": [
+        "Reggae",
+        "Ska"
+      ]
+    },
+    {
+      "name": "Classical",
+      "subGenreNames": [
+      	"Classical",
+      	"Romantic",
+      	"Modern Classical",
+      	"Contemporary Classical",
+      	"Choral",
+      	"Solo Instrumental",
+      	"Symphonic",
+      	"Baroque",
+      	"Renaissance",
+        "Opera",
+        "March Music"
+      ]
+    },
+    {
+      "name": "Experimental / Other",
+      "subGenreNames": [
+        "Experimental / Other"
+      ]
+    }
+  ]
+}

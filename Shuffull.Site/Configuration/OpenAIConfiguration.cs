@@ -1,6 +1,6 @@
-﻿using Shuffull.Site.Tools.AI;
-using Shuffull.Site.Tools;
+﻿using Shuffull.Site.Tools;
 using System.Text.Json.Serialization;
+using Shuffull.Site.Services.AI;
 
 namespace Shuffull.Site.Configuration;
 
@@ -45,7 +45,7 @@ public static class OpenAIConfigurationExtensions
             throw new NotSupportedException($"OpenAI API endpoint '{openAIConfig.ApiEndpoint}' is not supported. Supported endpoints are: {string.Join(", ", OpenAIConfiguration.SupportedApiEndpoints.All)}.");
         }
 
-        collection.AddSingleton<IAIManager, OpenAIManager>();
+        collection.AddSingleton<IAIService, OpenAIService>();
 
         return collection;
     }

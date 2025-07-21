@@ -1,6 +1,4 @@
-﻿using Shuffull.Site.Tools;
-using Shuffull.Site.Tools.AI;
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 
 namespace Shuffull.Site.Configuration;
 
@@ -20,7 +18,7 @@ public class AIConfiguration
 
 public static class AIConfigurationExtensions
 {
-    public static IServiceCollection TryAddApiService(this IServiceCollection collection, ConfigurationManager configurationManager)
+    public static IServiceCollection TryAddAIService(this IServiceCollection collection, ConfigurationManager configurationManager)
     {
         var aiConfig = configurationManager.GetSection(AIConfiguration.AIConfigurationSection).Get<AIConfiguration>();
 

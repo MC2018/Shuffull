@@ -2,8 +2,9 @@
 using Shuffull.Site.Models.Database;
 using Shuffull.Site;
 using System.Diagnostics;
-using Shuffull.Site.Tools;
 using Nut.Results;
+using Shuffull.Site.Services;
+using Shuffull.Site.Commands.Songs.UploadSongs;
 
 namespace Shuffull.Tools.Controllers
 {
@@ -33,36 +34,9 @@ namespace Shuffull.Tools.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         [RequestSizeLimit(100_000_000_000)]
-        public async Task<IActionResult> Upload(string username, string playlistName, IEnumerable<IFormFile> files)
+        public async Task<IActionResult> Upload(string username, string? playlistName, IEnumerable<IFormFile> files)
         {
-            using var scope = _services.CreateScope();
-            using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
-            var songImportService = scope.ServiceProvider.GetRequiredService<SongImporter>();
-            var user = context.Users.Where(x => x.Username == username).FirstOrDefault();
-
-            if (user == null)
-            {
-                return View();
-            }
-
-            var playlist = context.Playlists.Where(x => x.Name == playlistName).FirstOrDefault();
-
-            if (playlist == null)
-            {
-                playlist = new Playlist()
-                {
-                    PlaylistId = Ulid.NewUlid().ToString(),
-                    UserId = user.UserId,
-                    Name = playlistName,
-                    CurrentSongId = null,
-                    PercentUntilReplayable = 0.9m
-                };
-
-                context.Playlists.Add(playlist);
-                await context.SaveChangesAsync();
-            }
-
-            var uploadFileResult = await songImportService.DownloadAndImportFilesAsync(files, playlist.PlaylistId).ThrowIfError();
+            await new UploadSongHandler(_services).Handle(new UploadSongRequest(username, playlistName, files)).ThrowIfError();
 
             return RedirectToAction("Index");
         }
