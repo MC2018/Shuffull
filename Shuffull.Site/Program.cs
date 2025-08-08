@@ -15,7 +15,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllersWithViews();
 builder.Services.AddSingleton<IFileStorageService, LocalFileStorageService>();
 builder.Services.AddHostedService<TagImporterService>();
-builder.Services.AddHostedService<StartupImporterService>();
+builder.Services.AddHostedService<DetailedSongImporterService>();
 builder.Services.AddScoped<JwtHelper>();
 builder.Services.AddDbContext<ShuffullContext>(options =>
 {

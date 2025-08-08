@@ -2,13 +2,13 @@
 
 namespace Shuffull.Site.Services
 {
-    public class StartupImporterService : IHostedService
+    public class DetailedSongImporterService : IHostedService
     {
         private readonly IServiceProvider _services;
         private readonly SongImporterService _songImporter;
         public static ShuffullFilesConfiguration _fileConfig { get; private set; } // TODO: bad
 
-        public StartupImporterService(IServiceProvider services, IConfiguration configuration)
+        public DetailedSongImporterService(IServiceProvider services, IConfiguration configuration)
         {
             _services = services;
             _fileConfig = configuration.GetSection(ShuffullFilesConfiguration.FilesConfigurationSection).Get<ShuffullFilesConfiguration>() ?? throw new Exception("ShuffullFilesConfiguration not configured.");

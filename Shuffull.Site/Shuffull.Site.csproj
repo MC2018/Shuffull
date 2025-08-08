@@ -7,9 +7,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Commands\Songs\GetUser\**" />
     <Compile Remove="music\**" />
+    <Content Remove="Commands\Songs\GetUser\**" />
     <Content Remove="music\**" />
+    <EmbeddedResource Remove="Commands\Songs\GetUser\**" />
     <EmbeddedResource Remove="music\**" />
+    <None Remove="Commands\Songs\GetUser\**" />
     <None Remove="music\**" />
   </ItemGroup>
 
@@ -60,10 +64,6 @@
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Commands\Songs\GetUser\" />
   </ItemGroup>
 
 </Project>

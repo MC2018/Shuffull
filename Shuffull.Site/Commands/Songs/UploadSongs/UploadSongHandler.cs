@@ -16,7 +16,7 @@ public partial class UploadSongHandler(IServiceProvider services)
         using var context = services.GetRequiredService<ShuffullContext>();
         //var songImportService = services.GetRequiredService<SongImportService>();
         var fileStorageService = services.GetRequiredService<IFileStorageService>();
-        var fileConfig = StartupImporterService._fileConfig;
+        var fileConfig = DetailedSongImporterService._fileConfig;
         var user = context.Users.Where(x => x.Username == request.Username).FirstOrDefault(); // TODO: spec file?
         Playlist? playlist = null;
 
