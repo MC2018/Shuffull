@@ -11,7 +11,7 @@ services:
     networks:
       - shuffull-net
     healthcheck:
-      test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "Password!", "-Q", "SELECT 1"]
+      test: ["CMD", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "Password!", "-C", "-Q", "SELECT 1"]
       interval: 10s
       timeout: 5s
       retries: 5

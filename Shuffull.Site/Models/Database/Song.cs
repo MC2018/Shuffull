@@ -19,6 +19,7 @@ namespace Shuffull.Site.Models.Database
         public string FileHash { get; set; } = string.Empty;
         [Required]
         public string Name { get; set; } = string.Empty;
+        public string? ExternalSongId { get; set; }
 
         public ICollection<PlaylistSong> PlaylistSongs { get; set; }
         public ICollection<UserSong> UserSongs { get; set; }

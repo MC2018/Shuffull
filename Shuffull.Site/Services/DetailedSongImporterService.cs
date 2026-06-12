@@ -5,7 +5,6 @@ namespace Shuffull.Site.Services
     public class DetailedSongImporterService : IHostedService
     {
         private readonly IServiceProvider _services;
-        private readonly SongImporterService _songImporter;
         public static ShuffullFilesConfiguration _fileConfig { get; private set; } // TODO: bad
 
         public DetailedSongImporterService(IServiceProvider services, IConfiguration configuration)

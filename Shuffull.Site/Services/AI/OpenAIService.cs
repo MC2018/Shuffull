@@ -26,7 +26,8 @@ public class OpenAIService(IConfiguration configuration) : IAIService
             new UserChatMessage(
                 $"Song name: {request.SongName}\n" +
                 $"Artist(s): {string.Join(",", request.ArtistNames)}\n" +
-                $"Main Genres: {string.Join(", ", request.MainGenres)}"),
+                $"Main Genres: {string.Join(", ", request.MainGenres)}" +
+                (string.IsNullOrWhiteSpace(request.MainGenresContext) ? "" : $"\n\nAdditional context:\n{request.MainGenresContext}")),
         };
         var options = new ChatCompletionOptions()
         {
@@ -98,7 +99,8 @@ public class OpenAIService(IConfiguration configuration) : IAIService
             new UserChatMessage(
                 $"Song name: {request.SongName}\n" +
                 $"Artist(s): {string.Join(",", request.ArtistNames)}\n" +
-                $"Sub-Genres: {string.Join(", ", request.SubGenres)}"),
+                $"Sub-Genres: {string.Join(", ", request.SubGenres)}" +
+                (string.IsNullOrWhiteSpace(request.SubGenresContext) ? "" : $"\n\nAdditional context:\n{request.SubGenresContext}")),
         };
         var options = new ChatCompletionOptions()
         {
@@ -163,7 +165,8 @@ public class OpenAIService(IConfiguration configuration) : IAIService
             new AssistantChatMessage("Understood. Send the information."),
             new UserChatMessage(
                 $"Song name: {request.SongName}\n" +
-                $"Artist(s): {string.Join(",", request.ArtistNames)}\n"),
+                $"Artist(s): {string.Join(",", request.ArtistNames)}\n" +
+                (string.IsNullOrWhiteSpace(request.OtherDetailsContext) ? "" : $"\nAdditional context:\n{request.OtherDetailsContext}")),
         };
         var options = new ChatCompletionOptions()
         {

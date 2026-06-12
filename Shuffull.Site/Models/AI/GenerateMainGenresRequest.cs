@@ -1,4 +1,4 @@
 ﻿namespace Shuffull.Site.Models.AI;
 
 [Serializable]
-public record GenerateMainGenresRequest(string SongName, List<string> ArtistNames, List<string> MainGenres);
+public record GenerateMainGenresRequest(string SongName, List<string> ArtistNames, List<string> MainGenres, string? MainGenresContext = null);

@@ -22,7 +22,11 @@ builder.Services.AddDbContext<ShuffullContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("Shuffull"));
 });
 builder.Services.TryAddAIService(builder.Configuration);
-builder.Services.AddHostedService<SongImporterService>();
+builder.Services.AddHostedService<SongImportService>();
+builder.Services.AddHostedService<ExternalSongImporterService>();
+// TODO: Register IYouTubeApiService -> YouTubeApiService once a "YouTubeApi" config section (ApiKey)
+// is added. SongImportService resolves it via the nullable GetService<IYouTubeApiService>(), so it's
+// safe to leave unregistered for now (AI genre-context enrichment is simply skipped).
 builder.Logging.ClearProviders();
 builder.Host.UseNLog();
 
@@ -45,6 +49,7 @@ Directory.CreateDirectory(filesConfig.FailedImportDirectory);
 Directory.CreateDirectory(filesConfig.MusicRootDirectory);
 Directory.CreateDirectory(filesConfig.ManualSongImportDirectory);
 Directory.CreateDirectory(filesConfig.SongImportDirectory);
+Directory.CreateDirectory(filesConfig.ExternalSongImportDirectory);
 Directory.CreateDirectory(filesConfig.SavedAiResponsesDirectory);
 Directory.CreateDirectory(filesConfig.AlbumArtDirectory);
 

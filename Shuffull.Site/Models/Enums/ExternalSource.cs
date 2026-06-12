@@ -1,0 +1,7 @@
+﻿namespace Shuffull.Site.Models.Enums;
+
+public enum ExternalSource
+{
+    Unknown = 0,
+    Youtube = 1,
+}

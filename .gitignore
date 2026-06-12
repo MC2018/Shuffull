@@ -372,3 +372,10 @@ FodyWeavers.xsd
 /Shuffull.Site/appsettings.Production.json
 /Shuffull.Site/appsettings.Staging.json
 /genres.txt
+
+# JetBrains Rider / IntelliJ
+.idea/
+*.sln.iml
+
+# Stray NLog internal-log files (e.g. Windows c:\temp path created on Linux)
+internal-nlog-*.txt
