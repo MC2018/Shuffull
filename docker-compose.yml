@@ -31,8 +31,31 @@ services:
       - shuffull-net
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
+      # Fixed in-container paths; the host side of each is set by the SHUFFULL_*_DIR vars below.
+      - Shuffull__Files__MusicRootDirectory=/data/music
+      - Shuffull__Files__SongImportDirectory=/data/imports
+      - Shuffull__Files__ExternalSongImportDirectory=/data/external_imports
+      - Shuffull__Files__FailedImportDirectory=/data/failed_imports
+      - Shuffull__Files__ManualSongImportDirectory=/data/manual_imports
+      - Shuffull__Files__SavedAiResponsesDirectory=/data/ai_responses
+      - Shuffull__Files__AlbumArtDirectory=/data/album_art
+      - Shuffull__Files__GenresFile=/data/genres/genres.json
     volumes:
-      - ./data/site:/root/shuffull_data
+      # Each generated folder is its own bind mount. Point SHUFFULL_*_DIR at dedicated
+      # TrueNAS folders in .env, or leave unset to use local ./data/* directories.
+      #
+      # IMPORTANT: SHUFFULL_EXTERNAL_IMPORT_DIR must be the SAME host folder as the
+      # funnel's FUNNEL_MUSIC_EXPORT_DIR. That shared folder is the song handoff queue:
+      # the funnel writes mp3+json there; Shuffull reads it, moves the mp3 into its
+      # import dir, and deletes the json (so it needs read-write access).
+      - ${SHUFFULL_MUSIC_DIR:-./data/music}:/data/music
+      - ${SHUFFULL_IMPORT_DIR:-./data/imports}:/data/imports
+      - ${SHUFFULL_EXTERNAL_IMPORT_DIR:-./data/external_imports}:/data/external_imports
+      - ${SHUFFULL_FAILED_IMPORT_DIR:-./data/failed_imports}:/data/failed_imports
+      - ${SHUFFULL_MANUAL_IMPORT_DIR:-./data/manual_imports}:/data/manual_imports
+      - ${SHUFFULL_AI_RESPONSES_DIR:-./data/ai_responses}:/data/ai_responses
+      - ${SHUFFULL_ALBUM_ART_DIR:-./data/album_art}:/data/album_art
+      - ${SHUFFULL_GENRES_DIR:-./data/genres}:/data/genres
 
 networks:
   shuffull-net:

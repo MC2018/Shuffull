@@ -373,6 +373,9 @@ FodyWeavers.xsd
 /Shuffull.Site/appsettings.Staging.json
 /genres.txt
 
+# Local docker-compose environment (folder paths); use .env.example as the template
+.env
+
 # JetBrains Rider / IntelliJ
 .idea/
 *.sln.iml
