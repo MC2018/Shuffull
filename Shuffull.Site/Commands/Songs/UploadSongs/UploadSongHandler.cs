@@ -1,8 +1,8 @@
-﻿using FluentAssertions.Common;
 using Nut.Results;
 using Shuffull.Shared.Tools;
 using Shuffull.Site.Configuration;
 using Shuffull.Site.Models.Database;
+using Shuffull.Site.Models.Enums;
 using Shuffull.Site.Services;
 using Shuffull.Site.Services.FileStorage;
 using System.Text.RegularExpressions;
@@ -11,45 +11,39 @@ namespace Shuffull.Site.Commands.Songs.UploadSongs;
 
 public partial class UploadSongHandler(IServiceProvider services)
 {
-    public Task<Result> Handle(UploadSongRequest request)
-    {
-        // TODO: Manual upload is temporarily disabled. It previously wrote the now-removed SongUpload
-        // model. Re-implement it against the new SongImport pipeline -- create SongImport rows (as
-        // ExternalSongImporterService does) for SongImportService to process -- before re-enabling.
-        // A reference copy of the old SongUpload-based flow is kept in the commented block below.
-        return Task.FromResult(Result.Error("Manual song upload is temporarily disabled pending migration to the SongImport pipeline."));
-    }
-
-    /*
     public async Task<Result> Handle(UploadSongRequest request)
     {
-        using var context = services.GetRequiredService<ShuffullContext>();
-        var songImportService = services.GetRequiredService<SongImportService>();
+        // The controller injects the request-scoped IServiceProvider, so ShuffullContext et al.
+        // can be resolved directly (no new scope needed).
+        var context = services.GetRequiredService<ShuffullContext>();
         var fileStorageService = services.GetRequiredService<IFileStorageService>();
-        var fileConfig = services.GetRequiredService<ShuffullFilesConfiguration>();
-        var user = context.Users.Where(x => x.Username == request.Username).FirstOrDefault(); // TODO: spec file?
-        Playlist? playlist = null;
+        // ShuffullFilesConfiguration isn't registered in DI; bind it from IConfiguration like the
+        // import services do.
+        var configuration = services.GetRequiredService<IConfiguration>();
+        var fileConfig = configuration.GetSection(ShuffullFilesConfiguration.FilesConfigurationSection).Get<ShuffullFilesConfiguration>()
+            ?? throw new InvalidOperationException("Files configuration is not set.");
 
+        var user = context.Users.Where(x => x.Username == request.Username).FirstOrDefault();
         if (user == null)
         {
             return Result.Error("User not found.");
         }
 
-        if (request.Files.Where(x => SupportedFileTypes().Match(x.FileName).Success == false).Any())
+        if (request.Files.Any(x => !SupportedFileTypes().IsMatch(x.FileName)))
         {
-           return Result.Error(new NotSupportedException("Only mp3 and wav files are allowed."));
+            return Result.Error(new NotSupportedException("Only mp3 and wav files are allowed."));
         }
 
-        // Create playlist if it doesn't exist
+        // Create the target playlist by name if one was provided and doesn't already exist.
+        Playlist? playlist = null;
         if (!string.IsNullOrEmpty(request.PlaylistName))
         {
             playlist = context.Playlists.Where(x => x.Name == request.PlaylistName).FirstOrDefault();
-
             if (playlist == null)
             {
-                playlist = new Playlist()
+                playlist = new Playlist
                 {
-                    PlaylistId = Ulid.NewUlid().ToString(),
+                    PlaylistId = IdGenerator.Generate(),
                     UserId = user.UserId,
                     Name = request.PlaylistName,
                     CurrentSongId = null,
@@ -59,36 +53,41 @@ public partial class UploadSongHandler(IServiceProvider services)
             }
         }
 
-        var uploadFolder = Ulid.NewUlid().ToString();
-
-        // Upload files to the import directory
+        // Drop each uploaded file into the SongImport pipeline and queue a SongImport row for
+        // SongImportService to pick up (State defaults to ReadyForImporting). Mirrors
+        // ExternalSongImporterService, minus the external-source metadata: a manual upload has no
+        // external song/playlist id, so the YouTube re-fetch in SongImportService is skipped while
+        // AI tag generation still runs off the file's own tags.
         foreach (var file in request.Files)
         {
-            var songUploadId = Ulid.NewUlid().ToString();
-            var name = Path.GetFileNameWithoutExtension(file.FileName);
-            var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
-            var songUpload = new SongUpload
+            var songImport = new SongImport
             {
-                SongUploadId = songUploadId,
-                Name = name,
-                UploadFolder = uploadFolder,
+                SongImportId = IdGenerator.Generate(),
+                Name = Path.GetFileNameWithoutExtension(file.FileName),
+                ImportFolder = IdGenerator.Generate(),
+                FileType = Path.GetExtension(file.FileName).ToLowerInvariant(),
                 UserId = user.UserId,
-                PlaylistId = playlist?.PlaylistId
+                PlaylistId = playlist?.PlaylistId,
+                ExternalSource = ExternalSource.Manual,
+                ExternalSongId = null,
+                ExternalPlaylistId = null,
+                LastUpdatedAt = DateTime.UtcNow,
             };
-            var filePath = songUpload.GetFilePath(fileConfig.SongImportDirectory);
+
+            var filePath = songImport.GetFilePath(fileConfig.SongImportDirectory);
             using var stream = file.OpenReadStream();
             var uploadFileResult = await fileStorageService.UploadFileAsync(filePath, stream, true);
             if (uploadFileResult.IsError)
             {
-                await fileStorageService.DeleteDirectoryAsync(filePath);
                 return uploadFileResult;
             }
-            context.SongUploads.Add(songUpload);
+
+            context.SongImports.Add(songImport);
         }
 
         await context.SaveChangesAsync();
         return Result.Ok();
-    }*/
+    }
 
     [GeneratedRegex("\\.(mp3|wav)$")]
     private static partial Regex SupportedFileTypes();
