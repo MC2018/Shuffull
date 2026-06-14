@@ -25,6 +25,12 @@ public class SongImport
     public string? ExternalSongId { get; set; }
     public string? ExternalPlaylistId { get; set; }
     public string? SongId { get; set; }
+    /// <summary>
+    /// Serialized <see cref="Shuffull.Metadata.Models.GeneratedSongTags"/> supplied by the external
+    /// producer (the funnel) at ingest. Null when no tags were provided, in which case Shuffull
+    /// generates them itself during import.
+    /// </summary>
+    public string? GeneratedTagsJson { get; set; }
     [Required]
     public DateTime LastUpdatedAt { get; set; }
 
