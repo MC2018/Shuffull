@@ -10,6 +10,7 @@ using Shuffull.Metadata.Models;
 using FluentValidation;
 using MediatR;
 using Shuffull.Core.Behaviors;
+using Shuffull.Core.Persistence;
 using Shuffull.Core.Persistence.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -24,7 +25,11 @@ builder.Services.AddScoped<JwtHelper>();
 builder.Services.AddScoped<Shuffull.Core.Authentication.IAuthTokenGenerator, JwtAuthTokenGenerator>();
 builder.Services.AddDbContext<ShuffullContext>(options =>
 {
-    options.UseSqlServer(builder.Configuration.GetConnectionString("Shuffull"));
+    // ShuffullContext now lives in Shuffull.Core, but the EF migrations remain in this assembly,
+    // so EF must be told where to find them.
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("Shuffull"),
+        sql => sql.MigrationsAssembly("Shuffull.Site"));
 });
 
 // Expose the concrete ShuffullContext as the base DbContext so Shuffull.Core's generic

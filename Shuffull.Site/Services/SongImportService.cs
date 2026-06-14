@@ -10,6 +10,7 @@ using Shuffull.Metadata.Services.AI;
 using Shuffull.Site.Configuration;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Enums;
+using Shuffull.Core.Persistence;
 using Shuffull.Site.Models.Files;
 using Shuffull.Site.Services.FileStorage;
 using Shuffull.Site.Services.YouTube;

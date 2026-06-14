@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Shuffull.Core.Persistence;
 using Shuffull.Site.Configuration;
 using System.IdentityModel.Tokens.Jwt;
 using System.Text;

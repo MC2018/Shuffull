@@ -1,8 +1,8 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Shuffull.Core.Persistence;
 using Shuffull.Core.Persistence.Repositories;
-using Shuffull.Site;
 
 namespace Shuffull.Core.Tests.Infrastructure;
 
