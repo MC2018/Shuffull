@@ -5,10 +5,9 @@ using Shuffull.Shared.Enums;
 namespace Shuffull.Core.Persistence;
 
 /// <summary>
-/// The server-side EF Core context for Shuffull. It lives in Shuffull.Core (provider-agnostic) so
-/// both the API host (Shuffull.Api) and the legacy site host (Shuffull.Site) can share it. The
-/// concrete database provider is configured by each host at registration time (e.g. UseSqlServer),
-/// and the EF migrations continue to live in Shuffull.Site.
+/// The server-side EF Core context for Shuffull. It lives in Shuffull.Core (provider-agnostic) so it
+/// can be shared by any host. The concrete database provider is configured by the host at
+/// registration time (e.g. UseSqlServer), and the EF migrations live in the Shuffull.Api host.
 /// </summary>
 public class ShuffullContext : DbContext
 {

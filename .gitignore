@@ -363,14 +363,13 @@ MigrationBackup/
 FodyWeavers.xsd
 
 # Custom
-/Shuffull.Site/music
 /Shuffull.Shared/temp.db3
 /.git_deploy
 /.git_temp
 /data
-/Shuffull.Site/appsettings.Development.json
-/Shuffull.Site/appsettings.Production.json
-/Shuffull.Site/appsettings.Staging.json
+/Shuffull.Api/appsettings.Development.json
+/Shuffull.Api/appsettings.Production.json
+/Shuffull.Api/appsettings.Staging.json
 /genres.txt
 
 # Local docker-compose environment (folder paths); use .env.example as the template

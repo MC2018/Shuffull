@@ -4,7 +4,7 @@ namespace Shuffull.Core.Authentication;
 
 /// <summary>
 /// Issues an authentication token for a user. The concrete implementation (JWT signing, secret,
-/// lifetime policy) lives in the host (Shuffull.Site) so Shuffull.Core stays free of web/JWT
+/// lifetime policy) lives in the host (Shuffull.Api) so Shuffull.Core stays free of web/JWT
 /// infrastructure; handlers depend only on this abstraction.
 /// </summary>
 public interface IAuthTokenGenerator

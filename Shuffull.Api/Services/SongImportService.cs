@@ -1,0 +1,457 @@
+﻿using FluentAssertions.Common;
+using Microsoft.EntityFrameworkCore;
+using Newtonsoft.Json;
+using Nut.Results;
+using Shuffull.Shared.Enums;
+using Shuffull.Shared.Tools;
+using Shuffull.Metadata.Models;
+using Shuffull.Metadata.Models.AI;
+using Shuffull.Metadata.Services.AI;
+using Shuffull.Api.Configuration;
+using Shuffull.Core.Models.Database;
+using Shuffull.Core.Models.Enums;
+using Shuffull.Core.Persistence;
+using Shuffull.Api.Models.Files;
+using Shuffull.Api.Services.FileStorage;
+using Shuffull.Api.Services.YouTube;
+using Shuffull.Api.Tools;
+using Shuffull.Api.Tools.SongParsing;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Jpeg;
+using System.ComponentModel.DataAnnotations;
+using System.Text.RegularExpressions;
+using Tag = Shuffull.Core.Models.Database.Tag;
+
+namespace Shuffull.Api.Services;
+
+/// <summary>
+/// Handles logic regarding the downloading, file management, and database importing of songs
+/// </summary>
+public partial class SongImportService : BackgroundService
+{
+    private readonly IServiceProvider _services;
+    private readonly ShuffullFilesConfiguration _fileConfig;
+    private readonly IFileStorageService _fileStorageService;
+    private readonly string[] _mimeImageExtensions = { "image/jpeg", "image/png", "image/gif", "image/bmp" };
+    private readonly TimeSpan _interval = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// Constructor
+    /// </summary>
+    /// <param name="configuration">Configuration</param>
+    /// <param name="services">Service provider</param>
+    public SongImportService(IConfiguration configuration, IServiceProvider services, ILogger<SongImportService> logger, IFileStorageService fileStorageService)
+    {
+        _services = services;
+        _fileConfig = configuration.GetSection(ShuffullFilesConfiguration.FilesConfigurationSection).Get<ShuffullFilesConfiguration>() ?? throw new ArgumentNullException(nameof(_fileConfig));
+        _fileStorageService = fileStorageService ?? throw new ArgumentNullException(nameof(fileStorageService));
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            using var scope = _services.CreateScope();
+            using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
+            var songImport = await context.SongImports
+                .Where(x => x.State == SongImportState.ReadyForImporting)
+                .FirstOrDefaultAsync(cancellationToken: cancellationToken);
+
+            if (songImport != null)
+            {
+                var result = await ImportSongAsync(songImport, cancellationToken);
+                if (result.IsError)
+                {
+                    Console.WriteLine($"Error importing song from SongImport {songImport.SongImportId}: {result.GetError()}");
+                }
+            }
+            else
+            {
+                await Task.Delay(_interval, cancellationToken);
+            }
+        }
+    }
+
+    [GeneratedRegex("\\.(mp3|wav)$")]
+    internal static partial Regex SupportedFileTypes(); // TODO: use
+
+    private async Task<Result> ImportSongAsync(SongImport songImport, CancellationToken cancellationToken = default!)
+    {
+        var songImportState = SongImportState.Failed;
+
+        try
+        {
+            // Download the file bytes and file hash
+            var fileBytesResult = await GetFileBytesAsync(songImport, cancellationToken);
+            if (fileBytesResult.IsError)
+            {
+                return fileBytesResult.PreserveErrorAs();
+            }
+            var fileBytes = fileBytesResult.Get();
+            var fileHash = Hasher.ShaHash(fileBytes).Substring(0, 32);
+
+            // Check for uniqueness
+            var checkUniquenessResult = await CheckUniqueness(songImport, fileHash, cancellationToken);
+            if (checkUniquenessResult.IsError)
+            {
+                return checkUniquenessResult.PreserveErrorAs();
+            }
+            var isUnique = checkUniquenessResult.Get();
+            if (!isUnique)
+            {
+                return Result.Ok();
+            }
+
+            // Parse artists from the music file
+            var abstraction = new ByteArrayAudioFileAbstraction(songImport.FileName, fileBytes);
+            var musicFile = TagLib.File.Create(abstraction);
+            var parseArtistsResult = await ParseArtistsAsync(songImport, musicFile, cancellationToken);
+            if (parseArtistsResult.IsError)
+            {
+                return parseArtistsResult.PreserveErrorAs();
+            }
+            var (existingArtists, newArtists) = parseArtistsResult.Get();
+
+            // Save album art
+            var saveAlbumArtResult = await SaveAlbumArtAsync(musicFile, fileHash, cancellationToken);
+            if (saveAlbumArtResult.IsError)
+            {
+                return saveAlbumArtResult;
+            }
+
+            //Generate tags for the song
+            var artistNames = existingArtists.Select(x => x.Name).Concat(newArtists.Select(x => x.Name)).ToList();
+            var generateTagsResult = await GetGeneratedSongTagsAsync(songImport, artistNames, fileHash, cancellationToken);
+            if (generateTagsResult.IsError)
+            {
+                songImportState = SongImportState.ReadyForImporting;
+                return generateTagsResult.PreserveErrorAs();
+            }
+            var (existingTags, newTags) = generateTagsResult.Get();
+
+            // Delete the old file if it exists
+            var newPath = Path.Combine(_fileConfig.MusicRootDirectory, $"{fileHash}{Path.GetExtension(songImport.FileName)}");
+            var moveFileResult = await _fileStorageService.MoveFileAsync(songImport.GetFilePath(_fileConfig.SongImportDirectory), newPath, true, cancellationToken);
+            if (moveFileResult.IsError)
+            {
+                return moveFileResult;
+            }
+
+            // Save everything to the db
+            var song = new Song
+            {
+                SongId = IdGenerator.Generate(),
+                Name = songImport.Name,
+                FileExtension = Path.GetExtension(songImport.FileName).ToLowerInvariant(),
+                FileHash = fileHash,
+                ExternalSongId = songImport.ExternalSongId
+            };
+            var importToDbResult = await ImportToDbAsync(song, existingArtists, newArtists, existingTags, newTags,songImport.UserId, songImport.PlaylistId, cancellationToken);
+            if (importToDbResult.IsError)
+            {
+                return importToDbResult;
+            }
+
+            songImportState = SongImportState.Completed;
+            return Result.Ok();
+        }
+        catch (Exception ex)
+        {
+            songImportState = SongImportState.Failed;
+            return Result.Error(ex);
+        }
+        finally
+        {
+            using var scope = _services.CreateScope();
+            using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
+            var songImportDb = context.SongImports.Find(songImport.SongImportId);
+            if (songImportDb != null)
+            {
+                var setStateResult = songImportDb.SetState(songImportState);
+                if (setStateResult.IsError)
+                {
+                    Console.WriteLine($"(Should never happen) Failed to set state for SongImport {songImport.SongImportId}: {setStateResult.GetError()}");
+                }
+
+                context.SongImports.Update(songImportDb);
+                await context.SaveChangesAsync(cancellationToken);
+            }
+        }
+    }
+
+    private async Task<Result<bool>> CheckUniqueness(SongImport songImport, string fileHash, CancellationToken cancellationToken = default!)
+    {
+        using var scope = _services.CreateScope();
+        using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
+        var existingSong = await context.Songs.Where(x => x.FileHash == fileHash || (x.ExternalSongId != null && x.ExternalSongId == songImport.ExternalSongId)).FirstOrDefaultAsync(cancellationToken);
+        return Result.Ok(existingSong == null);
+    }
+
+    private async Task<Result<byte[]>> GetFileBytesAsync(SongImport songImport, CancellationToken cancellationToken = default!)
+    {
+        var fileBytesResult = await _fileStorageService.DownloadFileBytesAsync(songImport.GetFilePath(_fileConfig.SongImportDirectory), cancellationToken);
+        if (fileBytesResult.IsError)
+        {
+            return fileBytesResult.PreserveErrorAs<byte[]>();
+        }
+        var fileBytes = fileBytesResult.Get();
+        return Result.Ok(fileBytes);
+    }
+
+    /// <summary>
+    /// Parses artists from the music file
+    /// </summary>
+    /// <param name="songImport"></param>
+    /// <param name="fileBytes"></param>
+    /// <returns>Existing artists and new artists, in that order</returns>
+    private async Task<Result<Tuple<List<Artist>, List<Artist>>>> ParseArtistsAsync(SongImport songImport, TagLib.File musicFile, CancellationToken cancellationToken = default!)
+    {
+        using var scope = _services.CreateScope();
+        using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
+        var performerNames = musicFile.Tag.Performers;
+        var existingArtists = new List<Artist>();
+        var newArtists = new List<Artist>();
+
+        for (int i = 0; i < performerNames.Length; i++)
+        {
+            var performerName = performerNames[i];
+            var nextPerformerName = performerNames.Length > i + 1 ? performerNames[i + 1] : string.Empty;
+
+            if (performerName.EndsWith("AC") && nextPerformerName.StartsWith("DC"))
+            {
+                performerName += $"/{nextPerformerName}";
+                i++;
+            }
+
+            // TODO: try figuring out a better way of pulling this data from SQL
+            var artist = await context.Artists.Where(a => a.Name == performerName).FirstOrDefaultAsync(cancellationToken);
+
+            if (artist != null)
+            {
+                existingArtists.Add(artist);
+            }
+            else
+            {
+                artist = new Artist()
+                {
+                    ArtistId = IdGenerator.Generate(),
+                    Name = performerName
+                };
+                newArtists.Add(artist);
+            }
+        }
+
+        return Result.Ok(Tuple.Create(existingArtists, newArtists));
+    }
+
+    private async Task<Result> SaveAlbumArtAsync(TagLib.File musicFile, string fileHash, CancellationToken cancellationToken = default!)
+    {
+        Image newAlbumArt;
+        var resolution = 512;
+
+        if (musicFile.Tag.Pictures.Length > 0)
+        {
+            var picture = musicFile.Tag.Pictures[0];
+            var mimeType = picture.MimeType;
+
+            if (_mimeImageExtensions.Contains(mimeType))
+            {
+                using var ms = new MemoryStream(picture.Data.Data);
+                using var rawAlbumArt = await Image.LoadAsync(ms, cancellationToken);
+
+                if (rawAlbumArt.Width != resolution || rawAlbumArt.Height != resolution)
+                {
+                    newAlbumArt = ImageManipulator.ResizeWithPadding(rawAlbumArt, resolution, resolution);
+                }
+                else
+                {
+                    newAlbumArt = rawAlbumArt;
+                }
+            }
+            else
+            {
+                newAlbumArt = ImageManipulator.GenerateDefaultImage(resolution, resolution);
+            }
+        }
+        else
+        {
+            newAlbumArt = ImageManipulator.GenerateDefaultImage(resolution, resolution);
+        }
+
+        var outputFilePath = Path.Combine(_fileConfig.AlbumArtDirectory, $"{fileHash}.jpg");
+        using var stream = new MemoryStream();
+        newAlbumArt.Save(stream, new JpegEncoder());
+        stream.Position = 0; // Reset position
+        await _fileStorageService.UploadFileAsync(outputFilePath, stream, true, cancellationToken);
+        return Result.Ok();
+    }
+
+    private async Task<Result<Tuple<List<Tag>, List<Tag>>>> GetGeneratedSongTagsAsync(SongImport songImport, List<string> artistNames, string fileHash, CancellationToken cancellationToken = default!)
+    {
+        using var scope = _services.CreateScope();
+        using var dbContext = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
+        var aiService = scope.ServiceProvider.GetService<IAIService>();
+        var youtubeService = scope.ServiceProvider.GetService<IYouTubeApiService>();
+        string? mainGenresContext = null, subGenresContext = null, otherDetailsContext = null;
+
+        // Fetch YouTube video features if external song ID exists
+        // TODO: Consider removing this YouTube re-fetch eventually. YoutubeFunnel already fetches
+        // these VideoFeatures upstream (stored on Video.Features) when ingesting. We currently
+        // re-fetch here only to build AI genre/era/language context, which duplicates the call and
+        // requires Shuffull to hold its own YouTube API key. If VideoFeatures were carried through
+        // the export contract (SongExportDetails -> SongImportDetails), this whole block and the
+        // IYouTubeApiService dependency could be dropped from Shuffull.
+        if (!string.IsNullOrEmpty(songImport.ExternalSongId) && youtubeService != null)
+        {
+            var videoFeaturesResult = await youtubeService.GetVideoFeaturesAsync([songImport.ExternalSongId], cancellationToken);
+            if (!videoFeaturesResult.IsError)
+            {
+                var videoFeaturesList = videoFeaturesResult.Get();
+                if (videoFeaturesList.Count > 0)
+                {
+                    var videoFeatures = videoFeaturesList.First();
+                    mainGenresContext = $"YouTube Topic Categories: {string.Join(", ", videoFeatures.TopicCategories)}";
+
+                    subGenresContext = $"YouTube Topic Categories: {string.Join(", ", videoFeatures.TopicCategories)}\n" +
+                        $"Duration: {videoFeatures.DurationSeconds} seconds";
+
+                    otherDetailsContext = $"Upload Date: {videoFeatures.PublishedAt?.ToString("yyyy-MM-dd")}\n" +
+                        $"Hashtags: {string.Join(", ", videoFeatures.Hashtags)}";
+                }
+            }
+        }
+
+        var allTags = await dbContext.Tags.AsNoTracking().ToListAsync(cancellationToken);
+        var allGenres = await dbContext.Genres
+            .AsNoTracking()
+            .Include(x => x.GenreRelationsAsMain)
+            .ThenInclude(x => x.SubGenre)
+            .ToListAsync(cancellationToken); // TODO: specification, you need genre relations as main here
+        GeneratedSongTags? generatedSongTags = null;
+        List<Tag> existingTags, newTags;
+
+        // Load in existing tags if saved before
+        var aiResponseFilePath = Path.Combine(_fileConfig.SavedAiResponsesDirectory, $"{fileHash}.json");
+        var generatedSongTagsResult = await _fileStorageService.DownloadSerializableObjectAsync<GeneratedSongTags>(aiResponseFilePath, cancellationToken);
+        if (!generatedSongTagsResult.IsError)
+        {
+            generatedSongTags = generatedSongTagsResult.Get();
+        }
+
+        // Run AI service if no tags saved before
+        else if (generatedSongTags == null && aiService != null)
+        {
+            // Main genres
+            var allMainGenreNames = allGenres.Where(x => x.IsMain).Select(x => x.Name).ToList();
+            var mainGenresRequest = new GenerateMainGenresRequest(songImport.Name, artistNames, allMainGenreNames, mainGenresContext);
+            var mainGenresResult = await aiService.GenerateMainGenresAsync(mainGenresRequest, cancellationToken);
+            if (mainGenresResult.IsError)
+            {
+                return mainGenresResult.PreserveErrorAs<Tuple<List<Tag>, List<Tag>>>();
+            }
+            var mainGenresResponse = mainGenresResult.Get();
+
+            // Sub genres
+            var selectedMainGenres = allGenres.Where(x => mainGenresResponse.MainGenres.Contains(x.Name)).ToList();
+            var allSubGenreNames = selectedMainGenres.SelectMany(x => x.GenreRelationsAsMain).Select(x => x.SubGenre.Name).ToList();
+            var subGenresRequest = new GenerateSubGenresRequest(songImport.Name, artistNames, allSubGenreNames, subGenresContext);
+            var subGenresResult = await aiService.GenerateSubGenresAsync(subGenresRequest, cancellationToken);
+            if (subGenresResult.IsError)
+            {
+                return subGenresResult.PreserveErrorAs<Tuple<List<Tag>, List<Tag>>>();
+            }
+            var subGenresResponse = subGenresResult.Get();
+
+            // Other song details
+            var otherSongDetailsRequest = new GenerateOtherSongDetailsRequest(songImport.Name, artistNames, otherDetailsContext);
+            var otherSongDetailsResult = await aiService.GenerateOtherSongDetailsAsync(otherSongDetailsRequest, cancellationToken);
+            if (otherSongDetailsResult.IsError)
+            {
+                return otherSongDetailsResult.PreserveErrorAs<Tuple<List<Tag>, List<Tag>>>();
+            }
+            var otherSongDetailsResponse = otherSongDetailsResult.Get();
+
+            // Save generated tags
+            generatedSongTags = new GeneratedSongTags(mainGenresResponse.MainGenres, subGenresResponse.SubGenres, otherSongDetailsResponse.Languages, otherSongDetailsResponse.TimePeriod);
+            await _fileStorageService.UploadSerializableObjectAsync(aiResponseFilePath, generatedSongTags, true, cancellationToken);
+        }
+
+        // If no tags generated, return empty lists
+        if (generatedSongTags == null)
+        {
+            return Result.Ok(Tuple.Create(new List<Tag>(), new List<Tag>()));
+        }
+
+        var generatedTags = generatedSongTags.ToTagList();
+        existingTags = allTags.Where(x => generatedTags.Select(y => y.Name).Contains(x.Name)).ToList();
+        newTags = generatedTags.Where((x) => !allTags.Select(y => y.Name).Contains(x.Name)).ToList();
+
+        return Result.Ok(Tuple.Create(existingTags, newTags));
+    }
+
+    private async Task<Result> ImportToDbAsync(Song song, List<Artist> existingArtists, List<Artist> newArtists, List<Tag> existingTags, List<Tag> newTags, string userId, string? playlistId, CancellationToken cancellationToken = default!)
+    {
+        using var scope = _services.CreateScope();
+        using var dbContext = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
+        using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        // Add newly generated items to the db
+        dbContext.Songs.Add(song);
+        dbContext.Artists.AddRange(newArtists);
+        dbContext.Tags.AddRange(newTags);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        // Add relationships to the db
+        var artists = existingArtists.Concat(newArtists).ToList();
+        foreach (var artist in artists)
+        {
+            var songArtist = new SongArtist
+            {
+                SongArtistId = IdGenerator.Generate(),
+                SongId = song.SongId,
+                ArtistId = artist.ArtistId
+            };
+            dbContext.SongArtists.Add(songArtist);
+        }
+
+        var tags = existingTags.Concat(newTags).ToList();
+        foreach (var tag in tags)
+        {
+            var songTag = new SongTag
+            {
+                SongTagId = IdGenerator.Generate(),
+                SongId = song.SongId,
+                TagId = tag.TagId
+            };
+            dbContext.SongTags.Add(songTag);
+        }
+
+        if (!string.IsNullOrEmpty(playlistId))
+        {
+            var playlist = await dbContext.Playlists.FindAsync([playlistId], cancellationToken: cancellationToken);
+            if (playlist != null)
+            {
+                var playlistSong = new PlaylistSong
+                {
+                    PlaylistSongId = IdGenerator.Generate(),
+                    PlaylistId = playlist.PlaylistId,
+                    SongId = song.SongId
+                };
+                dbContext.PlaylistSongs.Add(playlistSong);
+            }
+        }
+
+        var userSong = new UserSong()
+        {
+            UserId = userId,
+            SongId = song.SongId,
+            LastPlayed = DateTime.MinValue,
+            Version = DateTime.UtcNow
+        };
+        dbContext.UserSongs.Add(userSong);
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return Result.Ok();
+    }
+}
