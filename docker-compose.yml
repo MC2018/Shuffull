@@ -16,11 +16,11 @@ services:
       timeout: 5s
       retries: 5
 
-  site:
+  api:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: shuffull-site
+    container_name: shuffull-api
     ports:
       - "7117:7117"
       - "5117:5117"

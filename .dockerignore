@@ -1,5 +1,8 @@
-bin/
-obj/
+**/bin/
+**/obj/
 .vscode/
 .git/
 .git_deploy/
+# Local generated/runtime data (music, imports, album art, etc.) is bind-mounted at runtime
+# via docker-compose; never bake it into the build context/image.
+data/
