@@ -9,12 +9,10 @@ namespace Shuffull.Site.Controllers;
 
 /// <summary>
 /// CQRS-style tags API. Thin controller: it dispatches each request through MediatR and maps the
-/// <see cref="Nut.Results.Result"/> to an HTTP response. The legacy
-/// <see cref="Shuffull.Tools.Controllers.TagController"/> remains until the rest of the tag
-/// endpoints are migrated.
+/// <see cref="Nut.Results.Result"/> to an HTTP response.
 /// </summary>
 [ApiController]
-[Route("api/tags")]
+[Route("api/v1/tags")]
 public class TagsController : ControllerBase
 {
     private readonly IMediator _mediator;

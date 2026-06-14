@@ -11,12 +11,10 @@ namespace Shuffull.Site.Controllers;
 
 /// <summary>
 /// CQRS-style users/account API. Thin controller: it dispatches each request through MediatR and
-/// maps the <see cref="Nut.Results.Result"/> to an HTTP response. The legacy
-/// <see cref="Shuffull.Tools.Controllers.UserController"/> remains until clients move onto these
-/// routes.
+/// maps the <see cref="Nut.Results.Result"/> to an HTTP response.
 /// </summary>
 [ApiController]
-[Route("api/users")]
+[Route("api/v1/users")]
 public class UsersController : ControllerBase
 {
     private readonly IMediator _mediator;

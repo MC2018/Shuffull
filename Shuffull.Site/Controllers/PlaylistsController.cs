@@ -13,12 +13,10 @@ namespace Shuffull.Site.Controllers;
 
 /// <summary>
 /// CQRS-style playlists API. Thin controller: it resolves the authenticated user, dispatches the
-/// request through MediatR, and maps the <see cref="Nut.Results.Result"/> to an HTTP response. The
-/// legacy <see cref="Shuffull.Tools.Controllers.PlaylistController"/> remains until the rest of the
-/// playlist endpoints are migrated.
+/// request through MediatR, and maps the <see cref="Nut.Results.Result"/> to an HTTP response.
 /// </summary>
 [ApiController]
-[Route("api/playlists")]
+[Route("api/v1/playlists")]
 public class PlaylistsController : ControllerBase
 {
     private readonly IMediator _mediator;

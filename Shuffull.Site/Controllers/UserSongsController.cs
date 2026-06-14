@@ -12,11 +12,10 @@ namespace Shuffull.Site.Controllers;
 /// <summary>
 /// CQRS-style user-song (play record) API. Thin controller: it resolves the authenticated user,
 /// dispatches the request through MediatR, and maps the <see cref="Nut.Results.Result"/> to an HTTP
-/// response. The legacy <see cref="Shuffull.Tools.Controllers.UserSongController"/> remains until
-/// clients move onto these routes.
+/// response.
 /// </summary>
 [ApiController]
-[Route("api/user-songs")]
+[Route("api/v1/user-songs")]
 public class UserSongsController : ControllerBase
 {
     private readonly IMediator _mediator;
