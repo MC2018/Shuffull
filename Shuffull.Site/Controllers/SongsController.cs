@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Shuffull.Site.Extensions;
 using Shuffull.Core.Features.Songs.GetSong;
 using Shuffull.Core.Features.Songs.GetSongList;
+using Shuffull.Core.Features.Songs.GetSongPage;
 using Shuffull.Site.Tools.Authorization;
 
 namespace Shuffull.Site.Controllers;
@@ -23,6 +24,11 @@ public class SongsController : ControllerBase
     {
         _mediator = mediator;
     }
+
+    [HttpGet]
+    [Authorize]
+    public async Task<IActionResult> GetSongPage([FromQuery] int pageIndex, CancellationToken cancellationToken)
+        => this.ToActionResult(await _mediator.Send(new GetSongPageQuery(pageIndex), cancellationToken));
 
     [HttpGet("{songId}")]
     [Authorize]
