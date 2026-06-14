@@ -2,6 +2,8 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Shuffull.Core.Features.Playlists.AddSongToPlaylist;
 using Shuffull.Core.Features.Playlists.CreatePlaylist;
+using Shuffull.Core.Features.Playlists.GetPlaylistDetails;
+using Shuffull.Core.Features.Playlists.GetPlaylists;
 using Shuffull.Core.Features.Playlists.GetUserPlaylists;
 using Shuffull.Core.Models.Database;
 using Shuffull.Site.Extensions;
@@ -60,5 +62,29 @@ public class PlaylistsController : ControllerBase
         }
 
         return this.ToActionResult(await _mediator.Send(new AddSongToPlaylistCommand(user.UserId, playlistId, songId), cancellationToken));
+    }
+
+    [HttpPost("list")]
+    [Authorize]
+    public async Task<IActionResult> GetList([FromBody] string[] playlistIds, CancellationToken cancellationToken)
+    {
+        if (HttpContext.Items["User"] is not User user)
+        {
+            return Unauthorized();
+        }
+
+        return this.ToActionResult(await _mediator.Send(new GetPlaylistsQuery(user.UserId, playlistIds), cancellationToken));
+    }
+
+    [HttpGet("{playlistId}")]
+    [Authorize]
+    public async Task<IActionResult> Get(string playlistId, CancellationToken cancellationToken)
+    {
+        if (HttpContext.Items["User"] is not User user)
+        {
+            return Unauthorized();
+        }
+
+        return this.ToActionResult(await _mediator.Send(new GetPlaylistDetailsQuery(user.UserId, playlistId), cancellationToken));
     }
 }
