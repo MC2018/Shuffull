@@ -6,7 +6,6 @@ using Shuffull.Site.Tools.Authorization;
 using NLog.Web;
 using Shuffull.Site.Services.FileStorage;
 using Shuffull.Site.Services;
-using System.Text.Json;
 using Shuffull.Metadata.Models;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -55,7 +54,10 @@ Directory.CreateDirectory(filesConfig.AlbumArtDirectory);
 
 if (!File.Exists(filesConfig.GenresFile))
 {
-    File.WriteAllText(filesConfig.GenresFile, JsonSerializer.Serialize(new GenresFile()));
+    // Seed a new deployment's genres file from the canonical list shared with the funnel
+    // (Shuffull.Metadata), not an empty list, so AI genre tagging has a vocabulary out of the box.
+    // An existing file is left untouched, so local edits to the list are preserved.
+    File.WriteAllText(filesConfig.GenresFile, GenresFile.CanonicalJson);
 }
 
 app.UseHttpsRedirection();
