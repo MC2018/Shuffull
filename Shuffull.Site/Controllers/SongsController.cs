@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Shuffull.Site.Extensions;
 using Shuffull.Core.Features.Songs.GetSong;
+using Shuffull.Core.Features.Songs.GetSongList;
 using Shuffull.Site.Tools.Authorization;
 
 namespace Shuffull.Site.Controllers;
@@ -27,4 +28,9 @@ public class SongsController : ControllerBase
     [Authorize]
     public async Task<IActionResult> GetSong(string songId, CancellationToken cancellationToken)
         => this.ToActionResult(await _mediator.Send(new GetSongQuery(songId), cancellationToken));
+
+    [HttpPost("list")]
+    [Authorize]
+    public async Task<IActionResult> GetSongList([FromBody] string[] songIds, CancellationToken cancellationToken)
+        => this.ToActionResult(await _mediator.Send(new GetSongListQuery(songIds), cancellationToken));
 }
