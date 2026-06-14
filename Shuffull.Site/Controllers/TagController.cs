@@ -9,7 +9,7 @@ using System.Text.Json.Serialization;
 using System.Text.Json;
 using Newtonsoft.Json.Linq;
 using Shuffull.Shared.Models.Server;
-using Shuffull.Site.Models.Database;
+using Shuffull.Core.Models.Database;
 
 namespace Shuffull.Tools.Controllers
 {
@@ -52,7 +52,7 @@ namespace Shuffull.Tools.Controllers
                 .Where(x => x.SongId == songId)
                 .Include(x => x.SongTags)
                 .FirstAsync();
-            var songTag = new Site.Models.Database.SongTag()
+            var songTag = new Shuffull.Core.Models.Database.SongTag()
             {
                 SongTagId = IdGenerator.Generate(),
                 SongId = songId,

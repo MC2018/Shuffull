@@ -8,7 +8,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Shuffull.Site.Models.Database
+namespace Shuffull.Core.Models.Database
 {
     [Index(nameof(Username)), Index(nameof(Version))]
     public class User

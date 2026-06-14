@@ -7,6 +7,10 @@ using NLog.Web;
 using Shuffull.Site.Services.FileStorage;
 using Shuffull.Site.Services;
 using Shuffull.Metadata.Models;
+using FluentValidation;
+using MediatR;
+using Shuffull.Core.Behaviors;
+using Shuffull.Core.Persistence.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,6 +24,25 @@ builder.Services.AddDbContext<ShuffullContext>(options =>
 {
     options.UseSqlServer(builder.Configuration.GetConnectionString("Shuffull"));
 });
+
+// Expose the concrete ShuffullContext as the base DbContext so Shuffull.Core's generic
+// UnitOfWork/Repository (which depend only on DbContext) resolve the request-scoped context.
+builder.Services.AddScoped<DbContext>(sp => sp.GetRequiredService<ShuffullContext>());
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+// CQRS pipeline (mirrors the Sociallite backend): MediatR handlers + FluentValidation validators
+// are discovered from BOTH the Site assembly (legacy/in-progress slices) and the Core assembly
+// (where migrated feature slices live). The ValidationBehavior (in Shuffull.Core) runs the
+// validators before each handler and short-circuits to Result.Error on failure.
+var siteAssembly = typeof(Program).Assembly;
+var coreAssembly = typeof(ValidationBehavior<,>).Assembly;
+builder.Services.AddValidatorsFromAssemblies(new[] { siteAssembly, coreAssembly });
+builder.Services.AddMediatR(cfg =>
+{
+    cfg.RegisterServicesFromAssemblies(siteAssembly, coreAssembly);
+    cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
+});
+
 builder.Services.TryAddAIService(builder.Configuration);
 builder.Services.AddHostedService<SongImportService>();
 builder.Services.AddHostedService<ExternalSongImporterService>();

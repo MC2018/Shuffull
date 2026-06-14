@@ -1,6 +1,6 @@
 ﻿using Shuffull.Shared.Enums;
 
-namespace Shuffull.Site.Models.Database;
+namespace Shuffull.Core.Models.Database;
 
 public class Genre : Tag
 {

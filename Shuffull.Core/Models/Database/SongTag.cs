@@ -7,21 +7,21 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Shuffull.Site.Models.Database
+namespace Shuffull.Core.Models.Database
 {
-    [Index(nameof(SongId)), Index(nameof(ArtistId))]
-    public class SongArtist
+    [Index(nameof(SongId)), Index(nameof(TagId))]
+    public class SongTag
     {
         [Key]
-        public string SongArtistId { get; set; }
+        public string SongTagId { get; set; }
         [Required]
         public string SongId { get; set; }
         [Required]
-        public string ArtistId { get; set; }
+        public string TagId { get; set; }
 
         [Key]
-        public Artist Artist { get; set; }
-        [Key]
         public Song Song { get; set; }
+        [Key]
+        public Tag Tag { get; set; }
     }
 }

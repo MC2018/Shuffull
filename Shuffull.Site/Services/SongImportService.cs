@@ -8,8 +8,8 @@ using Shuffull.Metadata.Models;
 using Shuffull.Metadata.Models.AI;
 using Shuffull.Metadata.Services.AI;
 using Shuffull.Site.Configuration;
-using Shuffull.Site.Models.Database;
-using Shuffull.Site.Models.Enums;
+using Shuffull.Core.Models.Database;
+using Shuffull.Core.Models.Enums;
 using Shuffull.Site.Models.Files;
 using Shuffull.Site.Services.FileStorage;
 using Shuffull.Site.Services.YouTube;
@@ -19,7 +19,7 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using System.ComponentModel.DataAnnotations;
 using System.Text.RegularExpressions;
-using Tag = Shuffull.Site.Models.Database.Tag;
+using Tag = Shuffull.Core.Models.Database.Tag;
 
 namespace Shuffull.Site.Services;
 

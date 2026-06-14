@@ -1,6 +1,6 @@
 using Shuffull.Metadata.Models;
 using Shuffull.Shared.Tools;
-using Shuffull.Site.Models.Database;
+using Shuffull.Core.Models.Database;
 
 namespace Shuffull.Site.Models.Files;
 

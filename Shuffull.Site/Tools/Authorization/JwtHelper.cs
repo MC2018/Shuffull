@@ -1,6 +1,6 @@
 ﻿using Microsoft.IdentityModel.Tokens;
 using Shuffull.Site.Configuration;
-using Shuffull.Site.Models.Database;
+using Shuffull.Core.Models.Database;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;

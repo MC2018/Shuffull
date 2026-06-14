@@ -4,7 +4,7 @@ using Nut.Results;
 using Shuffull.Shared.Enums;
 using Shuffull.Shared.Tools;
 using Shuffull.Site.Configuration;
-using Shuffull.Site.Models.Database;
+using Shuffull.Core.Models.Database;
 using Shuffull.Metadata.Models;
 using Shuffull.Site.Services.FileStorage;
 using System.Threading;

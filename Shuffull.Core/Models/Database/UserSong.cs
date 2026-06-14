@@ -1,7 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 
-namespace Shuffull.Site.Models.Database
+namespace Shuffull.Core.Models.Database
 {
     [Index(nameof(UserId)), Index(nameof(SongId)), Index(nameof(LastPlayed))]
     public class UserSong

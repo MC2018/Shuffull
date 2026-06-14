@@ -1,4 +1,4 @@
-﻿namespace Shuffull.Site.Models.Enums;
+﻿namespace Shuffull.Core.Models.Enums;
 
 public enum SongImportState
 {

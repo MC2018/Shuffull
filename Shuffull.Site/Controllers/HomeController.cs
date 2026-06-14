@@ -1,5 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Shuffull.Site.Models.Database;
+using Shuffull.Core.Models.Database;
 using Shuffull.Site;
 using System.Diagnostics;
 using Nut.Results;

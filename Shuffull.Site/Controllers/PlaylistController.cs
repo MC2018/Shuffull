@@ -30,14 +30,14 @@ namespace Shuffull.Tools.Controllers
         {
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
-            var contextUser = HttpContext.Items["User"] as Site.Models.Database.User;
+            var contextUser = HttpContext.Items["User"] as Shuffull.Core.Models.Database.User;
 
             if (name.IsNullOrEmpty() || name.Length > 50)
             {
                 return BadRequest("Name is not valid.");
             }
 
-            var dbPlaylist = new Site.Models.Database.Playlist()
+            var dbPlaylist = new Shuffull.Core.Models.Database.Playlist()
             {
                 PlaylistId = IdGenerator.Generate(),
                 UserId = contextUser.UserId,
@@ -59,7 +59,7 @@ namespace Shuffull.Tools.Controllers
         {
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
-            var contextUser = HttpContext.Items["User"] as Site.Models.Database.User;
+            var contextUser = HttpContext.Items["User"] as Shuffull.Core.Models.Database.User;
             var playlist = await context.Playlists
                 .Where(x => x.UserId == contextUser.UserId && x.PlaylistId == playlistId)
                 .FirstOrDefaultAsync();
@@ -81,7 +81,7 @@ namespace Shuffull.Tools.Controllers
                 return Ok("This song is already found on the playlist.");
             }
 
-            playlistSong = new Site.Models.Database.PlaylistSong()
+            playlistSong = new Shuffull.Core.Models.Database.PlaylistSong()
             {
                 PlaylistSongId = IdGenerator.Generate(),
                 PlaylistId = playlistId,
@@ -101,7 +101,7 @@ namespace Shuffull.Tools.Controllers
         {
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
-            var contextUser = HttpContext.Items["User"] as Site.Models.Database.User;
+            var contextUser = HttpContext.Items["User"] as Shuffull.Core.Models.Database.User;
             var playlists = await context.Playlists
                 .AsNoTracking()
                 .Where(x => x.UserId == contextUser.UserId)
@@ -118,7 +118,7 @@ namespace Shuffull.Tools.Controllers
         {
             using var scope = _services.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
-            var contextUser = HttpContext.Items["User"] as Site.Models.Database.User;
+            var contextUser = HttpContext.Items["User"] as Shuffull.Core.Models.Database.User;
 
             if (playlistIds == null || playlistIds.Length == 0)
             {

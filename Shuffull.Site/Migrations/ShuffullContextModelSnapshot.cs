@@ -22,7 +22,7 @@ namespace Shuffull.Site.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("Shuffull.Site.Models.Database.Artist", b =>
+            modelBuilder.Entity("Shuffull.Core.Models.Database.Artist", b =>
                 {
                     b.Property<string>("ArtistId")
                         .HasColumnType("nvarchar(450)");
@@ -38,7 +38,7 @@ namespace Shuffull.Site.Migrations
                     b.ToTable("Artists");
                 });
 
-            modelBuilder.Entity("Shuffull.Site.Models.Database.GenreRelation", b =>
+            modelBuilder.Entity("Shuffull.Core.Models.Database.GenreRelation", b =>
                 {
                     b.Property<string>("GenreRelationId")
                         .HasColumnType("nvarchar(450)");
@@ -60,7 +60,7 @@ namespace Shuffull.Site.Migrations
                     b.ToTable("GenreRelations");
                 });
 
-            modelBuilder.Entity("Shuffull.Site.Models.Database.Playlist", b =>
+            modelBuilder.Entity("Shuffull.Core.Models.Database.Playlist", b =>
                 {
                     b.Property<string>("PlaylistId")
                         .HasColumnType("nvarchar(450)");
@@ -91,7 +91,7 @@ namespace Shuffull.Site.Migrations
                     b.ToTable("Playlists");
                 });
 
-            modelBuilder.Entity("Shuffull.Site.Models.Database.PlaylistSong", b =>
+            modelBuilder.Entity("Shuffull.Core.Models.Database.PlaylistSong", b =>
                 {
                     b.Property<string>("PlaylistSongId")
                         .HasColumnType("nvarchar(450)");
@@ -113,7 +113,7 @@ namespace Shuffull.Site.Migrations
                     b.ToTable("PlaylistSongs");
                 });
 
-            modelBuilder.Entity("Shuffull.Site.Models.Database.Song", b =>
+            modelBuilder.Entity("Shuffull.Core.Models.Database.Song", b =>
                 {
                     b.Property<string>("SongId")
                         .HasColumnType("nvarchar(450)");
@@ -140,7 +140,7 @@ namespace Shuffull.Site.Migrations
                     b.ToTable("Songs");
                 });
 
-            modelBuilder.Entity("Shuffull.Site.Models.Database.SongArtist", b =>
+            modelBuilder.Entity("Shuffull.Core.Models.Database.SongArtist", b =>
                 {
                     b.Property<string>("SongArtistId")
                         .HasColumnType("nvarchar(450)");
@@ -162,7 +162,7 @@ namespace Shuffull.Site.Migrations
                     b.ToTable("SongArtists");
                 });
 
-            modelBuilder.Entity("Shuffull.Site.Models.Database.SongImport", b =>
+            modelBuilder.Entity("Shuffull.Core.Models.Database.SongImport", b =>
                 {
                     b.Property<string>("SongImportId")
                         .HasColumnType("nvarchar(450)");
@@ -214,7 +214,7 @@ namespace Shuffull.Site.Migrations
                     b.ToTable("SongImports");
                 });
 
-            modelBuilder.Entity("Shuffull.Site.Models.Database.SongTag", b =>
+            modelBuilder.Entity("Shuffull.Core.Models.Database.SongTag", b =>
                 {
                     b.Property<string>("SongTagId")
                         .HasColumnType("nvarchar(450)");
@@ -236,7 +236,7 @@ namespace Shuffull.Site.Migrations
                     b.ToTable("SongTags");
                 });
 
-            modelBuilder.Entity("Shuffull.Site.Models.Database.Tag", b =>
+            modelBuilder.Entity("Shuffull.Core.Models.Database.Tag", b =>
                 {
                     b.Property<string>("TagId")
                         .HasColumnType("nvarchar(450)");
@@ -259,7 +259,7 @@ namespace Shuffull.Site.Migrations
                     b.UseTphMappingStrategy();
                 });
 
-            modelBuilder.Entity("Shuffull.Site.Models.Database.User", b =>
+            modelBuilder.Entity("Shuffull.Core.Models.Database.User", b =>
                 {
                     b.Property<string>("UserId")
                         .HasColumnType("nvarchar(450)");
@@ -284,7 +284,7 @@ namespace Shuffull.Site.Migrations
                     b.ToTable("Users");
                 });
 
-            modelBuilder.Entity("Shuffull.Site.Models.Database.UserSong", b =>
+            modelBuilder.Entity("Shuffull.Core.Models.Database.UserSong", b =>
                 {
                     b.Property<string>("UserId")
                         .HasColumnType("nvarchar(450)");
@@ -309,36 +309,36 @@ namespace Shuffull.Site.Migrations
                     b.ToTable("UserSongs");
                 });
 
-            modelBuilder.Entity("Shuffull.Site.Models.Database.Genre", b =>
+            modelBuilder.Entity("Shuffull.Core.Models.Database.Genre", b =>
                 {
-                    b.HasBaseType("Shuffull.Site.Models.Database.Tag");
+                    b.HasBaseType("Shuffull.Core.Models.Database.Tag");
 
                     b.HasDiscriminator().HasValue(0);
                 });
 
-            modelBuilder.Entity("Shuffull.Site.Models.Database.Language", b =>
+            modelBuilder.Entity("Shuffull.Core.Models.Database.Language", b =>
                 {
-                    b.HasBaseType("Shuffull.Site.Models.Database.Tag");
+                    b.HasBaseType("Shuffull.Core.Models.Database.Tag");
 
                     b.HasDiscriminator().HasValue(2);
                 });
 
-            modelBuilder.Entity("Shuffull.Site.Models.Database.TimePeriod", b =>
+            modelBuilder.Entity("Shuffull.Core.Models.Database.TimePeriod", b =>
                 {
-                    b.HasBaseType("Shuffull.Site.Models.Database.Tag");
+                    b.HasBaseType("Shuffull.Core.Models.Database.Tag");
 
                     b.HasDiscriminator().HasValue(1);
                 });
 
-            modelBuilder.Entity("Shuffull.Site.Models.Database.GenreRelation", b =>
+            modelBuilder.Entity("Shuffull.Core.Models.Database.GenreRelation", b =>
                 {
-                    b.HasOne("Shuffull.Site.Models.Database.Genre", "MainGenre")
+                    b.HasOne("Shuffull.Core.Models.Database.Genre", "MainGenre")
                         .WithMany("GenreRelationsAsMain")
                         .HasForeignKey("MainGenreId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("Shuffull.Site.Models.Database.Genre", "SubGenre")
+                    b.HasOne("Shuffull.Core.Models.Database.Genre", "SubGenre")
                         .WithMany("GenreRelationsAsSub")
                         .HasForeignKey("SubGenreId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -349,9 +349,9 @@ namespace Shuffull.Site.Migrations
                     b.Navigation("SubGenre");
                 });
 
-            modelBuilder.Entity("Shuffull.Site.Models.Database.Playlist", b =>
+            modelBuilder.Entity("Shuffull.Core.Models.Database.Playlist", b =>
                 {
-                    b.HasOne("Shuffull.Site.Models.Database.User", "User")
+                    b.HasOne("Shuffull.Core.Models.Database.User", "User")
                         .WithMany("Playlists")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -360,15 +360,15 @@ namespace Shuffull.Site.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("Shuffull.Site.Models.Database.PlaylistSong", b =>
+            modelBuilder.Entity("Shuffull.Core.Models.Database.PlaylistSong", b =>
                 {
-                    b.HasOne("Shuffull.Site.Models.Database.Playlist", "Playlist")
+                    b.HasOne("Shuffull.Core.Models.Database.Playlist", "Playlist")
                         .WithMany("PlaylistSongs")
                         .HasForeignKey("PlaylistId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Shuffull.Site.Models.Database.Song", "Song")
+                    b.HasOne("Shuffull.Core.Models.Database.Song", "Song")
                         .WithMany("PlaylistSongs")
                         .HasForeignKey("SongId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -379,15 +379,15 @@ namespace Shuffull.Site.Migrations
                     b.Navigation("Song");
                 });
 
-            modelBuilder.Entity("Shuffull.Site.Models.Database.SongArtist", b =>
+            modelBuilder.Entity("Shuffull.Core.Models.Database.SongArtist", b =>
                 {
-                    b.HasOne("Shuffull.Site.Models.Database.Artist", "Artist")
+                    b.HasOne("Shuffull.Core.Models.Database.Artist", "Artist")
                         .WithMany("SongArtists")
                         .HasForeignKey("ArtistId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Shuffull.Site.Models.Database.Song", "Song")
+                    b.HasOne("Shuffull.Core.Models.Database.Song", "Song")
                         .WithMany("SongArtists")
                         .HasForeignKey("SongId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -398,24 +398,24 @@ namespace Shuffull.Site.Migrations
                     b.Navigation("Song");
                 });
 
-            modelBuilder.Entity("Shuffull.Site.Models.Database.SongImport", b =>
+            modelBuilder.Entity("Shuffull.Core.Models.Database.SongImport", b =>
                 {
-                    b.HasOne("Shuffull.Site.Models.Database.Song", "Song")
+                    b.HasOne("Shuffull.Core.Models.Database.Song", "Song")
                         .WithMany()
                         .HasForeignKey("SongId");
 
                     b.Navigation("Song");
                 });
 
-            modelBuilder.Entity("Shuffull.Site.Models.Database.SongTag", b =>
+            modelBuilder.Entity("Shuffull.Core.Models.Database.SongTag", b =>
                 {
-                    b.HasOne("Shuffull.Site.Models.Database.Song", "Song")
+                    b.HasOne("Shuffull.Core.Models.Database.Song", "Song")
                         .WithMany("SongTags")
                         .HasForeignKey("SongId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Shuffull.Site.Models.Database.Tag", "Tag")
+                    b.HasOne("Shuffull.Core.Models.Database.Tag", "Tag")
                         .WithMany("SongTags")
                         .HasForeignKey("TagId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -426,15 +426,15 @@ namespace Shuffull.Site.Migrations
                     b.Navigation("Tag");
                 });
 
-            modelBuilder.Entity("Shuffull.Site.Models.Database.UserSong", b =>
+            modelBuilder.Entity("Shuffull.Core.Models.Database.UserSong", b =>
                 {
-                    b.HasOne("Shuffull.Site.Models.Database.Song", "Song")
+                    b.HasOne("Shuffull.Core.Models.Database.Song", "Song")
                         .WithMany("UserSongs")
                         .HasForeignKey("SongId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Shuffull.Site.Models.Database.User", "User")
+                    b.HasOne("Shuffull.Core.Models.Database.User", "User")
                         .WithMany("UserSongs")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -445,17 +445,17 @@ namespace Shuffull.Site.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("Shuffull.Site.Models.Database.Artist", b =>
+            modelBuilder.Entity("Shuffull.Core.Models.Database.Artist", b =>
                 {
                     b.Navigation("SongArtists");
                 });
 
-            modelBuilder.Entity("Shuffull.Site.Models.Database.Playlist", b =>
+            modelBuilder.Entity("Shuffull.Core.Models.Database.Playlist", b =>
                 {
                     b.Navigation("PlaylistSongs");
                 });
 
-            modelBuilder.Entity("Shuffull.Site.Models.Database.Song", b =>
+            modelBuilder.Entity("Shuffull.Core.Models.Database.Song", b =>
                 {
                     b.Navigation("PlaylistSongs");
 
@@ -466,19 +466,19 @@ namespace Shuffull.Site.Migrations
                     b.Navigation("UserSongs");
                 });
 
-            modelBuilder.Entity("Shuffull.Site.Models.Database.Tag", b =>
+            modelBuilder.Entity("Shuffull.Core.Models.Database.Tag", b =>
                 {
                     b.Navigation("SongTags");
                 });
 
-            modelBuilder.Entity("Shuffull.Site.Models.Database.User", b =>
+            modelBuilder.Entity("Shuffull.Core.Models.Database.User", b =>
                 {
                     b.Navigation("Playlists");
 
                     b.Navigation("UserSongs");
                 });
 
-            modelBuilder.Entity("Shuffull.Site.Models.Database.Genre", b =>
+            modelBuilder.Entity("Shuffull.Core.Models.Database.Genre", b =>
                 {
                     b.Navigation("GenreRelationsAsMain");
 

@@ -1,6 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Shuffull.Shared.Enums;
-using Shuffull.Site.Models.Database;
+using Shuffull.Core.Models.Database;
 using System;
 using System.Collections.Generic;
 using System.Linq;

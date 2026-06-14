@@ -1,9 +1,9 @@
 ﻿using Nut.Results;
 using Shuffull.Metadata.Enums;
-using Shuffull.Site.Models.Enums;
+using Shuffull.Core.Models.Enums;
 using System.ComponentModel.DataAnnotations;
 
-namespace Shuffull.Site.Models.Database;
+namespace Shuffull.Core.Models.Database;
 
 public class SongImport
 {

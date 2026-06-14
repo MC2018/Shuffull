@@ -1,7 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 
-namespace Shuffull.Site.Models.Database;
+namespace Shuffull.Core.Models.Database;
 
 [Index(nameof(MainGenreId)), Index(nameof(SubGenreId))]
 public class GenreRelation
