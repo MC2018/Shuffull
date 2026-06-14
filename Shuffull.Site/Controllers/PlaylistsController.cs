@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Shuffull.Core.Features.Playlists.AddSongToPlaylist;
 using Shuffull.Core.Features.Playlists.CreatePlaylist;
 using Shuffull.Core.Models.Database;
 using Shuffull.Site.Extensions;
@@ -34,5 +35,17 @@ public class PlaylistsController : ControllerBase
         }
 
         return this.ToActionResult(await _mediator.Send(new CreatePlaylistCommand(user.UserId, name), cancellationToken));
+    }
+
+    [HttpPost("{playlistId}/songs")]
+    [Authorize]
+    public async Task<IActionResult> AddSong(string playlistId, [FromQuery] string songId, CancellationToken cancellationToken)
+    {
+        if (HttpContext.Items["User"] is not User user)
+        {
+            return Unauthorized();
+        }
+
+        return this.ToActionResult(await _mediator.Send(new AddSongToPlaylistCommand(user.UserId, playlistId, songId), cancellationToken));
     }
 }
