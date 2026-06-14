@@ -1,4 +1,5 @@
 ﻿using Nut.Results;
+using Shuffull.Metadata.Enums;
 using Shuffull.Site.Models.Enums;
 using System.ComponentModel.DataAnnotations;
 

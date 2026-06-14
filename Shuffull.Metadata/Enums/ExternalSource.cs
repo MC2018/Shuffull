@@ -1,4 +1,4 @@
-﻿namespace Shuffull.Site.Models.Enums;
+namespace Shuffull.Metadata.Enums;
 
 public enum ExternalSource
 {

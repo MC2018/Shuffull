@@ -2,7 +2,7 @@ using Nut.Results;
 using Shuffull.Shared.Tools;
 using Shuffull.Site.Configuration;
 using Shuffull.Site.Models.Database;
-using Shuffull.Site.Models.Enums;
+using Shuffull.Metadata.Enums;
 using Shuffull.Site.Services;
 using Shuffull.Site.Services.FileStorage;
 using System.Text.RegularExpressions;
