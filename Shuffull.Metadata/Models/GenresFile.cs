@@ -1,4 +1,4 @@
-﻿namespace Shuffull.Site.Models.Files;
+namespace Shuffull.Metadata.Models;
 
 [Serializable]
 public class GenresFile

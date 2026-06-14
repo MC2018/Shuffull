@@ -5,7 +5,7 @@ using Shuffull.Shared.Enums;
 using Shuffull.Shared.Tools;
 using Shuffull.Site.Configuration;
 using Shuffull.Site.Models.Database;
-using Shuffull.Site.Models.Files;
+using Shuffull.Metadata.Models;
 using Shuffull.Site.Services.FileStorage;
 using System.Threading;
 

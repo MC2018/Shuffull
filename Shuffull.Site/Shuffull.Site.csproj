@@ -47,6 +47,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Shuffull.Shared\Shuffull.Shared.csproj" />
+    <ProjectReference Include="..\Shuffull.Metadata\Shuffull.Metadata.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,18 +1,14 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 using Nut.Results;
 using OpenAI.Chat;
-using OpenAI.Responses;
-using Shuffull.Shared.Enums;
-using Shuffull.Site.Configuration;
-using Shuffull.Site.Models.AI;
-using Shuffull.Site.Models.Database;
+using Shuffull.Metadata.Configuration;
+using Shuffull.Metadata.Models.AI;
 
-namespace Shuffull.Site.Services.AI;
+namespace Shuffull.Metadata.Services.AI;
 
-public class OpenAIService(IConfiguration configuration) : IAIService
+public class OpenAIService(OpenAIConfiguration config) : IAIService
 {
-    private readonly OpenAIConfiguration _config = configuration.GetSection(OpenAIConfiguration.OpenAIConfigurationSection).Get<OpenAIConfiguration>() ?? throw new Exception("OpenAIConfiguration not set.");
-    private readonly ShuffullFilesConfiguration _fileConfig = configuration.GetSection(ShuffullFilesConfiguration.FilesConfigurationSection).Get<ShuffullFilesConfiguration>() ?? throw new Exception("ShuffullFilesConfiguration not set");
+    private readonly OpenAIConfiguration _config = config;
 
     public async Task<Result<GenerateMainGenresResponse>> GenerateMainGenresAsync(GenerateMainGenresRequest request, CancellationToken cancellationToken = default!)
     {
@@ -56,10 +52,7 @@ public class OpenAIService(IConfiguration configuration) : IAIService
             var client = new ChatClient(model: _config.ModelName, apiKey: _config.ApiKey);
             var completion = (await client.CompleteChatAsync(messages, options, cancellationToken)).Value;
             var resultStr = completion.Content[0].Text;
-            // TODO: change to utilize file storage service
-            //var fileName = $"{request.FileHash}.json";
-            //File.WriteAllText(Path.Combine(_fileConfig.SavedAiResponsesDirectory, fileName), resultStr);
-            var result = JsonConvert.DeserializeObject<GenerateMainGenresResponse>(resultStr);// ?? throw new Exception($"Failed to parse {fileName}");
+            var result = JsonConvert.DeserializeObject<GenerateMainGenresResponse>(resultStr);
 
             if (result == null)
             {
@@ -129,10 +122,7 @@ public class OpenAIService(IConfiguration configuration) : IAIService
             var client = new ChatClient(model: _config.ModelName, apiKey: _config.ApiKey);
             var completion = (await client.CompleteChatAsync(messages, options, cancellationToken)).Value;
             var resultStr = completion.Content[0].Text;
-            // TODO: change to utilize file storage service
-            //var fileName = $"{request.FileHash}.json";
-            //File.WriteAllText(Path.Combine(_fileConfig.SavedAiResponsesDirectory, fileName), resultStr);
-            var result = JsonConvert.DeserializeObject<GenerateSubGenresResponse>(resultStr);// ?? throw new Exception($"Failed to parse {fileName}");
+            var result = JsonConvert.DeserializeObject<GenerateSubGenresResponse>(resultStr);
 
             if (result == null)
             {
@@ -196,10 +186,7 @@ public class OpenAIService(IConfiguration configuration) : IAIService
             var client = new ChatClient(model: _config.ModelName, apiKey: _config.ApiKey);
             var completion = (await client.CompleteChatAsync(messages, options, cancellationToken)).Value;
             var resultStr = completion.Content[0].Text;
-            // TODO: change to utilize file storage service
-            //var fileName = $"{request.FileHash}.json";
-            //File.WriteAllText(Path.Combine(_fileConfig.SavedAiResponsesDirectory, fileName), resultStr);
-            var result = JsonConvert.DeserializeObject<GenerateOtherSongDetailsResponse>(resultStr);// ?? throw new Exception($"Failed to parse {fileName}");
+            var result = JsonConvert.DeserializeObject<GenerateOtherSongDetailsResponse>(resultStr);
 
             if (result == null)
             {

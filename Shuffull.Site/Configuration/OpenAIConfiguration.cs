@@ -1,26 +1,7 @@
-﻿using Shuffull.Site.Tools;
-using System.Text.Json.Serialization;
-using Shuffull.Site.Services.AI;
+using Shuffull.Metadata.Configuration;
+using Shuffull.Metadata.Services.AI;
 
 namespace Shuffull.Site.Configuration;
-
-public class OpenAIConfiguration
-{
-    [JsonIgnore]
-    public const string OpenAIConfigurationSection = "AI:OpenAI";
-    public string ApiKey { get; set; } = string.Empty;
-    public string ModelName { get; set; } = string.Empty;
-    public string InstructionFile { get; set; } = string.Empty;
-    public string ApiEndpoint { get; set; } = string.Empty;
-
-    public class SupportedApiEndpoints
-    {
-        // Lowercase for consistency
-        public const string ChatCompletions = "chat/completions";
-        public const string Responses = "responses";
-        public static readonly string[] All = { ChatCompletions, Responses };
-    }
-}
 
 public static class OpenAIConfigurationExtensions
 {
@@ -45,7 +26,7 @@ public static class OpenAIConfigurationExtensions
             throw new NotSupportedException($"OpenAI API endpoint '{openAIConfig.ApiEndpoint}' is not supported. Supported endpoints are: {string.Join(", ", OpenAIConfiguration.SupportedApiEndpoints.All)}.");
         }
 
-        collection.AddSingleton<IAIService, OpenAIService>();
+        collection.AddSingleton<IAIService>(new OpenAIService(openAIConfig));
 
         return collection;
     }

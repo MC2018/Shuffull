@@ -7,7 +7,7 @@ using NLog.Web;
 using Shuffull.Site.Services.FileStorage;
 using Shuffull.Site.Services;
 using System.Text.Json;
-using Shuffull.Site.Models.Files;
+using Shuffull.Metadata.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
