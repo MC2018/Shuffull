@@ -16,21 +16,20 @@
 							"listen": "test",
 							"script": {
 								"exec": [
-									"pm.test(\"Response OK\", function () {\r",
-									"    pm.response.to.have.status(200);\r",
-									"});\r",
-									"\r",
-									"pm.test(\"Set environment variable for username\", function () {\r",
-									"    const responseJSON = pm.response.json();\r",
-									"    pm.environment.set(\"username\", responseJSON.user.username);\r",
-									"});\r",
-									"\r",
-									"pm.test(\"Token is a non-empty string\", function () {\r",
-									"  const responseData = pm.response.json();\r",
-									"  pm.expect(responseData.token).to.be.a('string').and.to.have.lengthOf.at.least(1, \"Token should not be empty\");\r",
-									"  pm.environment.set(\"token\", responseData.token);\r",
-									"});\r",
-									""
+									"pm.test(\"Response OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Set environment variable for username\", function () {",
+									"    const responseJSON = pm.response.json();",
+									"    pm.environment.set(\"username\", responseJSON.user.username);",
+									"});",
+									"",
+									"pm.test(\"Token is a non-empty string\", function () {",
+									"  const responseData = pm.response.json();",
+									"  pm.expect(responseData.token).to.be.a('string').and.to.have.lengthOf.at.least(1, \"Token should not be empty\");",
+									"  pm.environment.set(\"token\", responseData.token);",
+									"});"
 								],
 								"type": "text/javascript"
 							}
@@ -49,13 +48,14 @@
 						"method": "POST",
 						"header": [],
 						"url": {
-							"raw": "{{url}}/user/create?username={{$randomNoun}}{{$randomInt}}&userHash={{userHash}}",
+							"raw": "{{url}}/api/v1/users?username={{$randomNoun}}{{$randomInt}}&userHash={{userHash}}",
 							"host": [
 								"{{url}}"
 							],
 							"path": [
-								"user",
-								"create"
+								"api",
+								"v1",
+								"users"
 							],
 							"query": [
 								{
@@ -87,16 +87,15 @@
 							"listen": "test",
 							"script": {
 								"exec": [
-									"pm.test(\"Response status code is 200\", function () {\r",
-									"    pm.expect(pm.response.code).to.equal(200);\r",
-									"});\r",
-									"\r",
-									"pm.test(\"Token is a non-empty string\", function () {\r",
-									"  const responseData = pm.response.json();\r",
-									"  pm.expect(responseData.token).to.be.a('string').and.to.have.lengthOf.at.least(1, \"Token should not be empty\");\r",
-									"  pm.environment.set(\"token\", responseData.token);\r",
-									"});\r",
-									""
+									"pm.test(\"Response status code is 200\", function () {",
+									"    pm.expect(pm.response.code).to.equal(200);",
+									"});",
+									"",
+									"pm.test(\"Token is a non-empty string\", function () {",
+									"  const responseData = pm.response.json();",
+									"  pm.expect(responseData.token).to.be.a('string').and.to.have.lengthOf.at.least(1, \"Token should not be empty\");",
+									"  pm.environment.set(\"token\", responseData.token);",
+									"});"
 								],
 								"type": "text/javascript"
 							}
@@ -106,12 +105,14 @@
 						"method": "POST",
 						"header": [],
 						"url": {
-							"raw": "{{url}}/user/authenticate?username={{username}}&userHash={{userHash}}",
+							"raw": "{{url}}/api/v1/users/authenticate?username={{username}}&userHash={{userHash}}",
 							"host": [
 								"{{url}}"
 							],
 							"path": [
-								"user",
+								"api",
+								"v1",
+								"users",
 								"authenticate"
 							],
 							"query": [
@@ -135,15 +136,15 @@
 							"listen": "test",
 							"script": {
 								"exec": [
-									"pm.test(\"Response status code is 200\", function () {\r",
-									"    pm.response.to.have.status(200);\r",
-									"});\r",
-									"\r",
-									"pm.test(\"Response is an object with UserId property\", function () {\r",
-									"    var jsonData = pm.response.json();\r",
-									"    pm.expect(jsonData).to.be.an('object').that.has.property('UserId');\r",
-									"});\r",
-									""
+									"pm.test(\"Response status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response wraps a user object with userId\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.be.an('object').that.has.property('user');",
+									"    pm.expect(jsonData.user).to.have.property('userId');",
+									"});"
 								],
 								"type": "text/javascript"
 							}
@@ -163,13 +164,15 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{url}}/user/get",
+							"raw": "{{url}}/api/v1/users/me",
 							"host": [
 								"{{url}}"
 							],
 							"path": [
-								"user",
-								"get"
+								"api",
+								"v1",
+								"users",
+								"me"
 							]
 						}
 					},
@@ -187,17 +190,15 @@
 							"listen": "test",
 							"script": {
 								"exec": [
-									"pm.test(\"Response status code is 200\", function () {\r",
-									"    pm.response.to.have.status(200);\r",
-									"});\r",
-									"\r",
-									"pm.test(\"Array of songs is not empty\", function () {\r",
-									"    const responseData = pm.response.json();\r",
-									"    \r",
-									"    pm.expect(responseData).to.be.an('object');\r",
-									"    pm.expect(responseData.$values).to.be.an('array').and.to.have.lengthOf.at.least(1, \"Array should not be empty\");\r",
-									"});\r",
-									""
+									"pm.test(\"Response status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has a songs array\", function () {",
+									"    const responseData = pm.response.json();",
+									"    pm.expect(responseData).to.be.an('object');",
+									"    pm.expect(responseData.songs).to.be.an('array');",
+									"});"
 								],
 								"type": "text/javascript"
 							}
@@ -217,13 +218,14 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{url}}/song/getall?pageIndex=0",
+							"raw": "{{url}}/api/v1/songs?pageIndex=0",
 							"host": [
 								"{{url}}"
 							],
 							"path": [
-								"song",
-								"getall"
+								"api",
+								"v1",
+								"songs"
 							],
 							"query": [
 								{
@@ -242,14 +244,15 @@
 							"listen": "test",
 							"script": {
 								"exec": [
-									"pm.test(\"Response status code is 200\", function () {\r",
-									"    pm.response.to.have.status(200);\r",
-									"});\r",
-									"\r",
-									"pm.test(\"Response is an object with songId property\", function () {\r",
-									"    pm.expect(pm.response.json()).to.be.an('object').that.has.property('songId');\r",
-									"});\r",
-									""
+									"pm.test(\"Response status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response wraps a song with songId\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.be.an('object').that.has.property('song');",
+									"    pm.expect(jsonData.song).to.have.property('songId');",
+									"});"
 								],
 								"type": "text/javascript"
 							}
@@ -269,19 +272,15 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{url}}/song/get?songId={{songId}}",
+							"raw": "{{url}}/api/v1/songs/{{songId}}",
 							"host": [
 								"{{url}}"
 							],
 							"path": [
-								"song",
-								"get"
-							],
-							"query": [
-								{
-									"key": "songId",
-									"value": "{{songId}}"
-								}
+								"api",
+								"v1",
+								"songs",
+								"{{songId}}"
 							]
 						}
 					},
@@ -294,19 +293,19 @@
 							"listen": "test",
 							"script": {
 								"exec": [
-									"pm.test(\"Response status code is 200\", function () {\r",
-									"    pm.response.to.have.status(200);\r",
-									"});\r",
-									"\r",
-									"pm.test(\"Response is an object with $values property\", function () {\r",
-									"    pm.expect(pm.response.json()).to.be.an('object').that.has.property('$values');\r",
-									"});\r",
-									"\r",
-									"pm.test(\"Each SongArtist in $values has SongArtists and SongTags properties\", function () {\r",
-									"    pm.response.json().$values.forEach(function(song) {\r",
-									"        pm.expect(song).to.have.property('SongArtists');\r",
-									"        pm.expect(song).to.have.property('SongTags');\r",
-									"    });\r",
+									"pm.test(\"Response status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has a songs array\", function () {",
+									"    pm.expect(pm.response.json()).to.be.an('object').that.has.property('songs');",
+									"});",
+									"",
+									"pm.test(\"Each song has artists and tags arrays\", function () {",
+									"    pm.response.json().songs.forEach(function(song) {",
+									"        pm.expect(song).to.have.property('artists');",
+									"        pm.expect(song).to.have.property('tags');",
+									"    });",
 									"});"
 								],
 								"type": "text/javascript"
@@ -328,7 +327,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "[{{songId}}]",
+							"raw": "[\"{{songId}}\"]",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -336,13 +335,15 @@
 							}
 						},
 						"url": {
-							"raw": "{{url}}/song/getlist",
+							"raw": "{{url}}/api/v1/songs/list",
 							"host": [
 								"{{url}}"
 							],
 							"path": [
-								"song",
-								"getlist"
+								"api",
+								"v1",
+								"songs",
+								"list"
 							]
 						}
 					},
@@ -360,79 +361,18 @@
 							"listen": "test",
 							"script": {
 								"exec": [
-									"pm.test(\"Response status code is 200\", function () {\r",
-									"    pm.response.to.have.status(200);\r",
-									"});\r",
-									"\r",
-									"pm.test(\"Response is an array of objects\", function () {\r",
-									"    pm.expect(pm.response.json()).to.be.an('array').that.is.not.empty;\r",
-									"    pm.response.json().forEach(function(userSong) {\r",
-									"        pm.expect(userSong).to.be.an('object');\r",
-									"    });\r",
-									"});\r",
-									"\r",
-									"pm.test(\"At least one item has songId as environment songId\", function () {\r",
-									"    var songIds = pm.response.json().map(item => item.songId);\r",
-									"    pm.expect(songIds).to.include(pm.environment.get(\"songId\"));\r",
-									"});\r",
-									""
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "PUT",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "[\r\n    {{songId}}\r\n]",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{url}}/usersong/createmany",
-							"host": [
-								"{{url}}"
-							],
-							"path": [
-								"usersong",
-								"createmany"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "CreateMany (Already Exists)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Response status code is 200\", function () {\r",
-									"    pm.response.to.have.status(200);\r",
-									"});\r",
-									"\r",
-									"pm.test(\"Response is an array\", function () {\r",
-									"    pm.expect(pm.response.json()).to.be.an('array');\r",
-									"});\r",
-									"\r",
-									"pm.test(\"Response array is empty\", function () {\r",
-									"    pm.expect(pm.response.json()).to.be.empty;\r",
+									"pm.test(\"Response status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has a created array\", function () {",
+									"    pm.expect(pm.response.json()).to.be.an('object').that.has.property('created');",
+									"    pm.expect(pm.response.json().created).to.be.an('array');",
+									"});",
+									"",
+									"pm.test(\"Created contains the environment songId\", function () {",
+									"    var songIds = pm.response.json().created.map(item => item.songId);",
+									"    pm.expect(songIds).to.include(pm.environment.get(\"songId\"));",
 									"});"
 								],
 								"type": "text/javascript"
@@ -454,7 +394,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "[\r\n    {{songId}}\r\n]",
+							"raw": "[\"{{songId}}\"]",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -462,13 +402,73 @@
 							}
 						},
 						"url": {
-							"raw": "{{url}}/usersong/createmany",
+							"raw": "{{url}}/api/v1/user-songs",
 							"host": [
 								"{{url}}"
 							],
 							"path": [
-								"usersong",
-								"createmany"
+								"api",
+								"v1",
+								"user-songs"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "CreateMany (Already Exists)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Response status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has a created array\", function () {",
+									"    pm.expect(pm.response.json()).to.be.an('object').that.has.property('created');",
+									"});",
+									"",
+									"pm.test(\"Created array is empty\", function () {",
+									"    pm.expect(pm.response.json().created).to.be.an('array').that.is.empty;",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "[\"{{songId}}\"]",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url}}/api/v1/user-songs",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"user-songs"
 							]
 						}
 					},
@@ -481,10 +481,13 @@
 							"listen": "test",
 							"script": {
 								"exec": [
-									"pm.test(\"Response status code is 200\", function () {\r",
-									"    pm.response.to.have.status(200);\r",
-									"});\r",
-									""
+									"pm.test(\"Response status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response reports updatedCount\", function () {",
+									"    pm.expect(pm.response.json()).to.have.property('updatedCount');",
+									"});"
 								],
 								"type": "text/javascript"
 							}
@@ -505,7 +508,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "[{\r\n    \"guid\": \"{{$guid}}\",\r\n    \"songId\": {{songId}},\r\n    \"lastPlayed\": \"2000-01-01T12:34:56\"\r\n}]",
+							"raw": "[\n    {\n        \"songId\": \"{{songId}}\",\n        \"lastPlayed\": \"2000-01-01T12:34:56\"\n    }\n]",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -513,20 +516,15 @@
 							}
 						},
 						"url": {
-							"raw": "{{url}}/usersong/updatelastplayed",
+							"raw": "{{url}}/api/v1/user-songs/last-played",
 							"host": [
 								"{{url}}"
 							],
 							"path": [
-								"usersong",
-								"updatelastplayed"
-							],
-							"query": [
-								{
-									"key": "",
-									"value": null,
-									"disabled": true
-								}
+								"api",
+								"v1",
+								"user-songs",
+								"last-played"
 							]
 						}
 					},
@@ -539,24 +537,15 @@
 							"listen": "test",
 							"script": {
 								"exec": [
-									"pm.test(\"Response status code is 200\", function () {\r",
-									"    pm.response.to.have.status(200);\r",
-									"});\r",
-									"\r",
-									"pm.test(\"Response is an object with Items property\", function () {\r",
-									"    pm.expect(pm.response.json()).to.be.an('object').that.has.property('Items');\r",
-									"});\r",
-									"\r",
-									"pm.test(\"Items property contains an array of values\", function () {\r",
-									"    pm.expect(pm.response.json().Items.$values).to.be.an('array');\r",
-									"});\r",
-									"\r",
-									"pm.test(\"Response has the EndOfList variable set to true\", function () {\r",
-									"    pm.expect(pm.response.json()).to.have.property('EndOfList', true);\r",
-									"});\r",
-									"\r",
-									"pm.test(\"Items property contains at least one item in the array\", function () {\r",
-									"    pm.expect(pm.response.json().Items.$values).to.be.an('array').that.is.not.empty;\r",
+									"pm.test(\"Response status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has a userSongs array and endOfList\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.be.an('object').that.has.property('userSongs');",
+									"    pm.expect(jsonData.userSongs).to.be.an('array');",
+									"    pm.expect(jsonData).to.have.property('endOfList');",
 									"});"
 								],
 								"type": "text/javascript"
@@ -577,13 +566,20 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{url}}/usersong/getall",
+							"raw": "{{url}}/api/v1/user-songs?afterDate=2000-01-01T00:00:00Z",
 							"host": [
 								"{{url}}"
 							],
 							"path": [
-								"usersong",
-								"getall"
+								"api",
+								"v1",
+								"user-songs"
+							],
+							"query": [
+								{
+									"key": "afterDate",
+									"value": "2000-01-01T00:00:00Z"
+								}
 							]
 						}
 					},
@@ -601,16 +597,16 @@
 							"listen": "test",
 							"script": {
 								"exec": [
-									"pm.test(\"Response status code is 200\", function () {\r",
-									"    pm.response.to.have.status(200);\r",
-									"});\r",
-									"\r",
-									"pm.test(\"Response is an object with playlistId property\", function () {\r",
-									"    var jsonData = pm.response.json();\r",
-									"    pm.expect(jsonData).to.be.an('object').that.has.property('playlistId');\r",
-									"    pm.environment.set(\"playlistId\", jsonData.playlistId);\r",
-									"});\r",
-									""
+									"pm.test(\"Response status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response wraps a playlist with playlistId\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.be.an('object').that.has.property('playlist');",
+									"    pm.expect(jsonData.playlist).to.have.property('playlistId');",
+									"    pm.environment.set(\"playlistId\", jsonData.playlist.playlistId);",
+									"});"
 								],
 								"type": "text/javascript"
 							}
@@ -630,13 +626,14 @@
 						"method": "PUT",
 						"header": [],
 						"url": {
-							"raw": "{{url}}/playlist/create?name=Postman Playlist",
+							"raw": "{{url}}/api/v1/playlists?name=Postman Playlist",
 							"host": [
 								"{{url}}"
 							],
 							"path": [
-								"playlist",
-								"create"
+								"api",
+								"v1",
+								"playlists"
 							],
 							"query": [
 								{
@@ -655,10 +652,9 @@
 							"listen": "test",
 							"script": {
 								"exec": [
-									"pm.test(\"Response status code is 400\", function () {\r",
-									"    pm.response.to.have.status(400);\r",
-									"});\r",
-									""
+									"pm.test(\"Response status code is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});"
 								],
 								"type": "text/javascript"
 							}
@@ -678,13 +674,14 @@
 						"method": "PUT",
 						"header": [],
 						"url": {
-							"raw": "{{url}}/playlist/create",
+							"raw": "{{url}}/api/v1/playlists",
 							"host": [
 								"{{url}}"
 							],
 							"path": [
-								"playlist",
-								"create"
+								"api",
+								"v1",
+								"playlists"
 							]
 						}
 					},
@@ -697,10 +694,13 @@
 							"listen": "test",
 							"script": {
 								"exec": [
-									"pm.test(\"Response status code is 200\", function () {\r",
-									"    pm.response.to.have.status(200);\r",
-									"});\r",
-									""
+									"pm.test(\"Response status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response reports added\", function () {",
+									"    pm.expect(pm.response.json()).to.have.property('added');",
+									"});"
 								],
 								"type": "text/javascript"
 							}
@@ -720,19 +720,18 @@
 						"method": "POST",
 						"header": [],
 						"url": {
-							"raw": "{{url}}/playlist/addsong?playlistId={{playlistId}}&songId={{songId}}",
+							"raw": "{{url}}/api/v1/playlists/{{playlistId}}/songs?songId={{songId}}",
 							"host": [
 								"{{url}}"
 							],
 							"path": [
-								"playlist",
-								"addsong"
+								"api",
+								"v1",
+								"playlists",
+								"{{playlistId}}",
+								"songs"
 							],
 							"query": [
-								{
-									"key": "playlistId",
-									"value": "{{playlistId}}"
-								},
 								{
 									"key": "songId",
 									"value": "{{songId}}"
@@ -749,17 +748,17 @@
 							"listen": "test",
 							"script": {
 								"exec": [
-									"pm.test(\"Response status code is 200\", function () {\r",
-									"    pm.response.to.have.status(200);\r",
-									"});\r",
-									"\r",
-									"pm.test(\"Response is an array\", function () {\r",
-									"    pm.expect(pm.response.json()).to.be.an('array');\r",
-									"});\r",
-									"\r",
-									"pm.test(\"Response is an array and contains playlistId of environment playlist\", function () {\r",
-									"    var playlistIds = pm.response.json().map(item => item.playlistId);\r",
-									"    pm.expect(playlistIds).to.include(pm.environment.get(\"playlistId\"));\r",
+									"pm.test(\"Response status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has a playlists array\", function () {",
+									"    pm.expect(pm.response.json()).to.be.an('object').that.has.property('playlists');",
+									"});",
+									"",
+									"pm.test(\"Playlists include the environment playlistId\", function () {",
+									"    var playlistIds = pm.response.json().playlists.map(item => item.playlistId);",
+									"    pm.expect(playlistIds).to.include(pm.environment.get(\"playlistId\"));",
 									"});"
 								],
 								"type": "text/javascript"
@@ -780,13 +779,14 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{url}}/playlist/getall",
+							"raw": "{{url}}/api/v1/playlists",
 							"host": [
 								"{{url}}"
 							],
 							"path": [
-								"playlist",
-								"getall"
+								"api",
+								"v1",
+								"playlists"
 							]
 						}
 					},
@@ -799,12 +799,13 @@
 							"listen": "test",
 							"script": {
 								"exec": [
-									"pm.test(\"Response status code is 200\", function () {\r",
-									"    pm.response.to.have.status(200);\r",
-									"});\r",
-									"\r",
-									"pm.test(\"Response is an object\", function () {\r",
-									"    pm.expect(pm.response.json()).to.be.an('object').that.has.property('$values').to.be.an(\"array\");\r",
+									"pm.test(\"Response status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has a playlists array\", function () {",
+									"    pm.expect(pm.response.json()).to.be.an('object').that.has.property('playlists');",
+									"    pm.expect(pm.response.json().playlists).to.be.an('array');",
 									"});"
 								],
 								"type": "text/javascript"
@@ -826,7 +827,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "[{{playlistId}}]",
+							"raw": "[\"{{playlistId}}\"]",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -834,13 +835,15 @@
 							}
 						},
 						"url": {
-							"raw": "{{url}}/playlist/getlist",
+							"raw": "{{url}}/api/v1/playlists/list",
 							"host": [
 								"{{url}}"
 							],
 							"path": [
-								"playlist",
-								"getlist"
+								"api",
+								"v1",
+								"playlists",
+								"list"
 							]
 						}
 					},
@@ -853,22 +856,22 @@
 							"listen": "test",
 							"script": {
 								"exec": [
-									"pm.test(\"Response status code is 200\", function () {\r",
-									"    pm.response.to.have.status(200);\r",
-									"});\r",
-									"\r",
-									"pm.test(\"Response is an object with PlaylistId property\", function () {\r",
-									"    var jsonData = pm.response.json();\r",
-									"    pm.expect(jsonData).to.be.an('object');\r",
-									"    pm.expect(jsonData).to.have.property('PlaylistId').that.is.a('number');\r",
-									"});\r",
-									"\r",
-									"pm.test(\"One song has the id of environment songId\", function () {\r",
-									"    var jsonData = pm.response.json();\r",
-									"    var songIdCount = jsonData.PlaylistSongs.$values.filter(function(song) {\r",
-									"        return song.SongId === pm.environment.get(\"songId\");\r",
-									"    }).length;\r",
-									"    pm.expect(songIdCount).to.equal(1);\r",
+									"pm.test(\"Response status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response wraps a playlist with playlistId\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.be.an('object').that.has.property('playlist');",
+									"    pm.expect(jsonData.playlist).to.have.property('playlistId');",
+									"});",
+									"",
+									"pm.test(\"One song has the id of environment songId\", function () {",
+									"    var songs = pm.response.json().playlist.songs;",
+									"    var songIdCount = songs.filter(function(song) {",
+									"        return song.songId === pm.environment.get(\"songId\");",
+									"    }).length;",
+									"    pm.expect(songIdCount).to.equal(1);",
 									"});"
 								],
 								"type": "text/javascript"
@@ -889,19 +892,15 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{url}}/playlist/get?playlistid={{playlistId}}",
+							"raw": "{{url}}/api/v1/playlists/{{playlistId}}",
 							"host": [
 								"{{url}}"
 							],
 							"path": [
-								"playlist",
-								"get"
-							],
-							"query": [
-								{
-									"key": "playlistid",
-									"value": "{{playlistId}}"
-								}
+								"api",
+								"v1",
+								"playlists",
+								"{{playlistId}}"
 							]
 						}
 					},
