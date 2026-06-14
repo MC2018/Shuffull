@@ -4,10 +4,10 @@ using Shuffull.Core.Features.UserSongs.CreateUserSongs;
 using Shuffull.Core.Features.UserSongs.GetUserSongs;
 using Shuffull.Core.Features.UserSongs.UpdateSongsLastPlayed;
 using Shuffull.Core.Models.Database;
-using Shuffull.Site.Extensions;
-using Shuffull.Site.Tools.Authorization;
+using Shuffull.Api.Extensions;
+using Shuffull.Api.Tools.Authorization;
 
-namespace Shuffull.Site.Controllers;
+namespace Shuffull.Api.Controllers;
 
 /// <summary>
 /// CQRS-style user-song (play record) API. Thin controller: it resolves the authenticated user,

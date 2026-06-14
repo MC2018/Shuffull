@@ -4,10 +4,10 @@ using Shuffull.Core.Features.Users.AuthenticateUser;
 using Shuffull.Core.Features.Users.CreateUser;
 using Shuffull.Core.Features.Users.GetCurrentUser;
 using Shuffull.Core.Models.Database;
-using Shuffull.Site.Extensions;
-using Shuffull.Site.Tools.Authorization;
+using Shuffull.Api.Extensions;
+using Shuffull.Api.Tools.Authorization;
 
-namespace Shuffull.Site.Controllers;
+namespace Shuffull.Api.Controllers;
 
 /// <summary>
 /// CQRS-style users/account API. Thin controller: it dispatches each request through MediatR and

@@ -1,12 +1,12 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using Shuffull.Site.Extensions;
+using Shuffull.Api.Extensions;
 using Shuffull.Core.Features.Songs.GetSong;
 using Shuffull.Core.Features.Songs.GetSongList;
 using Shuffull.Core.Features.Songs.GetSongPage;
-using Shuffull.Site.Tools.Authorization;
+using Shuffull.Api.Tools.Authorization;
 
-namespace Shuffull.Site.Controllers;
+namespace Shuffull.Api.Controllers;
 
 /// <summary>
 /// CQRS-style songs API. Thin controller: it only dispatches the request through MediatR and maps

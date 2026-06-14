@@ -25,11 +25,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Core holds the reusable infrastructure; Site holds the reference slice (GetSong) and the
-         concrete ShuffullContext the fixture spins up. As features migrate into Core, tests will
-         depend on Core directly and this Site reference can shrink. -->
+    <!-- All feature slices and the concrete ShuffullContext now live in Shuffull.Core, so the tests
+         depend on Core alone (no host project reference needed). -->
     <ProjectReference Include="..\Shuffull.Core\Shuffull.Core.csproj" />
-    <ProjectReference Include="..\Shuffull.Site\Shuffull.Site.csproj" />
   </ItemGroup>
 
 </Project>

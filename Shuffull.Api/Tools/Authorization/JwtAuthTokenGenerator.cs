@@ -1,7 +1,7 @@
 using Shuffull.Core.Authentication;
 using Shuffull.Core.Models.Database;
 
-namespace Shuffull.Site.Tools.Authorization;
+namespace Shuffull.Api.Tools.Authorization;
 
 /// <summary>
 /// Host-side implementation of <see cref="IAuthTokenGenerator"/>. Wraps the existing

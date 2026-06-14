@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Nut.Results;
 
-namespace Shuffull.Site.Extensions;
+namespace Shuffull.Api.Extensions;
 
 /// <summary>
 /// Maps a <see cref="Result"/> / <see cref="Result{T}"/> onto an HTTP response so controllers stay

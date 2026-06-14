@@ -2,10 +2,10 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Shuffull.Core.Features.Tags.AddTagToSong;
 using Shuffull.Core.Features.Tags.GetAllTags;
-using Shuffull.Site.Extensions;
-using Shuffull.Site.Tools.Authorization;
+using Shuffull.Api.Extensions;
+using Shuffull.Api.Tools.Authorization;
 
-namespace Shuffull.Site.Controllers;
+namespace Shuffull.Api.Controllers;
 
 /// <summary>
 /// CQRS-style tags API. Thin controller: it dispatches each request through MediatR and maps the

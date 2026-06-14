@@ -6,10 +6,10 @@ using Shuffull.Core.Features.Playlists.GetPlaylistDetails;
 using Shuffull.Core.Features.Playlists.GetPlaylists;
 using Shuffull.Core.Features.Playlists.GetUserPlaylists;
 using Shuffull.Core.Models.Database;
-using Shuffull.Site.Extensions;
-using Shuffull.Site.Tools.Authorization;
+using Shuffull.Api.Extensions;
+using Shuffull.Api.Tools.Authorization;
 
-namespace Shuffull.Site.Controllers;
+namespace Shuffull.Api.Controllers;
 
 /// <summary>
 /// CQRS-style playlists API. Thin controller: it resolves the authenticated user, dispatches the
