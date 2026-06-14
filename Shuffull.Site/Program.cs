@@ -20,6 +20,8 @@ builder.Services.AddSingleton<IFileStorageService, LocalFileStorageService>();
 builder.Services.AddHostedService<TagImporterService>();
 builder.Services.AddHostedService<DetailedSongImporterService>();
 builder.Services.AddScoped<JwtHelper>();
+// Lets Shuffull.Core's user slices issue tokens without referencing Site/JWT types.
+builder.Services.AddScoped<Shuffull.Core.Authentication.IAuthTokenGenerator, JwtAuthTokenGenerator>();
 builder.Services.AddDbContext<ShuffullContext>(options =>
 {
     options.UseSqlServer(builder.Configuration.GetConnectionString("Shuffull"));
