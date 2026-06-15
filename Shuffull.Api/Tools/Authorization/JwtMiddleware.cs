@@ -14,6 +14,7 @@ public class JwtMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly JwtConfiguration _configuration;
+    private readonly ILogger<JwtMiddleware> _logger;
 
     /// <summary>
     /// Constructor
@@ -27,6 +28,7 @@ public class JwtMiddleware
             .GetRequiredService<IConfiguration>()
             .GetSection(JwtConfiguration.JwtConfigurationSection)
             .Get<JwtConfiguration>();
+        _logger = services.GetRequiredService<ILogger<JwtMiddleware>>();
     }
 
     /// <summary>
@@ -73,9 +75,9 @@ public class JwtMiddleware
             var userId = jwtToken.Claims.First(x => x.Type == "UserId").Value;
             httpContext.Items["User"] = await dbContext.Users.Where(x => x.UserId == userId).AsNoTracking().FirstAsync();
         }
-        catch
+        catch (Exception ex)
         {
-
+            _logger.LogWarning(ex, "JWT validation failed; request will be treated as unauthenticated.");
         }
     }
 }
