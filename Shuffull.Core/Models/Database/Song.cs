@@ -21,6 +21,17 @@ namespace Shuffull.Core.Models.Database
         public string Name { get; set; } = string.Empty;
         public string? ExternalSongId { get; set; }
 
+        // Enrichment supplied by the external producer via the import contract; null when not provided.
+        // Lyrics: SyncedLyrics is LRC text already shifted by LyricsOffsetMs for the producer's leading-silence
+        // trim (the app may add a manual nudge); PlainLyrics is the untimed fallback; LyricsInstrumental marks
+        // a no-lyrics-by-design track. Bpm is a best-effort tempo estimate.
+        public string? SyncedLyrics { get; set; }
+        public string? PlainLyrics { get; set; }
+        public bool LyricsInstrumental { get; set; }
+        public int LyricsOffsetMs { get; set; }
+        public string? LyricsSource { get; set; }
+        public int? Bpm { get; set; }
+
         public ICollection<PlaylistSong> PlaylistSongs { get; set; }
         public ICollection<UserSong> UserSongs { get; set; }
         public ICollection<SongArtist> SongArtists { get; set; }

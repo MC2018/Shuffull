@@ -15,7 +15,15 @@ public record SongDto(
     string FileHash,
     string? ExternalSongId,
     IReadOnlyList<string> Artists,
-    IReadOnlyList<string> Tags)
+    IReadOnlyList<string> Tags,
+    // Enrichment from the external producer. SyncedLyrics is LRC text already shifted by LyricsOffsetMs;
+    // the app may apply a further manual nudge. Null/0/false when not provided.
+    string? SyncedLyrics = null,
+    string? PlainLyrics = null,
+    bool LyricsInstrumental = false,
+    int LyricsOffsetMs = 0,
+    string? LyricsSource = null,
+    int? Bpm = null)
 {
     public static Result<SongDto> Create(Song song)
     {
@@ -43,6 +51,12 @@ public record SongDto(
             FileHash: song.FileHash,
             ExternalSongId: song.ExternalSongId,
             Artists: artists,
-            Tags: tags));
+            Tags: tags,
+            SyncedLyrics: song.SyncedLyrics,
+            PlainLyrics: song.PlainLyrics,
+            LyricsInstrumental: song.LyricsInstrumental,
+            LyricsOffsetMs: song.LyricsOffsetMs,
+            LyricsSource: song.LyricsSource,
+            Bpm: song.Bpm));
     }
 }

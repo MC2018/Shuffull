@@ -137,6 +137,11 @@ public partial class SongImportService : BackgroundService
                 return moveFileResult;
             }
 
+            // Producer-supplied lyrics (carried on the SongImport), persisted onto the Song.
+            var lyrics = string.IsNullOrWhiteSpace(songImport.LyricsJson)
+                ? null
+                : JsonConvert.DeserializeObject<SongLyrics>(songImport.LyricsJson);
+
             // Save everything to the db
             var song = new Song
             {
@@ -144,7 +149,13 @@ public partial class SongImportService : BackgroundService
                 Name = songImport.Name,
                 FileExtension = Path.GetExtension(songImport.FileName).ToLowerInvariant(),
                 FileHash = fileHash,
-                ExternalSongId = songImport.ExternalSongId
+                ExternalSongId = songImport.ExternalSongId,
+                SyncedLyrics = lyrics?.Synced,
+                PlainLyrics = lyrics?.Plain,
+                LyricsInstrumental = lyrics?.Instrumental ?? false,
+                LyricsOffsetMs = lyrics?.AppliedOffsetMs ?? 0,
+                LyricsSource = lyrics?.Source,
+                Bpm = songImport.Bpm
             };
             var importToDbResult = await ImportToDbAsync(song, existingArtists, newArtists, existingTags, newTags,songImport.UserId, songImport.PlaylistId, cancellationToken);
             if (importToDbResult.IsError)
@@ -294,13 +305,28 @@ public partial class SongImportService : BackgroundService
         var youtubeService = scope.ServiceProvider.GetService<IYouTubeApiService>();
         string? mainGenresContext = null, subGenresContext = null, otherDetailsContext = null;
 
+        // Fast path: the external producer already inferred genre/era/language tags and carried them on the
+        // SongImport. Use them directly and skip our own AI calls + the YouTube re-fetch below. Only manual
+        // uploads (no producer tags) fall through to self-generation.
+        if (!string.IsNullOrWhiteSpace(songImport.GeneratedTagsJson))
+        {
+            var producerTags = JsonConvert.DeserializeObject<GeneratedSongTags>(songImport.GeneratedTagsJson);
+            if (producerTags != null)
+            {
+                var knownTags = await dbContext.Tags.AsNoTracking().ToListAsync(cancellationToken);
+                var produced = producerTags.ToTagList();
+                var existing = knownTags.Where(x => produced.Any(y => y.Name == x.Name)).ToList();
+                var fresh = produced.Where(x => knownTags.All(y => y.Name != x.Name)).ToList();
+                return Result.Ok(Tuple.Create(existing, fresh));
+            }
+        }
+
         // Fetch YouTube video features if external song ID exists
-        // TODO: Consider removing this YouTube re-fetch eventually. YoutubeFunnel already fetches
-        // these VideoFeatures upstream (stored on Video.Features) when ingesting. We currently
-        // re-fetch here only to build AI genre/era/language context, which duplicates the call and
-        // requires Shuffull to hold its own YouTube API key. If VideoFeatures were carried through
-        // the export contract (SongExportDetails -> SongImportDetails), this whole block and the
-        // IYouTubeApiService dependency could be dropped from Shuffull.
+        // TODO: Consider removing this YouTube re-fetch eventually. The external producer already fetches
+        // these video features upstream when ingesting. We currently re-fetch here only to build AI
+        // genre/era/language context, which duplicates the call and requires Shuffull to hold its own
+        // YouTube API key. If those video features were carried through the import contract
+        // (SongImportDetails), this whole block and the IYouTubeApiService dependency could be dropped.
         if (!string.IsNullOrEmpty(songImport.ExternalSongId) && youtubeService != null)
         {
             var videoFeaturesResult = await youtubeService.GetVideoFeaturesAsync([songImport.ExternalSongId], cancellationToken);

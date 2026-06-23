@@ -27,10 +27,17 @@ public class SongImport
     public string? SongId { get; set; }
     /// <summary>
     /// Serialized <see cref="Shuffull.Metadata.Models.GeneratedSongTags"/> supplied by the external
-    /// producer (the funnel) at ingest. Null when no tags were provided, in which case Shuffull
+    /// producer at ingest. Null when no tags were provided, in which case Shuffull
     /// generates them itself during import.
     /// </summary>
     public string? GeneratedTagsJson { get; set; }
+    /// <summary>
+    /// Serialized <see cref="Shuffull.Metadata.Models.SongLyrics"/> supplied by the external producer.
+    /// Null when no lyrics were found / provided.
+    /// </summary>
+    public string? LyricsJson { get; set; }
+    /// <summary>Best-effort tempo (BPM) from the producer; null when unknown / not provided.</summary>
+    public int? Bpm { get; set; }
     [Required]
     public DateTime LastUpdatedAt { get; set; }
 

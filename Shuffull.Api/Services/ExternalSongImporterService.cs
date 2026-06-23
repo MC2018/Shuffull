@@ -1,5 +1,6 @@
 ﻿using FluentAssertions.Common;
 using Microsoft.EntityFrameworkCore;
+using Newtonsoft.Json;
 using Nut.Results;
 using Shuffull.Shared.Tools;
 using Shuffull.Api.Configuration;
@@ -107,6 +108,16 @@ namespace Shuffull.Api.Services
                     ExternalSongId = songImportDetails.ExternalSongId,
                     ExternalPlaylistId = songImportDetails.ExternalPlaylistId,
                     ExternalSource = songImportDetails.ExternalSource,
+                    // Carry the external producer's inferred genre tags through so SongImportService can use
+                    // them instead of re-running its own AI + YouTube re-fetch. Null for manual uploads.
+                    GeneratedTagsJson = songImportDetails.GeneratedTags is null
+                        ? null
+                        : JsonConvert.SerializeObject(songImportDetails.GeneratedTags),
+                    // Producer-supplied lyrics + tempo, carried for SongImportService to persist on the Song.
+                    LyricsJson = songImportDetails.Lyrics is null
+                        ? null
+                        : JsonConvert.SerializeObject(songImportDetails.Lyrics),
+                    Bpm = songImportDetails.Bpm,
                     LastUpdatedAt = DateTime.UtcNow,
                 };
                 var newSongFilePath = songImport.GetFilePath(_fileConfig.SongImportDirectory);
