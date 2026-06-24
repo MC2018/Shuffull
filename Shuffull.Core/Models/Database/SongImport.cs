@@ -38,6 +38,8 @@ public class SongImport
     public string? LyricsJson { get; set; }
     /// <summary>Best-effort tempo (BPM) from the producer; null when unknown / not provided.</summary>
     public int? Bpm { get; set; }
+    /// <summary>Whether the user liked the song on the external source; mapped to a Like on import.</summary>
+    public bool MarkAsLiked { get; set; }
     [Required]
     public DateTime LastUpdatedAt { get; set; }
 

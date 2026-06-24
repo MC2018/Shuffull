@@ -157,7 +157,9 @@ public partial class SongImportService : BackgroundService
                 LyricsSource = lyrics?.Source,
                 Bpm = songImport.Bpm
             };
-            var importToDbResult = await ImportToDbAsync(song, existingArtists, newArtists, existingTags, newTags,songImport.UserId, songImport.PlaylistId, cancellationToken);
+            // Map the producer's "liked on the source" flag to the initial like sentiment.
+            var likeStatus = songImport.MarkAsLiked ? LikeStatus.Like : LikeStatus.Neutral;
+            var importToDbResult = await ImportToDbAsync(song, existingArtists, newArtists, existingTags, newTags,songImport.UserId, songImport.PlaylistId, likeStatus, cancellationToken);
             if (importToDbResult.IsError)
             {
                 return importToDbResult;
@@ -415,7 +417,7 @@ public partial class SongImportService : BackgroundService
         return Result.Ok(Tuple.Create(existingTags, newTags));
     }
 
-    private async Task<Result> ImportToDbAsync(Song song, List<Artist> existingArtists, List<Artist> newArtists, List<Tag> existingTags, List<Tag> newTags, string userId, string? playlistId, CancellationToken cancellationToken = default!)
+    private async Task<Result> ImportToDbAsync(Song song, List<Artist> existingArtists, List<Artist> newArtists, List<Tag> existingTags, List<Tag> newTags, string userId, string? playlistId, LikeStatus likeStatus, CancellationToken cancellationToken = default!)
     {
         using var scope = _services.CreateScope();
         using var dbContext = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
@@ -472,7 +474,8 @@ public partial class SongImportService : BackgroundService
             UserId = userId,
             SongId = song.SongId,
             LastPlayed = DateTime.MinValue,
-            Version = DateTime.UtcNow
+            Version = DateTime.UtcNow,
+            LikeStatus = likeStatus
         };
         dbContext.UserSongs.Add(userSong);
 
