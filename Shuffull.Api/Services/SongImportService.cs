@@ -153,7 +153,6 @@ public partial class SongImportService : BackgroundService
                 SyncedLyrics = lyrics?.Synced,
                 PlainLyrics = lyrics?.Plain,
                 LyricsInstrumental = lyrics?.Instrumental ?? false,
-                LyricsOffsetMs = lyrics?.AppliedOffsetMs ?? 0,
                 LyricsSource = lyrics?.Source,
                 Bpm = songImport.Bpm
             };
