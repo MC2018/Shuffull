@@ -159,7 +159,7 @@ public partial class SongImportService : BackgroundService
             };
             // Map the producer's "liked on the source" flag to the initial like sentiment.
             var likeStatus = songImport.MarkAsLiked ? LikeStatus.Like : LikeStatus.Neutral;
-            var importToDbResult = await ImportToDbAsync(song, existingArtists, newArtists, existingTags, newTags,songImport.UserId, songImport.PlaylistId, likeStatus, cancellationToken);
+            var importToDbResult = await ImportToDbAsync(song, existingArtists, newArtists, existingTags, newTags,songImport.UserId, songImport.PlaylistId, songImport.TargetPlaylistName, likeStatus, cancellationToken);
             if (importToDbResult.IsError)
             {
                 return importToDbResult;
@@ -417,7 +417,7 @@ public partial class SongImportService : BackgroundService
         return Result.Ok(Tuple.Create(existingTags, newTags));
     }
 
-    private async Task<Result> ImportToDbAsync(Song song, List<Artist> existingArtists, List<Artist> newArtists, List<Tag> existingTags, List<Tag> newTags, string userId, string? playlistId, LikeStatus likeStatus, CancellationToken cancellationToken = default!)
+    private async Task<Result> ImportToDbAsync(Song song, List<Artist> existingArtists, List<Artist> newArtists, List<Tag> existingTags, List<Tag> newTags, string userId, string? playlistId, string? playlistName, LikeStatus likeStatus, CancellationToken cancellationToken = default!)
     {
         using var scope = _services.CreateScope();
         using var dbContext = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
@@ -454,19 +454,43 @@ public partial class SongImportService : BackgroundService
             dbContext.SongTags.Add(songTag);
         }
 
+        // Resolve the target playlist: prefer an existing one by id; otherwise, if a name was provided,
+        // reuse a same-named playlist for this user (idempotent across imports) or create one attached to them.
+        Playlist? playlist = null;
         if (!string.IsNullOrEmpty(playlistId))
         {
-            var playlist = await dbContext.Playlists.FindAsync([playlistId], cancellationToken: cancellationToken);
-            if (playlist != null)
+            playlist = await dbContext.Playlists.FindAsync([playlistId], cancellationToken: cancellationToken);
+        }
+
+        if (playlist == null && !string.IsNullOrWhiteSpace(playlistName))
+        {
+            playlist = await dbContext.Playlists
+                .FirstOrDefaultAsync(p => p.UserId == userId && p.Name == playlistName, cancellationToken);
+
+            if (playlist == null)
             {
-                var playlistSong = new PlaylistSong
+                playlist = new Playlist
                 {
-                    PlaylistSongId = IdGenerator.Generate(),
-                    PlaylistId = playlist.PlaylistId,
-                    SongId = song.SongId
+                    PlaylistId = string.IsNullOrWhiteSpace(playlistId) ? IdGenerator.Generate() : playlistId,
+                    UserId = userId,
+                    Name = playlistName,
+                    CurrentSongId = null,
+                    PercentUntilReplayable = 0.9m,
+                    Version = DateTime.UtcNow
                 };
-                dbContext.PlaylistSongs.Add(playlistSong);
+                dbContext.Playlists.Add(playlist);
             }
+        }
+
+        if (playlist != null)
+        {
+            var playlistSong = new PlaylistSong
+            {
+                PlaylistSongId = IdGenerator.Generate(),
+                PlaylistId = playlist.PlaylistId,
+                SongId = song.SongId
+            };
+            dbContext.PlaylistSongs.Add(playlistSong);
         }
 
         var userSong = new UserSong()

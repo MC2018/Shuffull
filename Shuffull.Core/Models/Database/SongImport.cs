@@ -40,6 +40,8 @@ public class SongImport
     public int? Bpm { get; set; }
     /// <summary>Whether the user liked the song on the external source; mapped to a Like on import.</summary>
     public bool MarkAsLiked { get; set; }
+    /// <summary>Name of the target playlist; used to auto-create it (attached to the user) if it doesn't exist.</summary>
+    public string? TargetPlaylistName { get; set; }
     [Required]
     public DateTime LastUpdatedAt { get; set; }
 

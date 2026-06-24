@@ -119,6 +119,7 @@ namespace Shuffull.Api.Services
                         : JsonConvert.SerializeObject(songImportDetails.Lyrics),
                     Bpm = songImportDetails.Bpm,
                     MarkAsLiked = songImportDetails.MarkAsLiked,
+                    TargetPlaylistName = songImportDetails.TargetPlaylistName,
                     LastUpdatedAt = DateTime.UtcNow,
                 };
                 var newSongFilePath = songImport.GetFilePath(_fileConfig.SongImportDirectory);
