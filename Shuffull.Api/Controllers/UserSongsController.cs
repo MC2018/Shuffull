@@ -2,8 +2,10 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Shuffull.Core.Features.UserSongs.CreateUserSongs;
 using Shuffull.Core.Features.UserSongs.GetUserSongs;
+using Shuffull.Core.Features.UserSongs.SetSongLikeStatus;
 using Shuffull.Core.Features.UserSongs.UpdateSongsLastPlayed;
 using Shuffull.Core.Models.Database;
+using Shuffull.Core.Models.Enums;
 using Shuffull.Api.Extensions;
 using Shuffull.Api.Tools.Authorization;
 
@@ -59,5 +61,17 @@ public class UserSongsController : ControllerBase
         }
 
         return this.ToActionResult(await _mediator.Send(new UpdateSongsLastPlayedCommand(user.UserId, updates), cancellationToken));
+    }
+
+    [HttpPost("{songId}/like")]
+    [Authorize]
+    public async Task<IActionResult> SetLikeStatus(string songId, [FromBody] LikeStatus likeStatus, CancellationToken cancellationToken)
+    {
+        if (HttpContext.Items["User"] is not User user)
+        {
+            return Unauthorized();
+        }
+
+        return this.ToActionResult(await _mediator.Send(new SetSongLikeStatusCommand(user.UserId, songId, likeStatus), cancellationToken));
     }
 }

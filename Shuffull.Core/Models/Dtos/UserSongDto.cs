@@ -1,5 +1,6 @@
 using Nut.Results;
 using Shuffull.Core.Models.Database;
+using Shuffull.Core.Models.Enums;
 
 namespace Shuffull.Core.Models.Dtos;
 
@@ -8,7 +9,7 @@ namespace Shuffull.Core.Models.Dtos;
 /// static <see cref="Create"/> factory so mapping lives in one place and surfaces failures as a
 /// <see cref="Result"/> rather than throwing.
 /// </summary>
-public record UserSongDto(string UserId, string SongId, DateTime LastPlayed, DateTime Version)
+public record UserSongDto(string UserId, string SongId, DateTime LastPlayed, DateTime Version, LikeStatus LikeStatus)
 {
     public static Result<UserSongDto> Create(UserSong userSong)
     {
@@ -21,6 +22,7 @@ public record UserSongDto(string UserId, string SongId, DateTime LastPlayed, Dat
             UserId: userSong.UserId,
             SongId: userSong.SongId,
             LastPlayed: userSong.LastPlayed,
-            Version: userSong.Version));
+            Version: userSong.Version,
+            LikeStatus: userSong.LikeStatus));
     }
 }
