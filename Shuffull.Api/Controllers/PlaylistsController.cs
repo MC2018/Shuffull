@@ -5,6 +5,7 @@ using Shuffull.Core.Features.Playlists.CreatePlaylist;
 using Shuffull.Core.Features.Playlists.GetPlaylistDetails;
 using Shuffull.Core.Features.Playlists.GetPlaylists;
 using Shuffull.Core.Features.Playlists.GetUserPlaylists;
+using Shuffull.Core.Features.Playlists.RemoveSongFromPlaylist;
 using Shuffull.Core.Models.Database;
 using Shuffull.Api.Extensions;
 using Shuffull.Api.Tools.Authorization;
@@ -60,6 +61,18 @@ public class PlaylistsController : ControllerBase
         }
 
         return this.ToActionResult(await _mediator.Send(new AddSongToPlaylistCommand(user.UserId, playlistId, songId), cancellationToken));
+    }
+
+    [HttpDelete("{playlistId}/songs/{songId}")]
+    [Authorize]
+    public async Task<IActionResult> RemoveSong(string playlistId, string songId, CancellationToken cancellationToken)
+    {
+        if (HttpContext.Items["User"] is not User user)
+        {
+            return Unauthorized();
+        }
+
+        return this.ToActionResult(await _mediator.Send(new RemoveSongFromPlaylistCommand(user.UserId, playlistId, songId), cancellationToken));
     }
 
     [HttpPost("list")]
