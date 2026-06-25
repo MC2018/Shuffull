@@ -59,9 +59,6 @@ builder.Services.AddHostedService<DetailedSongImporterService>();
 builder.Services.TryAddAIService(builder.Configuration);
 builder.Services.AddHostedService<SongImportService>();
 builder.Services.AddHostedService<ExternalSongImporterService>();
-// TODO: Register IYouTubeApiService -> YouTubeApiService once a "YouTubeApi" config section (ApiKey)
-// is added. SongImportService resolves it via the nullable GetService<IYouTubeApiService>(), so it's
-// safe to leave unregistered for now (AI genre-context enrichment is simply skipped).
 
 // --- Logging ------------------------------------------------------------------------------------
 builder.Logging.ClearProviders();

@@ -13,7 +13,6 @@ using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Persistence;
 using Shuffull.Api.Models.Files;
 using Shuffull.Api.Services.FileStorage;
-using Shuffull.Api.Services.YouTube;
 using Shuffull.Api.Tools;
 using Shuffull.Api.Tools.SongParsing;
 using SixLabors.ImageSharp;
@@ -303,12 +302,13 @@ public partial class SongImportService : BackgroundService
         using var scope = _services.CreateScope();
         using var dbContext = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
         var aiService = scope.ServiceProvider.GetService<IAIService>();
-        var youtubeService = scope.ServiceProvider.GetService<IYouTubeApiService>();
+        // Genre-context strings for the AI requests below; left null now that Shuffull no longer re-fetches
+        // YouTube video features (the producer supplies tags on the fast path; manual uploads self-generate).
         string? mainGenresContext = null, subGenresContext = null, otherDetailsContext = null;
 
         // Fast path: the external producer already inferred genre/era/language tags and carried them on the
-        // SongImport. Use them directly and skip our own AI calls + the YouTube re-fetch below. Only manual
-        // uploads (no producer tags) fall through to self-generation.
+        // SongImport. Use them directly and skip our own AI generation below. Only manual uploads (no producer
+        // tags) fall through to self-generation.
         if (!string.IsNullOrWhiteSpace(songImport.GeneratedTagsJson))
         {
             var producerTags = JsonConvert.DeserializeObject<GeneratedSongTags>(songImport.GeneratedTagsJson);
@@ -319,32 +319,6 @@ public partial class SongImportService : BackgroundService
                 var existing = knownTags.Where(x => produced.Any(y => y.Name == x.Name)).ToList();
                 var fresh = produced.Where(x => knownTags.All(y => y.Name != x.Name)).ToList();
                 return Result.Ok(Tuple.Create(existing, fresh));
-            }
-        }
-
-        // Fetch YouTube video features if external song ID exists
-        // TODO: Consider removing this YouTube re-fetch eventually. The external producer already fetches
-        // these video features upstream when ingesting. We currently re-fetch here only to build AI
-        // genre/era/language context, which duplicates the call and requires Shuffull to hold its own
-        // YouTube API key. If those video features were carried through the import contract
-        // (SongImportDetails), this whole block and the IYouTubeApiService dependency could be dropped.
-        if (!string.IsNullOrEmpty(songImport.ExternalSongId) && youtubeService != null)
-        {
-            var videoFeaturesResult = await youtubeService.GetVideoFeaturesAsync([songImport.ExternalSongId], cancellationToken);
-            if (!videoFeaturesResult.IsError)
-            {
-                var videoFeaturesList = videoFeaturesResult.Get();
-                if (videoFeaturesList.Count > 0)
-                {
-                    var videoFeatures = videoFeaturesList.First();
-                    mainGenresContext = $"YouTube Topic Categories: {string.Join(", ", videoFeatures.TopicCategories)}";
-
-                    subGenresContext = $"YouTube Topic Categories: {string.Join(", ", videoFeatures.TopicCategories)}\n" +
-                        $"Duration: {videoFeatures.DurationSeconds} seconds";
-
-                    otherDetailsContext = $"Upload Date: {videoFeatures.PublishedAt?.ToString("yyyy-MM-dd")}\n" +
-                        $"Hashtags: {string.Join(", ", videoFeatures.Hashtags)}";
-                }
             }
         }
 
