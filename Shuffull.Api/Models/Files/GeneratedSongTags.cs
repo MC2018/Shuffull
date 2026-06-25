@@ -20,6 +20,11 @@ public static class GeneratedSongTagsExtensions
         result.AddRange(tags.Languages.Select(x => new Language() { TagId = IdGenerator.Generate(), Name = x }));
         result.Add(new TimePeriod() { TagId = IdGenerator.Generate(), Name = tags.TimePeriod });
 
+        if (tags.Moods != null)
+        {
+            result.AddRange(tags.Moods.Select(x => new Mood() { TagId = IdGenerator.Generate(), Name = x }));
+        }
+
         return result;
     }
 }

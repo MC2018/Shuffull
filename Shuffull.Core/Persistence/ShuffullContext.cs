@@ -51,6 +51,7 @@ public class ShuffullContext : DbContext
             .HasDiscriminator<TagType>("Type")
             .HasValue<Genre>(TagType.Genre)
             .HasValue<Language>(TagType.Language)
-            .HasValue<TimePeriod>(TagType.TimePeriod);
+            .HasValue<TimePeriod>(TagType.TimePeriod)
+            .HasValue<Mood>(TagType.Mood);
     }
 }

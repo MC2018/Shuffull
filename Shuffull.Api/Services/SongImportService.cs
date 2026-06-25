@@ -141,6 +141,12 @@ public partial class SongImportService : BackgroundService
                 ? null
                 : JsonConvert.DeserializeObject<SongLyrics>(songImport.LyricsJson);
 
+            // The producer's generated tags also carry an AI energy score (1-10); persist it on the Song.
+            // Null for manual uploads (no producer tags), mirroring how Bpm is producer-only.
+            var generatedTags = string.IsNullOrWhiteSpace(songImport.GeneratedTagsJson)
+                ? null
+                : JsonConvert.DeserializeObject<GeneratedSongTags>(songImport.GeneratedTagsJson);
+
             // Save everything to the db
             var song = new Song
             {
@@ -153,7 +159,8 @@ public partial class SongImportService : BackgroundService
                 PlainLyrics = lyrics?.Plain,
                 LyricsInstrumental = lyrics?.Instrumental ?? false,
                 LyricsSource = lyrics?.Source,
-                Bpm = songImport.Bpm
+                Bpm = songImport.Bpm,
+                Energy = generatedTags?.Energy
             };
             // Map the producer's "liked on the source" flag to the initial like sentiment.
             var likeStatus = songImport.MarkAsLiked ? LikeStatus.Like : LikeStatus.Neutral;

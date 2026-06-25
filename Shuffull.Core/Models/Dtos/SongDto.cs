@@ -22,7 +22,8 @@ public record SongDto(
     string? PlainLyrics = null,
     bool LyricsInstrumental = false,
     string? LyricsSource = null,
-    int? Bpm = null)
+    int? Bpm = null,
+    int? Energy = null)
 {
     public static Result<SongDto> Create(Song song)
     {
@@ -55,6 +56,7 @@ public record SongDto(
             PlainLyrics: song.PlainLyrics,
             LyricsInstrumental: song.LyricsInstrumental,
             LyricsSource: song.LyricsSource,
-            Bpm: song.Bpm));
+            Bpm: song.Bpm,
+            Energy: song.Energy));
     }
 }

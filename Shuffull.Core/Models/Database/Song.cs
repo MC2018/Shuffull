@@ -30,6 +30,8 @@ namespace Shuffull.Core.Models.Database
         public bool LyricsInstrumental { get; set; }
         public string? LyricsSource { get; set; }
         public int? Bpm { get; set; }
+        // Best-effort 1-10 perceived intensity/drive score from the producer's AI (weighs BPM but not purely it).
+        public int? Energy { get; set; }
 
         public ICollection<PlaylistSong> PlaylistSongs { get; set; }
         public ICollection<UserSong> UserSongs { get; set; }
