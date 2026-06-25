@@ -25,6 +25,11 @@ public static class GeneratedSongTagsExtensions
             result.AddRange(tags.Moods.Select(x => new Mood() { TagId = IdGenerator.Generate(), Name = x }));
         }
 
+        if (tags.Themes != null)
+        {
+            result.AddRange(tags.Themes.Select(x => new Theme() { TagId = IdGenerator.Generate(), Name = x }));
+        }
+
         return result;
     }
 }

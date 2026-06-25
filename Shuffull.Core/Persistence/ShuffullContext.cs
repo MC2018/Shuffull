@@ -52,6 +52,7 @@ public class ShuffullContext : DbContext
             .HasValue<Genre>(TagType.Genre)
             .HasValue<Language>(TagType.Language)
             .HasValue<TimePeriod>(TagType.TimePeriod)
-            .HasValue<Mood>(TagType.Mood);
+            .HasValue<Mood>(TagType.Mood)
+            .HasValue<Theme>(TagType.Theme);
     }
 }
