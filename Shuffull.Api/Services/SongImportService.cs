@@ -89,16 +89,19 @@ public partial class SongImportService : BackgroundService
             var fileBytes = fileBytesResult.Get();
             var fileHash = Hasher.ShaHash(fileBytes).Substring(0, 32);
 
-            // Check for uniqueness
-            var checkUniquenessResult = await CheckUniqueness(songImport, fileHash, cancellationToken);
-            if (checkUniquenessResult.IsError)
+            // Check for uniqueness — only for brand-new imports. A replacement intentionally reuses an existing
+            // song's id and brings new audio/tags, so the dedup-by-hash/external-id guard would reject it.
+            if (string.IsNullOrEmpty(songImport.ReplacesSongId))
             {
-                return checkUniquenessResult.PreserveErrorAs();
-            }
-            var isUnique = checkUniquenessResult.Get();
-            if (!isUnique)
-            {
-                return Result.Ok();
+                var checkUniquenessResult = await CheckUniqueness(songImport, fileHash, cancellationToken);
+                if (checkUniquenessResult.IsError)
+                {
+                    return checkUniquenessResult.PreserveErrorAs();
+                }
+                if (!checkUniquenessResult.Get())
+                {
+                    return Result.Ok();
+                }
             }
 
             // Parse artists from the music file
@@ -147,28 +150,48 @@ public partial class SongImportService : BackgroundService
                 ? null
                 : JsonConvert.DeserializeObject<GeneratedSongTags>(songImport.GeneratedTagsJson);
 
-            // Save everything to the db
-            var song = new Song
+            var fileExtension = Path.GetExtension(songImport.FileName).ToLowerInvariant();
+
+            if (!string.IsNullOrEmpty(songImport.ReplacesSongId))
             {
-                SongId = IdGenerator.Generate(),
-                Name = songImport.Name,
-                FileExtension = Path.GetExtension(songImport.FileName).ToLowerInvariant(),
-                FileHash = fileHash,
-                ExternalSongId = songImport.ExternalSongId,
-                SyncedLyrics = lyrics?.Synced,
-                PlainLyrics = lyrics?.Plain,
-                LyricsInstrumental = lyrics?.Instrumental ?? false,
-                LyricsSource = lyrics?.Source,
-                Bpm = songImport.Bpm,
-                Energy = generatedTags?.Energy,
-                Version = DateTime.UtcNow
-            };
-            // Map the producer's "liked on the source" flag to the initial like sentiment.
-            var likeStatus = songImport.MarkAsLiked ? LikeStatus.Like : LikeStatus.Neutral;
-            var importToDbResult = await ImportToDbAsync(song, existingArtists, newArtists, existingTags, newTags,songImport.UserId, songImport.PlaylistId, songImport.TargetPlaylistName, likeStatus, cancellationToken);
-            if (importToDbResult.IsError)
+                // Replace an existing song in place: overwrite its content + tags but keep its id and every user
+                // association (likes, playlists, recently-played). Old fileHash-keyed files are cleaned up after.
+                var replaceResult = await ReplaceInDbAsync(songImport, fileHash, fileExtension, lyrics, generatedTags, existingArtists, newArtists, existingTags, newTags, cancellationToken);
+                if (replaceResult.IsError)
+                {
+                    return replaceResult.PreserveErrorAs();
+                }
+                var (oldFileHash, oldFileExtension) = replaceResult.Get();
+                if (!string.Equals(oldFileHash, fileHash, StringComparison.Ordinal))
+                {
+                    await DeleteReplacedSongFilesAsync(oldFileHash, oldFileExtension, cancellationToken);
+                }
+            }
+            else
             {
-                return importToDbResult;
+                // Save everything to the db
+                var song = new Song
+                {
+                    SongId = IdGenerator.Generate(),
+                    Name = songImport.Name,
+                    FileExtension = fileExtension,
+                    FileHash = fileHash,
+                    ExternalSongId = songImport.ExternalSongId,
+                    SyncedLyrics = lyrics?.Synced,
+                    PlainLyrics = lyrics?.Plain,
+                    LyricsInstrumental = lyrics?.Instrumental ?? false,
+                    LyricsSource = lyrics?.Source,
+                    Bpm = songImport.Bpm,
+                    Energy = generatedTags?.Energy,
+                    Version = DateTime.UtcNow
+                };
+                // Map the producer's "liked on the source" flag to the initial like sentiment.
+                var likeStatus = songImport.MarkAsLiked ? LikeStatus.Like : LikeStatus.Neutral;
+                var importToDbResult = await ImportToDbAsync(song, existingArtists, newArtists, existingTags, newTags, songImport.UserId, songImport.PlaylistId, songImport.TargetPlaylistName, likeStatus, cancellationToken);
+                if (importToDbResult.IsError)
+                {
+                    return importToDbResult;
+                }
             }
 
             songImportState = SongImportState.Completed;
@@ -487,5 +510,107 @@ public partial class SongImportService : BackgroundService
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Result.Ok();
+    }
+
+    /// <summary>
+    /// Overwrites an existing song (<see cref="SongImport.ReplacesSongId"/>) in place with the freshly-imported
+    /// content — its audio hash, name, lyrics, tempo, energy, external id and tag/artist joins are replaced — but
+    /// its SongId, and therefore every UserSong / PlaylistSong association, is preserved. Marks any open
+    /// SongReplacement request for the song Completed. Returns the OLD (file hash, extension) so the caller can
+    /// delete the now-orphaned files.
+    /// </summary>
+    private async Task<Result<(string OldFileHash, string OldFileExtension)>> ReplaceInDbAsync(
+        SongImport songImport, string fileHash, string fileExtension, SongLyrics? lyrics, GeneratedSongTags? generatedTags,
+        List<Artist> existingArtists, List<Artist> newArtists, List<Tag> existingTags, List<Tag> newTags,
+        CancellationToken cancellationToken = default!)
+    {
+        using var scope = _services.CreateScope();
+        using var dbContext = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
+        using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        var song = await dbContext.Songs
+            .Include(s => s.SongTags)
+            .Include(s => s.SongArtists)
+            .FirstOrDefaultAsync(s => s.SongId == songImport.ReplacesSongId, cancellationToken);
+        if (song == null)
+        {
+            return Result.Error<(string, string)>($"Cannot replace: song '{songImport.ReplacesSongId}' was not found.");
+        }
+
+        var oldFileHash = song.FileHash;
+        var oldFileExtension = song.FileExtension;
+
+        // Overwrite the song's content in place (its SongId and user associations are untouched).
+        song.Name = songImport.Name;
+        song.FileExtension = fileExtension;
+        song.FileHash = fileHash;
+        song.ExternalSongId = songImport.ExternalSongId;
+        song.SyncedLyrics = lyrics?.Synced;
+        song.PlainLyrics = lyrics?.Plain;
+        song.LyricsInstrumental = lyrics?.Instrumental ?? false;
+        song.LyricsSource = lyrics?.Source;
+        song.Bpm = songImport.Bpm;
+        song.Energy = generatedTags?.Energy;
+        song.Version = DateTime.UtcNow;
+
+        // Swap the tag/artist joins; add any new master Artist/Tag rows. Remove first (+ save) so the new master
+        // rows exist before their joins reference them and the deleted joins can't collide.
+        dbContext.SongTags.RemoveRange(song.SongTags);
+        dbContext.SongArtists.RemoveRange(song.SongArtists);
+        dbContext.Artists.AddRange(newArtists);
+        dbContext.Tags.AddRange(newTags);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        foreach (var artist in existingArtists.Concat(newArtists))
+        {
+            dbContext.SongArtists.Add(new SongArtist
+            {
+                SongArtistId = IdGenerator.Generate(),
+                SongId = song.SongId,
+                ArtistId = artist.ArtistId
+            });
+        }
+        foreach (var tag in existingTags.Concat(newTags))
+        {
+            dbContext.SongTags.Add(new SongTag
+            {
+                SongTagId = IdGenerator.Generate(),
+                SongId = song.SongId,
+                TagId = tag.TagId
+            });
+        }
+
+        // Resolve any open replacement request(s) for this song.
+        var openRequests = await dbContext.SongReplacements
+            .Where(r => r.SongId == song.SongId && r.Status != SongReplacementStatus.Completed)
+            .ToListAsync(cancellationToken);
+        foreach (var request in openRequests)
+        {
+            request.Status = SongReplacementStatus.Completed;
+            request.ResolvedAt = DateTime.UtcNow;
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return Result.Ok((oldFileHash, oldFileExtension));
+    }
+
+    // Best-effort cleanup of a replaced song's old fileHash-keyed files (audio + album art) once the new version
+    // (new hash) is in place. DeleteFileAsync no-ops on a missing file; failures are logged, not fatal.
+    private async Task DeleteReplacedSongFilesAsync(string oldFileHash, string oldFileExtension, CancellationToken cancellationToken)
+    {
+        var paths = new[]
+        {
+            Path.Combine(_fileConfig.MusicRootDirectory, $"{oldFileHash}{oldFileExtension}"),
+            Path.Combine(_fileConfig.AlbumArtDirectory, $"{oldFileHash}.jpg"),
+        };
+        foreach (var path in paths)
+        {
+            var deleteResult = await _fileStorageService.DeleteFileAsync(path, cancellationToken);
+            if (deleteResult.IsError)
+            {
+                Console.WriteLine($"Warning: failed to delete replaced song file '{path}': {deleteResult.GetError()}");
+            }
+        }
     }
 }

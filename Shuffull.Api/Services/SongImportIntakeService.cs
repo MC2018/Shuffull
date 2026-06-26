@@ -73,6 +73,7 @@ public class SongImportIntakeService
                 Bpm = details.Bpm,
                 MarkAsLiked = details.MarkAsLiked,
                 TargetPlaylistName = details.TargetPlaylistName,
+                ReplacesSongId = details.ReplacesSongId,
                 LastUpdatedAt = DateTime.UtcNow,
             };
 

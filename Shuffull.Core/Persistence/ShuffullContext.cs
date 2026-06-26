@@ -18,6 +18,7 @@ public class ShuffullContext : DbContext
     public DbSet<SongArtist> SongArtists { get; set; }
     public DbSet<SongTag> SongTags { get; set; }
     public DbSet<SongImport> SongImports { get; set; }
+    public DbSet<SongReplacement> SongReplacements { get; set; }
     public DbSet<Tag> Tags { get; set; }
     public DbSet<GenreRelation> GenreRelations { get; set; }
     public DbSet<Genre> Genres { get; set; }

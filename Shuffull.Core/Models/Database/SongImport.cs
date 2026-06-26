@@ -26,6 +26,11 @@ public class SongImport
     public string? ExternalPlaylistId { get; set; }
     public string? SongId { get; set; }
     /// <summary>
+    /// When set, this import REPLACES the named Shuffull song in place (re-sourced audio for a flagged song)
+    /// instead of creating a new one. Carried from SongImportDetails.ReplacesSongId.
+    /// </summary>
+    public string? ReplacesSongId { get; set; }
+    /// <summary>
     /// Serialized <see cref="Shuffull.Metadata.Models.GeneratedSongTags"/> supplied by the external
     /// producer at ingest. Null when no tags were provided, in which case Shuffull
     /// generates them itself during import.
