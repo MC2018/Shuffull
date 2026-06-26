@@ -54,6 +54,8 @@ builder.Services.AddMediatR(cfg =>
 
 // --- Song import / metadata pipeline ------------------------------------------------------------
 builder.Services.AddSingleton<IFileStorageService, LocalFileStorageService>();
+// Shared intake path used by both the folder importer and the HTTP ingestion endpoint (scoped: uses ShuffullContext).
+builder.Services.AddScoped<SongImportIntakeService>();
 builder.Services.AddHostedService<TagImporterService>();
 builder.Services.AddHostedService<DetailedSongImporterService>();
 builder.Services.TryAddAIService(builder.Configuration);
