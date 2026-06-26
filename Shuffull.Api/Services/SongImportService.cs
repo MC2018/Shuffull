@@ -160,7 +160,8 @@ public partial class SongImportService : BackgroundService
                 LyricsInstrumental = lyrics?.Instrumental ?? false,
                 LyricsSource = lyrics?.Source,
                 Bpm = songImport.Bpm,
-                Energy = generatedTags?.Energy
+                Energy = generatedTags?.Energy,
+                Version = DateTime.UtcNow
             };
             // Map the producer's "liked on the source" flag to the initial like sentiment.
             var likeStatus = songImport.MarkAsLiked ? LikeStatus.Like : LikeStatus.Neutral;

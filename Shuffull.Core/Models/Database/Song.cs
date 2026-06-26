@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 namespace Shuffull.Core.Models.Database
 {
     [Index(nameof(Name))]
+    [Index(nameof(Version))]
     public class Song
     {
         [Key]
@@ -32,6 +33,12 @@ namespace Shuffull.Core.Models.Database
         public int? Bpm { get; set; }
         // Best-effort 1-10 perceived intensity/drive score from the producer's AI (weighs BPM but not purely it).
         public int? Energy { get; set; }
+
+        // Last-modified timestamp for incremental song sync (mirrors UserSong.Version). Stamped on create and on
+        // every mutation (e.g. an in-place replacement), so the app can pull only songs changed since its cursor
+        // and refresh its local copy — otherwise an app that already holds a song never re-fetches it.
+        [Required]
+        public DateTime Version { get; set; }
 
         public ICollection<PlaylistSong> PlaylistSongs { get; set; }
         public ICollection<UserSong> UserSongs { get; set; }

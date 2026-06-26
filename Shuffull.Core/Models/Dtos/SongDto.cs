@@ -16,6 +16,8 @@ public record SongDto(
     string? ExternalSongId,
     IReadOnlyList<string> Artists,
     IReadOnlyList<string> Tags,
+    // Last-modified timestamp; the app uses it as its incremental song-sync cursor.
+    DateTime Version,
     // Enrichment from the external producer. SyncedLyrics is LRC text (already trim-shifted by the producer
     // for YT-Music lyrics); the app may apply a further manual nudge. Null/false when not provided.
     string? SyncedLyrics = null,
@@ -52,6 +54,7 @@ public record SongDto(
             ExternalSongId: song.ExternalSongId,
             Artists: artists,
             Tags: tags,
+            Version: song.Version,
             SyncedLyrics: song.SyncedLyrics,
             PlainLyrics: song.PlainLyrics,
             LyricsInstrumental: song.LyricsInstrumental,
