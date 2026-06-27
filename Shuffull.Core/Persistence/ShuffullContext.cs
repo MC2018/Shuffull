@@ -7,7 +7,7 @@ namespace Shuffull.Core.Persistence;
 /// <summary>
 /// The server-side EF Core context for Shuffull. It lives in Shuffull.Core (provider-agnostic) so it
 /// can be shared by any host. The concrete database provider is configured by the host at
-/// registration time (e.g. UseSqlServer), and the EF migrations live in the Shuffull.Api host.
+/// registration time (e.g. UseNpgsql), and the EF migrations live in the Shuffull.Api host.
 /// </summary>
 public class ShuffullContext : DbContext
 {
