@@ -30,9 +30,9 @@ builder.Services.AddScoped<IAuthTokenGenerator, JwtAuthTokenGenerator>();
 // assembly (Migrations/), so EF must be told where to find them.
 builder.Services.AddDbContext<ShuffullContext>(options =>
 {
-    options.UseSqlServer(
+    options.UseNpgsql(
         builder.Configuration.GetConnectionString("Shuffull"),
-        sql => sql.MigrationsAssembly("Shuffull.Api"));
+        npgsql => npgsql.MigrationsAssembly("Shuffull.Api"));
 });
 
 // Expose the concrete ShuffullContext as the base DbContext so Shuffull.Core's generic

@@ -1,31 +1,27 @@
 services:
   db:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    # Cap RAM so the DB can't balloon and thrash the host into a freeze. SQL Server grabs
-    # ~80% of visible memory by default; MSSQL_MEMORY_LIMIT_MB tells it to self-limit to 1GB
-    # (the buffer pool; SQL Server on Linux still carries a fixed ~700MB engine baseline OUTSIDE
-    # this cap, so resident sits a bit above it), and mem_limit is the hard container ceiling
-    # (kept above the SQL budget so SQL throttles itself rather than getting OOM-killed by the
-    # cgroup). The mssql image refuses to start with under ~2000MB, so don't lower mem_limit
-    # below 2g. 1024 is comfortable for this library-sized DB; drop toward 768 to squeeze further.
-    mem_limit: 2560m
-    environment:
-      ACCEPT_EULA: Y
-      MSSQL_SA_PASSWORD: ${DB_SA_PASSWORD:-Password!}
-      MSSQL_MEMORY_LIMIT_MB: 1024
-    ports:
-      - "1433:1433"
+    # PostgreSQL replaced SQL Server here: a Postgres instance idles at ~30-50MB resident vs SQL
+    # Server's ~700MB+ engine floor, so no memory cap/budget is needed (left to Postgres' modest
+    # defaults). The DB schema is recreated by EF migrations on the api's first start.
+    image: postgres:16-alpine
     container_name: shuffull-db
     restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_SA_PASSWORD:-Password!}
+      POSTGRES_DB: Shuffull
+    ports:
+      - "5432:5432"
     networks:
       - shuffull-net
     volumes:
       # Persist the DB on a host path (on the pool, alongside the media folders) so one dataset snapshot
-      # backs up database + files together. The mssql container runs as uid 10001 — the host folder must be
-      # chown'd 10001:0 or SQL Server can't write /var/opt/mssql. Defaults to ./data/db for local runs.
-      - ${SHUFFULL_DB_DIR:-./data/db}:/var/opt/mssql
+      # backs up database + files together. The postgres image's entrypoint auto-chowns this dir to its
+      # own user on first start (no manual chown needed, unlike mssql). It MUST be empty on first start —
+      # Postgres runs initdb into it; an old SQL Server data dir won't work, so point at a fresh folder.
+      - ${SHUFFULL_DB_DIR:-./data/db}:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "${DB_SA_PASSWORD:-Password!}", "-C", "-Q", "SELECT 1"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d Shuffull"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -55,8 +51,8 @@ services:
       - DOTNET_gcServer=0
       # ── Secrets / cross-service config, supplied at runtime (NEVER baked into the image; the
       # appsettings.Production.json that held these is .dockerignored). Set real values in .env. ──
-      # DB connection points at the db service; password from DB_SA_PASSWORD.
-      - ConnectionStrings__Shuffull=Data Source=shuffull-db,1433;Database=Shuffull;Integrated Security=false;User ID=sa;Password=${DB_SA_PASSWORD:-Password!};Encrypt=False;TrustServerCertificate=True
+      # DB connection points at the Postgres db service; password from DB_SA_PASSWORD, user from DB_USER.
+      - ConnectionStrings__Shuffull=Host=shuffull-db;Port=5432;Database=Shuffull;Username=${DB_USER:-postgres};Password=${DB_SA_PASSWORD:-Password!}
       # Token-signing key — the committed appsettings.json value is a public dummy; MUST override in prod.
       - Jwt__Secret=${JWT_SECRET}
       # Shared secret the producer sends as X-Import-Key (song POST + replacement-queue GET). Empty => rejected.
