@@ -43,24 +43,28 @@ public class SongImportIntakeService
 
             // Prefer the producer's vetted title (authoritative — it avoids inheriting a MusicBrainz tag-override
             // the producer may have written into the file's ID3). Fall back to the file's own ID3 title, then the
-            // external id. Best-effort: a tag-parse failure shouldn't fail the import.
+            // external id. Best-effort: a tag-parse failure shouldn't fail the import. The precedence itself lives
+            // in SongImportMetadataResolver (pure + unit-tested); only the tag read needs the file.
             string songName;
             if (!string.IsNullOrWhiteSpace(details.Name))
             {
-                songName = details.Name;
+                songName = SongImportMetadataResolver.ResolveSongName(details.Name, null, details.ExternalSongId);
             }
             else
             {
+                string? id3Title = null;
                 try
                 {
                     var abstraction = new ByteArrayAudioFileAbstraction($"{details.ExternalSongId}{details.FileExtension}", audioBytes);
                     var musicFile = TagLib.File.Create(abstraction);
-                    songName = string.IsNullOrWhiteSpace(musicFile.Tag.Title) ? details.ExternalSongId : musicFile.Tag.Title;
+                    id3Title = musicFile.Tag.Title;
                 }
                 catch
                 {
-                    songName = details.ExternalSongId;
+                    id3Title = null;
                 }
+
+                songName = SongImportMetadataResolver.ResolveSongName(details.Name, id3Title, details.ExternalSongId);
             }
 
             var songImport = new SongImport

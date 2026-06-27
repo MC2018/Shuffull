@@ -25,9 +25,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- All feature slices and the concrete ShuffullContext now live in Shuffull.Core, so the tests
-         depend on Core alone (no host project reference needed). -->
+    <!-- Feature slices and the concrete ShuffullContext live in Shuffull.Core. The Api host project is also
+         referenced so its pure Tools (Hasher lives in Shared; JWT/serializer/import-metadata helpers in Api)
+         can be unit-tested directly. The Api reference is test-only and does not start the web host. -->
     <ProjectReference Include="..\Shuffull.Core\Shuffull.Core.csproj" />
+    <ProjectReference Include="..\Shuffull.Api\Shuffull.Api.csproj" />
+    <ProjectReference Include="..\Shuffull.Shared\Shuffull.Shared.csproj" />
   </ItemGroup>
 
 </Project>
