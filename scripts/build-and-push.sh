@@ -22,11 +22,10 @@ ENVFILE="${1:-.env.production}"
 
 # The image only needs DOCKER_REGISTRY at build time (config is injected at runtime, never baked), but the
 # compose file references the other vars too, so feed the prod env to avoid "variable not set" warnings.
-IMAGE=$(docker compose --env-file "$ENVFILE" config --images api 2>/dev/null || true)
-echo "==> Building ${IMAGE:-the api image}"
+echo "==> Building the shuffull-api image"
 docker compose --env-file "$ENVFILE" build api
 
-echo "==> Pushing ${IMAGE:-the api image}"
+echo "==> Pushing to the registry"
 docker compose --env-file "$ENVFILE" push api
 
 echo "==> Done. Then on the dev box: ./scripts/gen-truenas-compose.sh"
