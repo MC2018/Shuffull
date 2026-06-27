@@ -6,3 +6,12 @@
 # Local generated/runtime data (music, imports, album art, etc.) is bind-mounted at runtime
 # via docker-compose; never bake it into the build context/image.
 data/
+
+# Environment-specific appsettings hold real secrets (OpenAI key, JWT secret, DB password) and must
+# NEVER be baked into a pushed image. All prod config is supplied at runtime via env vars (see
+# docker-compose.yml). The committed appsettings.json (placeholders only) stays in the image.
+**/appsettings.Development.json
+**/appsettings.Production.json
+**/appsettings.Staging.json
+.env
+.env.production

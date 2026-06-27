@@ -1,22 +1,34 @@
 services:
   db:
     image: mcr.microsoft.com/mssql/server:2022-latest
+    # Cap RAM so the dev DB can't balloon and thrash the host into a freeze. SQL Server grabs
+    # ~80% of visible memory by default; MSSQL_MEMORY_LIMIT_MB tells it to self-limit to 2GB,
+    # and mem_limit is the hard container ceiling (kept above the SQL budget so SQL throttles
+    # itself rather than getting OOM-killed by the cgroup). The mssql image refuses to start
+    # with under ~2000MB, so don't lower mem_limit below 2g.
+    mem_limit: 2560m
     environment:
       ACCEPT_EULA: Y
-      MSSQL_SA_PASSWORD: Password!
+      MSSQL_SA_PASSWORD: ${DB_SA_PASSWORD:-Password!}
+      MSSQL_MEMORY_LIMIT_MB: 2048
     ports:
       - "1433:1433"
     container_name: shuffull-db
     restart: unless-stopped
     networks:
       - shuffull-net
+    volumes:
+      # Persist the database across container recreation — without this, rebuilding wipes the library.
+      - shuffull-dbdata:/var/opt/mssql
     healthcheck:
-      test: ["CMD", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "Password!", "-C", "-Q", "SELECT 1"]
+      test: ["CMD", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "${DB_SA_PASSWORD:-Password!}", "-C", "-Q", "SELECT 1"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   api:
+    # Pushable image (build locally, push to your registry, pull on the server) — matches the funnel.
+    image: ${DOCKER_REGISTRY-}shuffull-api
     build:
       context: .
       dockerfile: Dockerfile
@@ -29,8 +41,19 @@ services:
         condition: service_healthy
     networks:
       - shuffull-net
+      # Shared external network so the funnel's web-api/downloader reach this service as
+      # http://shuffull-api:7117 (no public hop). Create it once: docker network create shuffull-funnel-net
+      - shuffull-funnel-net
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
+      # ── Secrets / cross-service config, supplied at runtime (NEVER baked into the image; the
+      # appsettings.Production.json that held these is .dockerignored). Set real values in .env. ──
+      # DB connection points at the db service; password from DB_SA_PASSWORD.
+      - ConnectionStrings__Shuffull=Data Source=shuffull-db,1433;Database=Shuffull;Integrated Security=false;User ID=sa;Password=${DB_SA_PASSWORD:-Password!};Encrypt=False;TrustServerCertificate=True
+      # Token-signing key — the committed appsettings.json value is a public dummy; MUST override in prod.
+      - Jwt__Secret=${JWT_SECRET}
+      # Shared secret the funnel sends as X-Import-Key (song POST + replacement-queue GET). Empty => rejected.
+      - Shuffull__Import__Key=${SHUFFULL_IMPORT_KEY}
       # Fixed in-container paths; the host side of each is set by the SHUFFULL_*_DIR vars below.
       - Shuffull__Files__MusicRootDirectory=/data/music
       - Shuffull__Files__SongImportDirectory=/data/imports
@@ -60,3 +83,10 @@ services:
 networks:
   shuffull-net:
     driver: bridge
+  # Cross-stack network shared with the funnel (must already exist):
+  #   docker network create shuffull-funnel-net
+  shuffull-funnel-net:
+    external: true
+
+volumes:
+  shuffull-dbdata:
