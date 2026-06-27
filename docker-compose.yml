@@ -10,6 +10,10 @@ services:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_SA_PASSWORD:-Password!}
       POSTGRES_DB: Shuffull
+      # Store data in a SUBDIR of the mount, not the mount root. initdb chmods PGDATA to 0700; on a bind
+      # mount (esp. a TrueNAS ZFS dataset) it often can't chmod the mount POINT itself ("could not change
+      # permissions of directory ... Operation not permitted"), but it CAN chmod a subdir it creates inside.
+      PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - "5432:5432"
     networks:
