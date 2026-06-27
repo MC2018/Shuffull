@@ -48,6 +48,9 @@ services:
       - shuffull-ingest-net
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
+      # Workstation GC (single heap) instead of the default server GC (one managed heap per CPU core) —
+      # lower idle RSS on a many-core host, at a throughput cost that's irrelevant for this API's load.
+      - DOTNET_gcServer=0
       # ── Secrets / cross-service config, supplied at runtime (NEVER baked into the image; the
       # appsettings.Production.json that held these is .dockerignored). Set real values in .env. ──
       # DB connection points at the db service; password from DB_SA_PASSWORD.
