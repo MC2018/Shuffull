@@ -374,6 +374,9 @@ FodyWeavers.xsd
 
 # Local docker-compose environment (folder paths); use .env.example as the template
 .env
+# Prod env (real secrets) + the generated TrueNAS compose it renders (also secrets) — never commit.
+.env.production
+docker-compose.truenas.local.yml
 
 # JetBrains Rider / IntelliJ
 .idea/
