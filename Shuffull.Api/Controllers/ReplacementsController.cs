@@ -9,7 +9,7 @@ using Shuffull.Core.Persistence;
 namespace Shuffull.Api.Controllers;
 
 /// <summary>
-/// Song-replacement queue. The app flags a poor-quality song here (authenticated); the funnel pulls the
+/// Song-replacement queue. The app flags a poor-quality song here (authenticated); the producer pulls the
 /// pending queue (shared-secret) to re-source a better version. Resolution happens automatically when a
 /// replacement import lands (see SongImportService.ReplaceInDbAsync), which marks the request Completed.
 /// </summary>
@@ -62,7 +62,7 @@ public class ReplacementsController : ControllerBase
         return Ok();
     }
 
-    /// <summary>Funnel: pull the replacement queue at a given status (shared-secret guarded).</summary>
+    /// <summary>Producer: pull the replacement queue at a given status (shared-secret guarded).</summary>
     [HttpGet]
     public async Task<IActionResult> GetQueue(
         [FromQuery] SongReplacementStatus status,

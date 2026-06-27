@@ -7,11 +7,11 @@ using Shuffull.Metadata.Contracts;
 namespace Shuffull.Api.Controllers;
 
 /// <summary>
-/// Producer ingestion endpoint — the HTTP equivalent of the external-import folder drop. The YoutubeFunnel
+/// Producer ingestion endpoint — the HTTP equivalent of the external-import folder drop. The producer
 /// POSTs a <see cref="SongImportDetails"/> JSON part plus the audio file; on a 2xx it deletes its local temp
 /// copy. Authenticated by a static shared secret (config <c>Shuffull:Import:Key</c>, overridable via the
 /// <c>Shuffull__Import__Key</c> environment variable) rather than a user token, since the caller is a service.
-/// The folder importer stays in place during the transition; both funnel into <see cref="SongImportIntakeService"/>.
+/// The folder importer stays in place during the transition; both feed into <see cref="SongImportIntakeService"/>.
 /// </summary>
 [ApiController]
 [Route("api/v1/song-imports")]

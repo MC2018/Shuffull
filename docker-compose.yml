@@ -27,7 +27,7 @@ services:
       retries: 5
 
   api:
-    # Pushable image (build locally, push to your registry, pull on the server) — matches the funnel.
+    # Pushable image (build locally, push to your registry, pull on the server) — matches the producer.
     image: ${DOCKER_REGISTRY-}shuffull-api
     build:
       context: .
@@ -41,9 +41,9 @@ services:
         condition: service_healthy
     networks:
       - shuffull-net
-      # Shared external network so the funnel's web-api/downloader reach this service as
-      # http://shuffull-api:7117 (no public hop). Create it once: docker network create shuffull-funnel-net
-      - shuffull-funnel-net
+      # Shared external network so the producer's web-api/downloader reach this service as
+      # http://shuffull-api:7117 (no public hop). Create it once: docker network create shuffull-ingest-net
+      - shuffull-ingest-net
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       # ── Secrets / cross-service config, supplied at runtime (NEVER baked into the image; the
@@ -52,7 +52,7 @@ services:
       - ConnectionStrings__Shuffull=Data Source=shuffull-db,1433;Database=Shuffull;Integrated Security=false;User ID=sa;Password=${DB_SA_PASSWORD:-Password!};Encrypt=False;TrustServerCertificate=True
       # Token-signing key — the committed appsettings.json value is a public dummy; MUST override in prod.
       - Jwt__Secret=${JWT_SECRET}
-      # Shared secret the funnel sends as X-Import-Key (song POST + replacement-queue GET). Empty => rejected.
+      # Shared secret the producer sends as X-Import-Key (song POST + replacement-queue GET). Empty => rejected.
       - Shuffull__Import__Key=${SHUFFULL_IMPORT_KEY}
       # Fixed in-container paths; the host side of each is set by the SHUFFULL_*_DIR vars below.
       - Shuffull__Files__MusicRootDirectory=/data/music
@@ -67,9 +67,9 @@ services:
       # Each generated folder is its own bind mount. Point SHUFFULL_*_DIR at dedicated
       # TrueNAS folders in .env, or leave unset to use local ./data/* directories.
       #
-      # IMPORTANT: SHUFFULL_EXTERNAL_IMPORT_DIR must be the SAME host folder as the
-      # funnel's FUNNEL_MUSIC_EXPORT_DIR. That shared folder is the song handoff queue:
-      # the funnel writes mp3+json there; Shuffull reads it, moves the mp3 into its
+      # IMPORTANT: SHUFFULL_EXTERNAL_IMPORT_DIR must be the SAME host folder the producer
+      # exports songs to. That shared folder is the song handoff queue:
+      # the producer writes mp3+json there; Shuffull reads it, moves the mp3 into its
       # import dir, and deletes the json (so it needs read-write access).
       - ${SHUFFULL_MUSIC_DIR:-./data/music}:/data/music
       - ${SHUFFULL_IMPORT_DIR:-./data/imports}:/data/imports
@@ -83,9 +83,9 @@ services:
 networks:
   shuffull-net:
     driver: bridge
-  # Cross-stack network shared with the funnel (must already exist):
-  #   docker network create shuffull-funnel-net
-  shuffull-funnel-net:
+  # Cross-stack network shared with the producer (must already exist):
+  #   docker network create shuffull-ingest-net
+  shuffull-ingest-net:
     external: true
 
 volumes:

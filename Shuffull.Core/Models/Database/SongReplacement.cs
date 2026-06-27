@@ -6,7 +6,7 @@ namespace Shuffull.Core.Models.Database;
 
 /// <summary>
 /// A request to re-source a song whose audio quality is poor. Created when a user flags the song in the app;
-/// the funnel pulls Pending rows, a human supplies a better link, and the resulting import replaces the song
+/// the producer pulls Pending rows, a human supplies a better link, and the resulting import replaces the song
 /// in place (same SongId, all user associations preserved). Global per song — at most one open request per
 /// song at a time.
 /// </summary>
@@ -24,7 +24,7 @@ public class SongReplacement
     public string? Note { get; set; }
 
     /// <summary>
-    /// Snapshot of the song's ExternalSongId at flag time, so the funnel can supersede the bad source even
+    /// Snapshot of the song's ExternalSongId at flag time, so the producer can supersede the bad source even
     /// after a replacement overwrites the song's ExternalSongId.
     /// </summary>
     public string? OriginalExternalSongId { get; set; }

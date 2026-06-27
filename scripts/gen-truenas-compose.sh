@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Render a self-contained, secrets-filled compose to paste into the TrueNAS "Install via YAML" box.
 #
-# Unlike the funnel (which hand-maps a template), the site compose is fully env-parameterized, so
+# Unlike the producer (which hand-maps a template), the site compose is fully env-parameterized, so
 # `docker compose config` already resolves every ${VAR} inline from the prod env file -- that IS the
 # generation step. The api service's `build:` block is stripped because TrueNAS pulls the pushed image
 # (maxc2018/shuffull-api) and has no source build context.
@@ -35,4 +35,4 @@ docker compose --env-file "$ENVFILE" config \
 
 echo "Wrote $OUT"
 echo "Paste it into TrueNAS Apps -> Discover -> Install via YAML. Create the shared network first:"
-echo "  docker network create shuffull-funnel-net"
+echo "  docker network create shuffull-ingest-net"

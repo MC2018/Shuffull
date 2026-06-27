@@ -22,7 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- The migrated entity model uses shared enums (Shuffull.Shared.Enums) and the funnel-shared
+    <!-- The migrated entity model uses shared enums (Shuffull.Shared.Enums) and the producer-shared
          enums (Shuffull.Metadata.Enums), so Core references those libraries. Neither references Core,
          so there is no cycle. -->
     <ProjectReference Include="..\Shuffull.Shared\Shuffull.Shared.csproj" />

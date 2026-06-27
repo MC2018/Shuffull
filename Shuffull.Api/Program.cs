@@ -90,7 +90,7 @@ Directory.CreateDirectory(filesConfig.AlbumArtDirectory);
 
 if (!File.Exists(filesConfig.GenresFile))
 {
-    // Seed a new deployment's genres file from the canonical list shared with the funnel
+    // Seed a new deployment's genres file from the canonical list shared with the producer
     // (Shuffull.Metadata), not an empty list, so AI genre tagging has a vocabulary out of the box.
     // An existing file is left untouched, so local edits to the list are preserved.
     File.WriteAllText(filesConfig.GenresFile, GenresFile.CanonicalJson);
