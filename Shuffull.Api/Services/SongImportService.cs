@@ -501,6 +501,10 @@ public partial class SongImportService : BackgroundService
                 SongId = song.SongId
             };
             dbContext.PlaylistSongs.Add(playlistSong);
+            // Bump the playlist's version so clients re-fetch its (now-changed) song list. Without this, a
+            // playlist that gains songs after its first sync stays frozen on the client — it only re-pulls a
+            // playlist whose server Version increased — so newly-added songs never appear in it.
+            playlist.Version = DateTime.UtcNow;
         }
 
         var userSong = new UserSong()
