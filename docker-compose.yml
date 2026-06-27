@@ -1,16 +1,18 @@
 services:
   db:
     image: mcr.microsoft.com/mssql/server:2022-latest
-    # Cap RAM so the dev DB can't balloon and thrash the host into a freeze. SQL Server grabs
-    # ~80% of visible memory by default; MSSQL_MEMORY_LIMIT_MB tells it to self-limit to 2GB,
-    # and mem_limit is the hard container ceiling (kept above the SQL budget so SQL throttles
-    # itself rather than getting OOM-killed by the cgroup). The mssql image refuses to start
-    # with under ~2000MB, so don't lower mem_limit below 2g.
+    # Cap RAM so the DB can't balloon and thrash the host into a freeze. SQL Server grabs
+    # ~80% of visible memory by default; MSSQL_MEMORY_LIMIT_MB tells it to self-limit to 1GB
+    # (the buffer pool; SQL Server on Linux still carries a fixed ~700MB engine baseline OUTSIDE
+    # this cap, so resident sits a bit above it), and mem_limit is the hard container ceiling
+    # (kept above the SQL budget so SQL throttles itself rather than getting OOM-killed by the
+    # cgroup). The mssql image refuses to start with under ~2000MB, so don't lower mem_limit
+    # below 2g. 1024 is comfortable for this library-sized DB; drop toward 768 to squeeze further.
     mem_limit: 2560m
     environment:
       ACCEPT_EULA: Y
       MSSQL_SA_PASSWORD: ${DB_SA_PASSWORD:-Password!}
-      MSSQL_MEMORY_LIMIT_MB: 2048
+      MSSQL_MEMORY_LIMIT_MB: 1024
     ports:
       - "1433:1433"
     container_name: shuffull-db
