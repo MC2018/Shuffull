@@ -18,8 +18,10 @@ services:
     networks:
       - shuffull-net
     volumes:
-      # Persist the database across container recreation — without this, rebuilding wipes the library.
-      - shuffull-dbdata:/var/opt/mssql
+      # Persist the DB on a host path (on the pool, alongside the media folders) so one dataset snapshot
+      # backs up database + files together. The mssql container runs as uid 10001 — the host folder must be
+      # chown'd 10001:0 or SQL Server can't write /var/opt/mssql. Defaults to ./data/db for local runs.
+      - ${SHUFFULL_DB_DIR:-./data/db}:/var/opt/mssql
     healthcheck:
       test: ["CMD", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "${DB_SA_PASSWORD:-Password!}", "-C", "-Q", "SELECT 1"]
       interval: 10s
@@ -87,6 +89,3 @@ networks:
   #   docker network create shuffull-ingest-net
   shuffull-ingest-net:
     external: true
-
-volumes:
-  shuffull-dbdata:
