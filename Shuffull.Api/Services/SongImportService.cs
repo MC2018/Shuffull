@@ -250,7 +250,13 @@ public partial class SongImportService : BackgroundService
     {
         using var scope = _services.CreateScope();
         using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
-        var performerNames = musicFile.Tag.Performers;
+        // Prefer the producer's vetted artist list (authoritative — avoids a MusicBrainz tag-override that can
+        // collapse a multi-artist collab into one credit string in the file's ID3). Fall back to the ID3
+        // performers for manual uploads / older payloads that didn't carry artists.
+        var performerNames = !string.IsNullOrWhiteSpace(songImport.ArtistsJson)
+            ? (JsonConvert.DeserializeObject<List<string>>(songImport.ArtistsJson) ?? new List<string>())
+                .Where(a => !string.IsNullOrWhiteSpace(a)).ToArray()
+            : musicFile.Tag.Performers;
         var existingArtists = new List<Artist>();
         var newArtists = new List<Artist>();
 

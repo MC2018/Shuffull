@@ -41,6 +41,13 @@ public class SongImport
     /// Null when no lyrics were found / provided.
     /// </summary>
     public string? LyricsJson { get; set; }
+    /// <summary>
+    /// JSON-serialized ordered artist list supplied by the producer (<c>SongImportDetails.Artists</c>). When
+    /// present, the import uses these as the authoritative artists instead of parsing the audio's ID3 tags
+    /// (which a producer-side MusicBrainz match can collapse into one credit string). Null for manual uploads /
+    /// older payloads, in which case the file's ID3 performers are used.
+    /// </summary>
+    public string? ArtistsJson { get; set; }
     /// <summary>Best-effort tempo (BPM) from the producer; null when unknown / not provided.</summary>
     public int? Bpm { get; set; }
     /// <summary>Whether the user liked the song on the external source; mapped to a Like on import.</summary>

@@ -41,18 +41,26 @@ public class SongImportIntakeService
         {
             var songImportId = IdGenerator.Generate();
 
-            // Display name from the file's own ID3 title, falling back to the external id. Best-effort: a
-            // tag-parse failure shouldn't fail the import (SongImportService re-parses artists later anyway).
+            // Prefer the producer's vetted title (authoritative — it avoids inheriting a MusicBrainz tag-override
+            // the producer may have written into the file's ID3). Fall back to the file's own ID3 title, then the
+            // external id. Best-effort: a tag-parse failure shouldn't fail the import.
             string songName;
-            try
+            if (!string.IsNullOrWhiteSpace(details.Name))
             {
-                var abstraction = new ByteArrayAudioFileAbstraction($"{details.ExternalSongId}{details.FileExtension}", audioBytes);
-                var musicFile = TagLib.File.Create(abstraction);
-                songName = string.IsNullOrWhiteSpace(musicFile.Tag.Title) ? details.ExternalSongId : musicFile.Tag.Title;
+                songName = details.Name;
             }
-            catch
+            else
             {
-                songName = details.ExternalSongId;
+                try
+                {
+                    var abstraction = new ByteArrayAudioFileAbstraction($"{details.ExternalSongId}{details.FileExtension}", audioBytes);
+                    var musicFile = TagLib.File.Create(abstraction);
+                    songName = string.IsNullOrWhiteSpace(musicFile.Tag.Title) ? details.ExternalSongId : musicFile.Tag.Title;
+                }
+                catch
+                {
+                    songName = details.ExternalSongId;
+                }
             }
 
             var songImport = new SongImport
@@ -70,6 +78,8 @@ public class SongImportIntakeService
                 // instead of re-running its own AI. Null when the producer didn't supply them.
                 GeneratedTagsJson = details.GeneratedTags is null ? null : JsonConvert.SerializeObject(details.GeneratedTags),
                 LyricsJson = details.Lyrics is null ? null : JsonConvert.SerializeObject(details.Lyrics),
+                // Producer's vetted artist list (authoritative); null => SongImportService falls back to ID3 tags.
+                ArtistsJson = details.Artists is { Count: > 0 } ? JsonConvert.SerializeObject(details.Artists) : null,
                 Bpm = details.Bpm,
                 MarkAsLiked = details.MarkAsLiked,
                 TargetPlaylistName = details.TargetPlaylistName,
