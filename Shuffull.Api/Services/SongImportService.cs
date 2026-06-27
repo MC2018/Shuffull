@@ -429,6 +429,17 @@ public partial class SongImportService : BackgroundService
     {
         using var scope = _services.CreateScope();
         using var dbContext = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
+        return await ImportToDbCoreAsync(dbContext, song, existingArtists, newArtists, existingTags, newTags, userId, playlistId, playlistName, likeStatus, cancellationToken);
+    }
+
+    /// <summary>
+    /// The transactional db write for a brand-new song import (song + artist/tag joins + target-playlist
+    /// resolution + UserSong). Split out from <see cref="ImportToDbAsync"/>, which owns the DI scope, so this
+    /// half can be unit-tested against an in-memory <see cref="ShuffullContext"/> without the background host.
+    /// Behavior is identical to the original inline body.
+    /// </summary>
+    internal static async Task<Result> ImportToDbCoreAsync(ShuffullContext dbContext, Song song, List<Artist> existingArtists, List<Artist> newArtists, List<Tag> existingTags, List<Tag> newTags, string userId, string? playlistId, string? playlistName, LikeStatus likeStatus, CancellationToken cancellationToken = default!)
+    {
         using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         // Add newly generated items to the db
