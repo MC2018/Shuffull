@@ -559,8 +559,8 @@ public partial class SongImportService : BackgroundService
         var oldFileHash = song.FileHash;
         var oldFileExtension = song.FileExtension;
 
-        // Overwrite the song's content in place (its SongId and user associations are untouched).
-        song.Name = songImport.Name;
+        // Always re-source the AUDIO in place (this is the whole point of a replacement) and the lyrics, which
+        // are tied to the specific audio (LRC is trim-shifted for it). SongId + user associations are untouched.
         song.FileExtension = fileExtension;
         song.FileHash = fileHash;
         song.ExternalSongId = songImport.ExternalSongId;
@@ -568,35 +568,42 @@ public partial class SongImportService : BackgroundService
         song.PlainLyrics = lyrics?.Plain;
         song.LyricsInstrumental = lyrics?.Instrumental ?? false;
         song.LyricsSource = lyrics?.Source;
-        song.Bpm = songImport.Bpm;
-        song.Energy = generatedTags?.Energy;
         song.Version = DateTime.UtcNow;
 
-        // Swap the tag/artist joins; add any new master Artist/Tag rows. Remove first (+ save) so the new master
-        // rows exist before their joins reference them and the deleted joins can't collide.
-        dbContext.SongTags.RemoveRange(song.SongTags);
-        dbContext.SongArtists.RemoveRange(song.SongArtists);
-        dbContext.Artists.AddRange(newArtists);
-        dbContext.Tags.AddRange(newTags);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        // Curator-protected metadata: once a human has hand-edited this song, a re-source must NOT clobber their
+        // correction. While locked we skip the producer/AI Name/Bpm/Energy + artist/tag overwrite entirely.
+        if (!song.MetadataLocked)
+        {
+            song.Name = songImport.Name;
+            song.Bpm = songImport.Bpm;
+            song.Energy = generatedTags?.Energy;
 
-        foreach (var artist in existingArtists.Concat(newArtists))
-        {
-            dbContext.SongArtists.Add(new SongArtist
+            // Swap the tag/artist joins; add any new master Artist/Tag rows. Remove first (+ save) so the new
+            // master rows exist before their joins reference them and the deleted joins can't collide.
+            dbContext.SongTags.RemoveRange(song.SongTags);
+            dbContext.SongArtists.RemoveRange(song.SongArtists);
+            dbContext.Artists.AddRange(newArtists);
+            dbContext.Tags.AddRange(newTags);
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            foreach (var artist in existingArtists.Concat(newArtists))
             {
-                SongArtistId = IdGenerator.Generate(),
-                SongId = song.SongId,
-                ArtistId = artist.ArtistId
-            });
-        }
-        foreach (var tag in existingTags.Concat(newTags))
-        {
-            dbContext.SongTags.Add(new SongTag
+                dbContext.SongArtists.Add(new SongArtist
+                {
+                    SongArtistId = IdGenerator.Generate(),
+                    SongId = song.SongId,
+                    ArtistId = artist.ArtistId
+                });
+            }
+            foreach (var tag in existingTags.Concat(newTags))
             {
-                SongTagId = IdGenerator.Generate(),
-                SongId = song.SongId,
-                TagId = tag.TagId
-            });
+                dbContext.SongTags.Add(new SongTag
+                {
+                    SongTagId = IdGenerator.Generate(),
+                    SongId = song.SongId,
+                    TagId = tag.TagId
+                });
+            }
         }
 
         // Resolve any open replacement request(s) for this song.

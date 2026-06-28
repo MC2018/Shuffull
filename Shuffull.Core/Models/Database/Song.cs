@@ -34,6 +34,11 @@ namespace Shuffull.Core.Models.Database
         // Best-effort 1-10 perceived intensity/drive score from the producer's AI (weighs BPM but not purely it).
         public int? Energy { get; set; }
 
+        // Set true when a curator hand-edits this song's metadata. While locked, the import/replacement pipeline
+        // (SongImportService.ReplaceInDbAsync) re-sources the AUDIO in place but leaves the metadata
+        // (Name/Bpm/Energy/artists/tags) alone, so a later re-source can't silently clobber a human correction.
+        public bool MetadataLocked { get; set; }
+
         // Last-modified timestamp for incremental song sync (mirrors UserSong.Version). Stamped on create and on
         // every mutation (e.g. an in-place replacement), so the app can pull only songs changed since its cursor
         // and refresh its local copy — otherwise an app that already holds a song never re-fetches it.

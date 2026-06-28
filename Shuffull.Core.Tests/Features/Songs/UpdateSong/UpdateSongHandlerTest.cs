@@ -196,6 +196,21 @@ public class UpdateSongHandlerTest : IDisposable
     }
 
     [Fact]
+    public async Task Handle_LocksMetadataAgainstReSource()
+    {
+        var song = await SeedSongAsync(DateTime.UtcNow.AddDays(-1));
+        Assert.False(song.MetadataLocked);
+
+        var result = await _handler.Handle(
+            new UpdateSongCommand(song.SongId, "Name", null, null, Artists: [], Tags: []),
+            CancellationToken.None);
+
+        Assert.True(result.IsOk, result.IsError ? result.GetError().Message : null);
+        var saved = await _database.Context.Songs.AsNoTracking().SingleAsync(s => s.SongId == song.SongId);
+        Assert.True(saved.MetadataLocked);
+    }
+
+    [Fact]
     public async Task Handle_WhenSongMissing_ReturnsError()
     {
         var result = await _handler.Handle(
