@@ -18,7 +18,13 @@ public static class GeneratedSongTagsExtensions
         result.AddRange(tags.MainGenres.Select(x => new Genre() { TagId = IdGenerator.Generate(), Name = x }));
         result.AddRange(tags.SubGenres.Select(x => new Genre() { TagId = IdGenerator.Generate(), Name = x }));
         result.AddRange(tags.Languages.Select(x => new Language() { TagId = IdGenerator.Generate(), Name = x }));
-        result.Add(new TimePeriod() { TagId = IdGenerator.Generate(), Name = tags.TimePeriod });
+        // Defensive: only add a time-period tag when one is actually present. The producer now enforces a valid
+        // era (regenerating otherwise), but a legacy/cached response could still carry an empty string, and an
+        // empty-named tag must never be created.
+        if (!string.IsNullOrWhiteSpace(tags.TimePeriod))
+        {
+            result.Add(new TimePeriod() { TagId = IdGenerator.Generate(), Name = tags.TimePeriod });
+        }
 
         if (tags.Moods != null)
         {
