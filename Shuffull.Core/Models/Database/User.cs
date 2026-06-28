@@ -23,6 +23,14 @@ namespace Shuffull.Core.Models.Database
         [JsonIgnore]
         public string ServerHash { get; set; }
 
+        /// <summary>
+        /// Grants the <see cref="Authentication.Role.Curator"/> role: may edit shared song metadata to fix
+        /// mislabels. Toggled manually in the database; read live on every request (no token reissue), so
+        /// granting/revoking takes effect on the user's next call. Defaults to false for all existing rows.
+        /// </summary>
+        [Required]
+        public bool IsCurator { get; set; }
+
         public ICollection<Playlist> Playlists { get; set; }
         public ICollection<UserSong> UserSongs { get; set; }
     }

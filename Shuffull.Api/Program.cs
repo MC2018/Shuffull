@@ -24,6 +24,10 @@ builder.Services.AddControllers();
 builder.Services.AddScoped<JwtHelper>();
 // Lets Shuffull.Core's user slices issue tokens without referencing API/JWT types.
 builder.Services.AddScoped<IAuthTokenGenerator, JwtAuthTokenGenerator>();
+// Exposes the request's authenticated user (attached by JwtMiddleware) to the Core role-authorization
+// behavior without Core depending on HttpContext.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUser, CurrentUser>();
 
 // --- Persistence --------------------------------------------------------------------------------
 // The shared ShuffullContext lives in Shuffull.Core, but the EF migrations now live in this
@@ -50,6 +54,8 @@ builder.Services.AddMediatR(cfg =>
 {
     cfg.RegisterServicesFromAssemblies(coreAssembly);
     cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
+    // Runs after validation: enforces [RequiresRole] on a request before its handler executes.
+    cfg.AddOpenBehavior(typeof(RoleAuthorizationBehavior<,>));
 });
 
 // --- Song import / metadata pipeline ------------------------------------------------------------
