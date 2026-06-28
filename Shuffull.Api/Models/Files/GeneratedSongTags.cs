@@ -36,6 +36,9 @@ public static class GeneratedSongTagsExtensions
             result.AddRange(tags.Themes.Select(x => new Theme() { TagId = IdGenerator.Generate(), Name = x }));
         }
 
-        return result;
+        // Final guard: never emit an empty/whitespace-named tag of ANY type. The producer's sanitizers should
+        // already prevent it, but this makes it impossible for a blank name (from a legacy/cached response or a
+        // future field) to become a junk tag.
+        return result.Where(t => !string.IsNullOrWhiteSpace(t.Name)).ToList();
     }
 }

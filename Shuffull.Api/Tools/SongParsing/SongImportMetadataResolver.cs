@@ -46,6 +46,9 @@ public static class SongImportMetadataResolver
                 .ToArray();
         }
 
-        return id3Performers ?? Array.Empty<string>();
+        // The ID3 fallback is filtered too, so a blank performer entry can never become an empty-named artist.
+        return (id3Performers ?? Array.Empty<string>())
+            .Where(a => !string.IsNullOrWhiteSpace(a))
+            .ToArray();
     }
 }

@@ -33,4 +33,22 @@ public class GeneratedSongTagsExtensionsTest
         Assert.Empty(tags.OfType<TimePeriod>());
         Assert.DoesNotContain(tags, t => string.IsNullOrWhiteSpace(t.Name));
     }
+
+    [Fact]
+    public void ToTagList_DropsEmptyNamedTagsOfAnyType()
+    {
+        // Blank entries can slip into any list (e.g. a legacy/cached response); none must become a tag.
+        var tags = new GeneratedSongTags(
+            MainGenres: ["House", "", "   "],
+            SubGenres: [""],
+            Languages: ["Japanese", " "],
+            TimePeriod: "2010s",
+            Moods: ["Energetic", ""],
+            Themes: ["", "Video Game"]).ToTagList();
+
+        Assert.DoesNotContain(tags, t => string.IsNullOrWhiteSpace(t.Name));
+        Assert.Equal(
+            new[] { "2010s", "Energetic", "House", "Japanese", "Video Game" },
+            tags.Select(t => t.Name).OrderBy(n => n).ToArray());
+    }
 }

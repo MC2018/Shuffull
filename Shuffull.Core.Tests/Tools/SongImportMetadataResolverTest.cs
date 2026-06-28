@@ -123,4 +123,13 @@ public class SongImportMetadataResolverTest
 
         Assert.Empty(artists);
     }
+
+    [Fact]
+    public void ResolveArtistNames_DropsBlankId3PerformerEntries()
+    {
+        // The ID3 fallback is filtered too, so a blank performer never becomes an empty-named artist.
+        var artists = SongImportMetadataResolver.ResolveArtistNames(null, new[] { "Real", "", "   ", "Also Real" });
+
+        Assert.Equal(new[] { "Real", "Also Real" }, artists);
+    }
 }
