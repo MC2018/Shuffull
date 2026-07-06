@@ -26,6 +26,9 @@ public static class OpenAIConfigurationExtensions
             throw new NotSupportedException($"OpenAI API endpoint '{openAIConfig.ApiEndpoint}' is not supported. Supported endpoints are: {string.Join(", ", OpenAIConfiguration.SupportedApiEndpoints.All)}.");
         }
 
+        // Expose the config too: SongEnrichmentService / the import tagger stamp Song.TagModel with the
+        // resolved strong model, which lives on this object.
+        collection.AddSingleton(openAIConfig);
         collection.AddSingleton<IAIService>(new OpenAIService(openAIConfig));
 
         return collection;

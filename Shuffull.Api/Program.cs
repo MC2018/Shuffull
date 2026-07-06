@@ -11,6 +11,7 @@ using Shuffull.Core.Authentication;
 using Shuffull.Core.Behaviors;
 using Shuffull.Core.Persistence;
 using Shuffull.Core.Persistence.Repositories;
+using Shuffull.Core.Tools;
 using Shuffull.Metadata.Models;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -65,6 +66,13 @@ builder.Services.AddScoped<SongImportIntakeService>();
 builder.Services.AddHostedService<TagImporterService>();
 builder.Services.AddHostedService<DetailedSongImporterService>();
 builder.Services.TryAddAIService(builder.Configuration);
+// Relative model strengths (AI:ModelStrengths -> { "model-name": int }), provider-neutral. Drives the
+// "is this song's TagModel stale vs the current strong model?" decision for re-tagging. Missing section =>
+// empty map => nothing is ever considered stale (fail-safe).
+builder.Services.AddSingleton(new ModelStrengths(
+    builder.Configuration.GetSection("AI:ModelStrengths").Get<Dictionary<string, int>>()));
+// On-demand re-tag of a single song from its stored inputs (model upgrades, exploratory promotion).
+builder.Services.AddSingleton<SongEnrichmentService>();
 builder.Services.AddHostedService<SongImportService>();
 builder.Services.AddHostedService<ExternalSongImporterService>();
 

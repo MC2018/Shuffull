@@ -44,7 +44,16 @@ public partial class SongImportService : BackgroundService
         _services = services;
         _fileConfig = configuration.GetSection(ShuffullFilesConfiguration.FilesConfigurationSection).Get<ShuffullFilesConfiguration>() ?? throw new ArgumentNullException(nameof(_fileConfig));
         _fileStorageService = fileStorageService ?? throw new ArgumentNullException(nameof(fileStorageService));
+        // The strong model this service would SELF-generate tags with (manual uploads / producer omitted tags),
+        // stamped as Song.TagModel so self-tagged songs aren't permanently "stale" to the upgrade pass.
+        _selfTagModelName = configuration[$"{Shuffull.Metadata.Configuration.OpenAIConfiguration.OpenAIConfigurationSection}:StrongModelName"];
+        if (string.IsNullOrWhiteSpace(_selfTagModelName))
+        {
+            _selfTagModelName = configuration[$"{Shuffull.Metadata.Configuration.OpenAIConfiguration.OpenAIConfigurationSection}:ModelName"];
+        }
     }
+
+    private readonly string? _selfTagModelName;
 
     protected override async Task ExecuteAsync(CancellationToken cancellationToken)
     {
@@ -184,7 +193,11 @@ public partial class SongImportService : BackgroundService
                     Bpm = songImport.Bpm,
                     Energy = generatedTags?.Energy,
                     // Tag provenance + raw AI inputs, persisted for a future model-upgrade re-tag (no re-download).
-                    TagModel = songImport.TagModel,
+                    // Producer-supplied tags carry the producer's model; when WE generated them (manual uploads,
+                    // incl. a file-cached response) stamp our own strong model so the song isn't forever "stale".
+                    TagModel = !string.IsNullOrWhiteSpace(songImport.GeneratedTagsJson)
+                        ? songImport.TagModel
+                        : (existingTags.Count + newTags.Count > 0 ? _selfTagModelName : null),
                     MeasuredBpm = songImport.MeasuredBpm,
                     LoudnessRangeLu = songImport.LoudnessRangeLu,
                     CrestFactorDb = songImport.CrestFactorDb,
