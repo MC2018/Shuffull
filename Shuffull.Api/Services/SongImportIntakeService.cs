@@ -85,6 +85,14 @@ public class SongImportIntakeService
                 // Producer's vetted artist list (authoritative); null => SongImportService falls back to ID3 tags.
                 ArtistsJson = details.Artists is { Count: > 0 } ? JsonConvert.SerializeObject(details.Artists) : null,
                 Bpm = details.Bpm,
+                // Provenance + raw AI inputs, carried through so the Song persists them and can be re-tagged
+                // with a better model later without re-downloading/re-analysing the audio.
+                MeasuredBpm = details.MeasuredBpm,
+                TagModel = details.TagModel,
+                LoudnessRangeLu = details.LoudnessRangeLu,
+                CrestFactorDb = details.CrestFactorDb,
+                OnsetsPerSecond = details.OnsetsPerSecond,
+                OriginalReleaseYear = details.OriginalReleaseYear,
                 MarkAsLiked = details.MarkAsLiked,
                 TargetPlaylistName = details.TargetPlaylistName,
                 ReplacesSongId = details.ReplacesSongId,

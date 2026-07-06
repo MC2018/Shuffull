@@ -17,9 +17,9 @@ public static class OpenAIConfigurationExtensions
         {
             throw new InvalidOperationException("OpenAI API key is not set in the configuration.");
         }
-        else if (string.IsNullOrEmpty(openAIConfig.ModelName))
+        else if (string.IsNullOrEmpty(openAIConfig.ResolvedStrongModelName))
         {
-            throw new InvalidOperationException("OpenAI model name is not set in the configuration.");
+            throw new InvalidOperationException("No model name is set in the configuration (set AI:OpenAI:StrongModelName, or the legacy ModelName).");
         }
         else if (!OpenAIConfiguration.SupportedApiEndpoints.All.Contains(openAIConfig.ApiEndpoint))
         {

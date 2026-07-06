@@ -34,6 +34,20 @@ namespace Shuffull.Core.Models.Database
         // Best-effort 1-10 perceived intensity/drive score from the producer's AI (weighs BPM but not purely it).
         public int? Energy { get; set; }
 
+        // Tag provenance + the raw AI inputs, persisted so the library can be re-tagged with a better model
+        // later WITHOUT re-downloading or re-analysing the audio. TagModel = which AI model produced the tags
+        // (null when Shuffull self-generated them). MeasuredBpm is the raw beat-tracking hint the AI saw
+        // (distinct from the resolved Bpm above); LoudnessRangeLu / CrestFactorDb / OnsetsPerSecond are the
+        // objective audio-shape features that grounded the energy estimate. All optional / producer-supplied.
+        public string? TagModel { get; set; }
+        public int? MeasuredBpm { get; set; }
+        public double? LoudnessRangeLu { get; set; }
+        public double? CrestFactorDb { get; set; }
+        public double? OnsetsPerSecond { get; set; }
+        // Authoritative original release year (reliable MusicBrainz match) or null; lets a re-tag re-apply the
+        // correct era instead of regenerating an AI guess.
+        public int? OriginalReleaseYear { get; set; }
+
         // Set true when a curator hand-edits this song's metadata. While locked, the import/replacement pipeline
         // (SongImportService.ReplaceInDbAsync) re-sources the AUDIO in place but leaves the metadata
         // (Name/Bpm/Energy/artists/tags) alone, so a later re-source can't silently clobber a human correction.

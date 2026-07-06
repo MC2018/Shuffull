@@ -183,6 +183,13 @@ public partial class SongImportService : BackgroundService
                     LyricsSource = lyrics?.Source,
                     Bpm = songImport.Bpm,
                     Energy = generatedTags?.Energy,
+                    // Tag provenance + raw AI inputs, persisted for a future model-upgrade re-tag (no re-download).
+                    TagModel = songImport.TagModel,
+                    MeasuredBpm = songImport.MeasuredBpm,
+                    LoudnessRangeLu = songImport.LoudnessRangeLu,
+                    CrestFactorDb = songImport.CrestFactorDb,
+                    OnsetsPerSecond = songImport.OnsetsPerSecond,
+                    OriginalReleaseYear = songImport.OriginalReleaseYear,
                     Version = DateTime.UtcNow
                 };
                 // Map the producer's "liked on the source" flag to the initial like sentiment.
@@ -577,6 +584,14 @@ public partial class SongImportService : BackgroundService
             song.Name = songImport.Name;
             song.Bpm = songImport.Bpm;
             song.Energy = generatedTags?.Energy;
+            // Refresh the tag provenance + raw AI inputs from this re-source so a later model-upgrade re-tag
+            // sees the current model/inputs (and so they don't go stale against the new audio).
+            song.TagModel = songImport.TagModel;
+            song.MeasuredBpm = songImport.MeasuredBpm;
+            song.LoudnessRangeLu = songImport.LoudnessRangeLu;
+            song.CrestFactorDb = songImport.CrestFactorDb;
+            song.OnsetsPerSecond = songImport.OnsetsPerSecond;
+            song.OriginalReleaseYear = songImport.OriginalReleaseYear;
 
             // Swap the tag/artist joins; add any new master Artist/Tag rows. Remove first (+ save) so the new
             // master rows exist before their joins reference them and the deleted joins can't collide.

@@ -50,6 +50,16 @@ public class SongImport
     public string? ArtistsJson { get; set; }
     /// <summary>Best-effort tempo (BPM) from the producer; null when unknown / not provided.</summary>
     public int? Bpm { get; set; }
+    /// <summary>Raw measured tempo - the AI's beat-tracking hint, distinct from the resolved <see cref="Bpm"/>. Producer-only.</summary>
+    public int? MeasuredBpm { get; set; }
+    /// <summary>AI model that produced the generated tags, for a future model-upgrade re-tag pass. Null when self-generated.</summary>
+    public string? TagModel { get; set; }
+    /// <summary>Audio-shape inputs that grounded the AI energy estimate; persisted so energy can be regenerated without the audio.</summary>
+    public double? LoudnessRangeLu { get; set; }
+    public double? CrestFactorDb { get; set; }
+    public double? OnsetsPerSecond { get; set; }
+    /// <summary>Authoritative original release year (reliable MusicBrainz match); carried through to the Song.</summary>
+    public int? OriginalReleaseYear { get; set; }
     /// <summary>Whether the user liked the song on the external source; mapped to a Like on import.</summary>
     public bool MarkAsLiked { get; set; }
     /// <summary>Name of the target playlist; used to auto-create it (attached to the user) if it doesn't exist.</summary>
