@@ -38,4 +38,21 @@ public sealed class ModelStrengths
     /// </summary>
     public bool IsStale(string? tagModel, string? currentStrongModel) =>
         GetStrength(tagModel) < GetStrength(currentStrongModel);
+
+    /// <summary>
+    /// The registered model names whose strength is at least that of <paramref name="currentStrongModel"/> -
+    /// i.e. the models a song's TagModel could carry and NOT be stale. A song is stale exactly when its TagModel
+    /// is not in this set (including null / unregistered), which lets callers push the selection into SQL as a
+    /// <c>TagModel IS NULL OR TagModel NOT IN (...)</c> filter instead of loading every row.
+    ///
+    /// IMPORTANT: only meaningful when the current strong model has a positive strength. When it is 0
+    /// (unregistered / null), this returns every registered model, so callers MUST first short-circuit on
+    /// <see cref="GetStrength"/> == 0 to preserve the fail-safe (nothing is stale) - otherwise a null TagModel
+    /// would wrongly fall outside the set and look stale.
+    /// </summary>
+    public IReadOnlyList<string> ModelsAtLeastAsStrongAs(string? currentStrongModel)
+    {
+        var threshold = GetStrength(currentStrongModel);
+        return _strengths.Where(kv => kv.Value >= threshold).Select(kv => kv.Key).ToList();
+    }
 }

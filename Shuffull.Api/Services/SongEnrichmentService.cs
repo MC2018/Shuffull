@@ -7,19 +7,11 @@ using Shuffull.Metadata.Services.AI;
 using Shuffull.Api.Models.Files;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Persistence;
+using Shuffull.Core.Services;
 using Shuffull.Shared.Tools;
 using System.Text.RegularExpressions;
 
 namespace Shuffull.Api.Services;
-
-/// <summary>Outcome of an enrichment attempt that didn't error.</summary>
-public enum SongEnrichmentStatus
-{
-    /// <summary>Tags/BPM/energy were regenerated and written in place.</summary>
-    Enriched,
-    /// <summary>The song is curator-locked; nothing was touched.</summary>
-    SkippedMetadataLocked,
-}
 
 /// <summary>
 /// Re-runs the genre engine for a single song from its ALREADY-STORED inputs (name, artists, lyrics, measured
@@ -31,7 +23,7 @@ public enum SongEnrichmentStatus
 /// Legacy songs imported before provenance capture have null measured-BPM/features/year and enrich text-only —
 /// still valid, just without the audio grounding the funnel-tagged songs get.
 /// </summary>
-public partial class SongEnrichmentService
+public partial class SongEnrichmentService : ISongEnrichmentService
 {
     private readonly IServiceProvider _services;
 

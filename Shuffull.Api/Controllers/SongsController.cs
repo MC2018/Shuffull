@@ -5,6 +5,8 @@ using Shuffull.Core.Features.Songs.GetSong;
 using Shuffull.Core.Features.Songs.GetSongList;
 using Shuffull.Core.Features.Songs.GetSongPage;
 using Shuffull.Core.Features.Songs.GetSongsChanged;
+using Shuffull.Core.Features.Songs.RetagSong;
+using Shuffull.Core.Features.Songs.RetagStaleSongs;
 using Shuffull.Core.Features.Songs.UpdateSong;
 using Shuffull.Api.Tools.Authorization;
 
@@ -70,4 +72,23 @@ public class SongsController : ControllerBase
         => this.ToActionResult(await _mediator.Send(
             new UpdateSongCommand(songId, request.Name, request.Bpm, request.Energy, request.Artists, request.Tags),
             cancellationToken));
+
+    /// <summary>
+    /// Curator-only: re-tag one song from its stored inputs with the current strong model (no re-download).
+    /// Curator-locked songs are left untouched. Bumps the song's version so clients re-sync it.
+    /// </summary>
+    [HttpPost("{songId}/retag")]
+    [Authorize]
+    public async Task<IActionResult> RetagSong(string songId, CancellationToken cancellationToken)
+        => this.ToActionResult(await _mediator.Send(new RetagSongCommand(songId), cancellationToken));
+
+    /// <summary>
+    /// Curator-only: re-tag a bounded batch of stale songs (TagModel weaker than the current strong model).
+    /// Returns how many were enriched and how many remain, so the caller drives a whole-library upgrade in
+    /// chunks. NOTE: on first run the entire pre-provenance library is stale (null TagModel).
+    /// </summary>
+    [HttpPost("retag-stale")]
+    [Authorize]
+    public async Task<IActionResult> RetagStaleSongs([FromQuery] int limit, CancellationToken cancellationToken)
+        => this.ToActionResult(await _mediator.Send(new RetagStaleSongsCommand(limit), cancellationToken));
 }

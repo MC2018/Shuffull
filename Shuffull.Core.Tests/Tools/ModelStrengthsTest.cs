@@ -77,4 +77,21 @@ public class ModelStrengthsTest
         Assert.Equal(0, empty.GetStrength("anything"));
         Assert.False(empty.IsStale(null, "gpt-5.5"));
     }
+
+    [Fact]
+    public void ModelsAtLeastAsStrongAs_ReturnsCurrentAndStronger()
+    {
+        var models = Map().ModelsAtLeastAsStrongAs("gpt-5.4-mini").Order().ToList();
+        Assert.Equal(["gpt-5.4-mini", "gpt-5.5"], models); // both are >= 10
+
+        Assert.Equal(["gpt-5.5"], Map().ModelsAtLeastAsStrongAs("gpt-5.5").ToList()); // only >= 30
+    }
+
+    [Fact]
+    public void ModelsAtLeastAsStrongAs_UnregisteredCurrent_ReturnsAll()
+    {
+        // Threshold 0 => every registered model qualifies. Callers must short-circuit on GetStrength==0 to keep
+        // the fail-safe; this method alone doesn't encode it (documented on the method).
+        Assert.Equal(2, Map().ModelsAtLeastAsStrongAs("gpt-6-brand-new").Count);
+    }
 }

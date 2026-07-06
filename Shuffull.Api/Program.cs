@@ -11,6 +11,7 @@ using Shuffull.Core.Authentication;
 using Shuffull.Core.Behaviors;
 using Shuffull.Core.Persistence;
 using Shuffull.Core.Persistence.Repositories;
+using Shuffull.Core.Services;
 using Shuffull.Core.Tools;
 using Shuffull.Metadata.Models;
 
@@ -72,7 +73,7 @@ builder.Services.TryAddAIService(builder.Configuration);
 builder.Services.AddSingleton(new ModelStrengths(
     builder.Configuration.GetSection("AI:ModelStrengths").Get<Dictionary<string, int>>()));
 // On-demand re-tag of a single song from its stored inputs (model upgrades, exploratory promotion).
-builder.Services.AddSingleton<SongEnrichmentService>();
+builder.Services.AddSingleton<ISongEnrichmentService, SongEnrichmentService>();
 builder.Services.AddHostedService<SongImportService>();
 builder.Services.AddHostedService<ExternalSongImporterService>();
 

@@ -4,6 +4,7 @@ using Shuffull.Metadata.Models.AI;
 using Shuffull.Metadata.Services.AI;
 using Shuffull.Api.Services;
 using Shuffull.Core.Models.Database;
+using Shuffull.Core.Services;
 using Shuffull.Core.Tests.Infrastructure;
 using Shuffull.Shared.Tools;
 
