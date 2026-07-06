@@ -5,7 +5,7 @@ using Shuffull.Core.Features.Songs.GetSong;
 using Shuffull.Core.Features.Songs.GetSongList;
 using Shuffull.Core.Features.Songs.GetSongPage;
 using Shuffull.Core.Features.Songs.GetSongsChanged;
-using Shuffull.Core.Features.Songs.RetagSong;
+using Shuffull.Core.Features.Songs.RetagSongs;
 using Shuffull.Core.Features.Songs.RetagStaleSongs;
 using Shuffull.Core.Features.Songs.UpdateSong;
 using Shuffull.Api.Tools.Authorization;
@@ -74,13 +74,15 @@ public class SongsController : ControllerBase
             cancellationToken));
 
     /// <summary>
-    /// Curator-only: re-tag one song from its stored inputs with the current strong model (no re-download).
-    /// Curator-locked songs are left untouched. Bumps the song's version so clients re-sync it.
+    /// Curator-only: force re-tag a specific set of songs from their stored inputs with the current strong
+    /// model (no re-download). Multi-id so the app's offline outbox can coalesce queued re-tags into one call.
+    /// Curator-locked songs are reported skipped. Returns a per-song outcome; bumps the version of each song
+    /// that was actually re-tagged.
     /// </summary>
-    [HttpPost("{songId}/retag")]
+    [HttpPost("retag")]
     [Authorize]
-    public async Task<IActionResult> RetagSong(string songId, CancellationToken cancellationToken)
-        => this.ToActionResult(await _mediator.Send(new RetagSongCommand(songId), cancellationToken));
+    public async Task<IActionResult> RetagSongs([FromBody] string[] songIds, CancellationToken cancellationToken)
+        => this.ToActionResult(await _mediator.Send(new RetagSongsCommand(songIds), cancellationToken));
 
     /// <summary>
     /// Curator-only: re-tag a bounded batch of stale songs (TagModel weaker than the current strong model).
