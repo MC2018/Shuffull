@@ -48,7 +48,7 @@ public class RetagStaleSongsHandlerTest : IDisposable
             .AddInMemoryCollection(new Dictionary<string, string?> { ["AI:OpenAI:StrongModelName"] = strongModel })
             .Build();
 
-    private async Task<Song> SeedSongAsync(string? tagModel, bool locked, DateTime version)
+    private async Task<Song> SeedSongAsync(string? tagModel, bool locked, DateTime version, bool exploratory = false)
     {
         var song = new Song
         {
@@ -58,6 +58,7 @@ public class RetagStaleSongsHandlerTest : IDisposable
             FileHash = IdGenerator.Generate(),
             TagModel = tagModel,
             MetadataLocked = locked,
+            Exploratory = exploratory,
             Version = version,
         };
         _database.Context.Songs.Add(song);
@@ -107,6 +108,23 @@ public class RetagStaleSongsHandlerTest : IDisposable
         var response = result.Get();
         Assert.Equal(2, response.Enriched);
         Assert.Equal(0, response.Remaining);
+    }
+
+    [Fact]
+    public async Task ExploratorySongs_AreExcluded()
+    {
+        var baseTime = new DateTime(2023, 6, 1, 0, 0, 0, DateTimeKind.Utc);
+        var exploratory = await SeedSongAsync("weak", locked: false, baseTime, exploratory: true); // weak but un-vetted
+        var normalWeak = await SeedSongAsync("weak", locked: false, baseTime.AddDays(1));
+
+        var enrichment = new RecordingEnrichment();
+        var result = await RunAsync(enrichment, "strong", limit: 100);
+
+        var response = result.Get();
+        Assert.Equal(1, response.Enriched);          // only the normal weak song
+        Assert.Equal(0, response.Remaining);
+        Assert.Equal([normalWeak.SongId], enrichment.Enriched);
+        Assert.DoesNotContain(exploratory.SongId, enrichment.Enriched);
     }
 
     [Fact]

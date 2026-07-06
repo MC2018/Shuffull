@@ -48,6 +48,12 @@ namespace Shuffull.Core.Models.Database
         // correct era instead of regenerating an AI guess.
         public int? OriginalReleaseYear { get; set; }
 
+        // Provisional "audition" song: imported from an exploratory source with NO AI tags, awaiting the user's
+        // keep decision. While true it is excluded from the model-upgrade sweep (don't spend AI on un-vetted
+        // songs) and can be purged when its exploratory playlist is deleted. A re-tag (promote-on-keep) clears
+        // this and gives it real tags.
+        public bool Exploratory { get; set; }
+
         // Set true when a curator hand-edits this song's metadata. While locked, the import/replacement pipeline
         // (SongImportService.ReplaceInDbAsync) re-sources the AUDIO in place but leaves the metadata
         // (Name/Bpm/Energy/artists/tags) alone, so a later re-source can't silently clobber a human correction.

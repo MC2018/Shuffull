@@ -42,11 +42,12 @@ public class RetagStaleSongsHandler(
             return Result.Ok(new RetagStaleSongsResponse(0, 0, 0, strongModel));
         }
 
-        // Stale = weaker (or null/unknown) TagModel, and NOT curator-locked (locked songs are excluded so they
-        // can't be perpetually re-selected). Expressed as SQL so we don't load the whole library.
+        // Stale = weaker (or null/unknown) TagModel, NOT curator-locked, and NOT exploratory (un-vetted audition
+        // songs must not have AI spent on them until the user keeps one). Locked/exploratory are excluded so they
+        // can't be perpetually re-selected. Expressed as SQL so we don't load the whole library.
         var strongEnough = modelStrengths.ModelsAtLeastAsStrongAs(strongModel).ToList();
         var staleQuery = context.Songs.Where(s =>
-            !s.MetadataLocked && (s.TagModel == null || !strongEnough.Contains(s.TagModel)));
+            !s.MetadataLocked && !s.Exploratory && (s.TagModel == null || !strongEnough.Contains(s.TagModel)));
 
         var totalStale = await staleQuery.CountAsync(cancellationToken);
         var batch = await staleQuery

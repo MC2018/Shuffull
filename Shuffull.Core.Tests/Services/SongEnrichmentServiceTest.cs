@@ -76,7 +76,7 @@ public class SongEnrichmentServiceTest : IDisposable
         await _database.Context.SaveChangesAsync();
     }
 
-    private async Task<Song> SeedSongAsync(bool locked = false, int? measuredBpm = 128, int? originalReleaseYear = null)
+    private async Task<Song> SeedSongAsync(bool locked = false, int? measuredBpm = 128, int? originalReleaseYear = null, bool exploratory = false)
     {
         var song = new Song
         {
@@ -88,6 +88,7 @@ public class SongEnrichmentServiceTest : IDisposable
             MeasuredBpm = measuredBpm,
             Bpm = measuredBpm,
             OriginalReleaseYear = originalReleaseYear,
+            Exploratory = exploratory,
             TagModel = "old-weak-model",
             Version = DateTime.UtcNow.AddDays(-30),
         };
@@ -199,6 +200,20 @@ public class SongEnrichmentServiceTest : IDisposable
     {
         var result = await EnrichAsync(new FakeAiService(), "no-such-song");
         Assert.True(result.IsError);
+    }
+
+    [Fact]
+    public async Task Enrich_PromotesExploratorySong()
+    {
+        await SeedGenresAsync();
+        var song = await SeedSongAsync(exploratory: true);
+
+        var result = await EnrichAsync(new FakeAiService(), song.SongId);
+
+        Assert.True(result.IsOk);
+        var updated = await _database.Context.Songs.AsNoTracking().SingleAsync(s => s.SongId == song.SongId);
+        Assert.False(updated.Exploratory); // keeping/enriching promotes it out of audition state
+        Assert.Equal("strong-model-x", updated.TagModel);
     }
 
     [Fact]

@@ -203,6 +203,8 @@ public partial class SongImportService : BackgroundService
                     CrestFactorDb = songImport.CrestFactorDb,
                     OnsetsPerSecond = songImport.OnsetsPerSecond,
                     OriginalReleaseYear = songImport.OriginalReleaseYear,
+                    // Provisional until the user keeps it; a keep triggers a re-tag which clears this + adds tags.
+                    Exploratory = songImport.Exploratory,
                     Version = DateTime.UtcNow
                 };
                 // Map the producer's "liked on the source" flag to the initial like sentiment.
@@ -354,6 +356,13 @@ public partial class SongImportService : BackgroundService
 
     private async Task<Result<Tuple<List<Tag>, List<Tag>>>> GetGeneratedSongTagsAsync(SongImport songImport, List<string> artistNames, string fileHash, CancellationToken cancellationToken = default!)
     {
+        // Exploratory imports arrive untagged on purpose - the user auditions them first, and a keep triggers a
+        // re-tag (SongEnrichmentService) that adds real tags + clears the flag. Spend no AI (producer or self).
+        if (songImport.Exploratory)
+        {
+            return Result.Ok(Tuple.Create(new List<Tag>(), new List<Tag>()));
+        }
+
         using var scope = _services.CreateScope();
         using var dbContext = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
         var aiService = scope.ServiceProvider.GetService<IAIService>();

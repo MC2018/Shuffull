@@ -60,6 +60,8 @@ public class SongImport
     public double? OnsetsPerSecond { get; set; }
     /// <summary>Authoritative original release year (reliable MusicBrainz match); carried through to the Song.</summary>
     public int? OriginalReleaseYear { get; set; }
+    /// <summary>Exploratory ("audition") import: skip AI tagging; persist the Song as provisional.</summary>
+    public bool Exploratory { get; set; }
     /// <summary>Whether the user liked the song on the external source; mapped to a Like on import.</summary>
     public bool MarkAsLiked { get; set; }
     /// <summary>Name of the target playlist; used to auto-create it (attached to the user) if it doesn't exist.</summary>
