@@ -15,7 +15,9 @@ public record PlaylistDto(
     string? CurrentSongId,
     decimal PercentUntilReplayable,
     DateTime Version,
-    IReadOnlyList<string> SongIds)
+    IReadOnlyList<string> SongIds,
+    // Audition playlist: imported from an exploratory source; deleting it purges the songs the user never kept.
+    bool IsExploratory = false)
 {
     public static Result<PlaylistDto> Create(Playlist playlist)
     {
@@ -37,6 +39,7 @@ public record PlaylistDto(
             CurrentSongId: playlist.CurrentSongId,
             PercentUntilReplayable: playlist.PercentUntilReplayable,
             Version: playlist.Version,
-            SongIds: songIds));
+            SongIds: songIds,
+            IsExploratory: playlist.IsExploratory));
     }
 }

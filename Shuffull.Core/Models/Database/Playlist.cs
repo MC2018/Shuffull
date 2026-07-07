@@ -29,6 +29,11 @@ namespace Shuffull.Core.Models.Database
         [Required]
         public DateTime Version { get; set; }
 
+        // An "audition" playlist: its songs were imported from an exploratory source with no AI tags. Deleting
+        // such a playlist purges any of its songs the user never kept (still Exploratory and in no other
+        // playlist). Set when the playlist is first created by an exploratory import; false for normal playlists.
+        public bool IsExploratory { get; set; }
+
         [Key]
         public User User { get; set; }
         public ICollection<PlaylistSong> PlaylistSongs { get; set; }

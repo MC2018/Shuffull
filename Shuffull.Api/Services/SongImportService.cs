@@ -524,6 +524,10 @@ public partial class SongImportService : BackgroundService
                     Name = playlistName,
                     CurrentSongId = null,
                     PercentUntilReplayable = 0.9m,
+                    // The first song imported into a freshly-created playlist decides its audition status: an
+                    // exploratory source imports its songs untagged into a dedicated target playlist, so that
+                    // playlist becomes an audition playlist (and a later delete can purge the un-kept songs).
+                    IsExploratory = song.Exploratory,
                     Version = DateTime.UtcNow
                 };
                 dbContext.Playlists.Add(playlist);
