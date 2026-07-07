@@ -1,8 +1,11 @@
 using MediatR;
 using Nut.Results;
 using Shuffull.Core.Models.Database;
+using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Persistence.Repositories;
 using Shuffull.Core.Persistence.Specifications.UserSongs;
+using Shuffull.Core.Persistence.Specifications.YoutubeRatings;
+using Shuffull.Shared.Tools;
 
 namespace Shuffull.Core.Features.UserSongs.SetSongLikeStatus;
 
@@ -40,6 +43,10 @@ public class SetSongLikeStatusHandler(IUnitOfWork unitOfWork)
             }
             userResult.Get().Version = now;
 
+            // Like-parity: mirror the new sentiment onto the song's YouTube video (if it has one). Staged into
+            // the same unit of work so it commits atomically with the like below.
+            await EnqueueYoutubeRatingAsync(request.SongId, request.LikeStatus, now, cancellationToken);
+
             var saveResult = await unitOfWork.SaveChangesAsync(cancellationToken);
             if (saveResult.IsError)
             {
@@ -48,5 +55,53 @@ public class SetSongLikeStatusHandler(IUnitOfWork unitOfWork)
         }
 
         return Result.Ok(new SetSongLikeStatusResponse(request.SongId, userSong.LikeStatus));
+    }
+
+    /// <summary>Maps a Shuffull sentiment to a YouTube rating: Like/Love -&gt; like, Dislike -&gt; dislike, else none.</summary>
+    public static YoutubeRating MapToYoutubeRating(LikeStatus likeStatus) => likeStatus switch
+    {
+        LikeStatus.Like or LikeStatus.Love => YoutubeRating.Like,
+        LikeStatus.Dislike => YoutubeRating.Dislike,
+        _ => YoutubeRating.None,
+    };
+
+    /// <summary>
+    /// Upserts the like-parity queue row for the song's YouTube video. Only YouTube-sourced songs carry an
+    /// <see cref="Song.ExternalSongId"/> (the video id) — manual uploads are skipped. Keeps a single row per
+    /// video, re-queued Pending with the latest rating, so the producer applies only the newest value.
+    /// </summary>
+    private async Task EnqueueYoutubeRatingAsync(string songId, LikeStatus likeStatus, DateTime now, CancellationToken cancellationToken)
+    {
+        var songResult = await unitOfWork.Repository<Song>().GetByIdAsync(songId, cancellationToken);
+        if (songResult.IsError || string.IsNullOrWhiteSpace(songResult.Get().ExternalSongId))
+        {
+            return;
+        }
+
+        var videoId = songResult.Get().ExternalSongId!;
+        var rating = MapToYoutubeRating(likeStatus);
+        var repo = unitOfWork.Repository<YoutubeRatingRequest>();
+
+        var existingResult = await repo.GetAsync(new YoutubeRatingRequestByVideoIdSpec(videoId), cancellationToken);
+        if (existingResult.IsOk)
+        {
+            var existing = existingResult.Get();
+            existing.Rating = rating;
+            existing.Status = YoutubeRatingStatus.Pending;
+            existing.UpdatedAt = now;
+        }
+        else
+        {
+            await repo.AddAsync(new YoutubeRatingRequest
+            {
+                YoutubeRatingRequestId = IdGenerator.Generate(),
+                SongId = songId,
+                VideoId = videoId,
+                Rating = rating,
+                Status = YoutubeRatingStatus.Pending,
+                CreatedAt = now,
+                UpdatedAt = now,
+            }, cancellationToken);
+        }
     }
 }

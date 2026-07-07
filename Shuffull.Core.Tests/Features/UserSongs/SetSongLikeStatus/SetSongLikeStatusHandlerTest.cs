@@ -38,7 +38,7 @@ public class SetSongLikeStatusHandlerTest : IDisposable
         return user;
     }
 
-    private async Task<UserSong> SeedUserSongAsync(string userId, LikeStatus likeStatus, DateTime version)
+    private async Task<UserSong> SeedUserSongAsync(string userId, LikeStatus likeStatus, DateTime version, string? externalSongId = null)
     {
         var song = new Song
         {
@@ -46,7 +46,7 @@ public class SetSongLikeStatusHandlerTest : IDisposable
             Name = "Song",
             FileExtension = ".mp3",
             FileHash = Guid.NewGuid().ToString(),
-            ExternalSongId = null,
+            ExternalSongId = externalSongId,
         };
         await _database.Context.Songs.AddAsync(song);
         await _database.Context.SaveChangesAsync();
@@ -150,6 +150,56 @@ public class SetSongLikeStatusHandlerTest : IDisposable
         // Assert
         Assert.True(result.IsError);
         Assert.Contains("No matching song", result.GetError().Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData(LikeStatus.Like, YoutubeRating.Like)]
+    [InlineData(LikeStatus.Love, YoutubeRating.Like)]
+    [InlineData(LikeStatus.Dislike, YoutubeRating.Dislike)]
+    [InlineData(LikeStatus.Neutral, YoutubeRating.None)]
+    public void MapToYoutubeRating_IsFullParity(LikeStatus like, YoutubeRating expected)
+        => Assert.Equal(expected, SetSongLikeStatusHandler.MapToYoutubeRating(like));
+
+    [Fact]
+    public async Task Handle_YoutubeSourcedSong_EnqueuesPendingRating()
+    {
+        var user = await SeedUserAsync(DateTime.UtcNow.AddDays(-1));
+        var userSong = await SeedUserSongAsync(user.UserId, LikeStatus.Neutral, DateTime.UtcNow.AddDays(-1), externalSongId: "yt-vid-1");
+
+        var result = await _handler.Handle(
+            new SetSongLikeStatusCommand(user.UserId, userSong.SongId, LikeStatus.Love), CancellationToken.None);
+
+        Assert.True(result.IsOk);
+        var req = await _database.Context.YoutubeRatingRequests.AsNoTracking().SingleAsync();
+        Assert.Equal("yt-vid-1", req.VideoId);
+        Assert.Equal(userSong.SongId, req.SongId);
+        Assert.Equal(YoutubeRating.Like, req.Rating); // Love -> like
+        Assert.Equal(YoutubeRatingStatus.Pending, req.Status);
+    }
+
+    [Fact]
+    public async Task Handle_ManualUpload_NoExternalId_DoesNotEnqueue()
+    {
+        var user = await SeedUserAsync(DateTime.UtcNow.AddDays(-1));
+        var userSong = await SeedUserSongAsync(user.UserId, LikeStatus.Neutral, DateTime.UtcNow.AddDays(-1)); // ExternalSongId null
+
+        await _handler.Handle(new SetSongLikeStatusCommand(user.UserId, userSong.SongId, LikeStatus.Like), CancellationToken.None);
+
+        Assert.Equal(0, await _database.Context.YoutubeRatingRequests.CountAsync());
+    }
+
+    [Fact]
+    public async Task Handle_SuccessiveChanges_CoalesceIntoOneRow_LatestWins()
+    {
+        var user = await SeedUserAsync(DateTime.UtcNow.AddDays(-1));
+        var userSong = await SeedUserSongAsync(user.UserId, LikeStatus.Neutral, DateTime.UtcNow.AddDays(-1), externalSongId: "yt-vid-2");
+
+        await _handler.Handle(new SetSongLikeStatusCommand(user.UserId, userSong.SongId, LikeStatus.Like), CancellationToken.None);
+        await _handler.Handle(new SetSongLikeStatusCommand(user.UserId, userSong.SongId, LikeStatus.Dislike), CancellationToken.None);
+
+        var req = await _database.Context.YoutubeRatingRequests.AsNoTracking().SingleAsync(); // still exactly one row
+        Assert.Equal(YoutubeRating.Dislike, req.Rating);
+        Assert.Equal(YoutubeRatingStatus.Pending, req.Status);
     }
 
     [Theory]
