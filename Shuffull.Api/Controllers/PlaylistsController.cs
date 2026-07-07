@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Shuffull.Core.Features.Playlists.AddSongToPlaylist;
 using Shuffull.Core.Features.Playlists.CreatePlaylist;
+using Shuffull.Core.Features.Playlists.DeletePlaylist;
 using Shuffull.Core.Features.Playlists.GetPlaylistDetails;
 using Shuffull.Core.Features.Playlists.GetPlaylists;
 using Shuffull.Core.Features.Playlists.GetUserPlaylists;
@@ -73,6 +74,20 @@ public class PlaylistsController : ControllerBase
         }
 
         return this.ToActionResult(await _mediator.Send(new RemoveSongFromPlaylistCommand(user.UserId, playlistId, songId), cancellationToken));
+    }
+
+    // Deletes the whole playlist. For an audition (exploratory) playlist this also purges the songs the user
+    // never kept — see DeletePlaylistHandler. Idempotent: deleting an already-absent playlist is a no-op success.
+    [HttpDelete("{playlistId}")]
+    [Authorize]
+    public async Task<IActionResult> Delete(string playlistId, CancellationToken cancellationToken)
+    {
+        if (HttpContext.Items["User"] is not User user)
+        {
+            return Unauthorized();
+        }
+
+        return this.ToActionResult(await _mediator.Send(new DeletePlaylistCommand(user.UserId, playlistId), cancellationToken));
     }
 
     [HttpPost("list")]

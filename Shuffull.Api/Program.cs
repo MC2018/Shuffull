@@ -74,6 +74,8 @@ builder.Services.AddSingleton(new ModelStrengths(
     builder.Configuration.GetSection("AI:ModelStrengths").Get<Dictionary<string, int>>()));
 // On-demand re-tag of a single song from its stored inputs (model upgrades, exploratory promotion).
 builder.Services.AddSingleton<ISongEnrichmentService, SongEnrichmentService>();
+// Deletes a purged song's stored media (audio + album art); used when an exploratory playlist is deleted.
+builder.Services.AddSingleton<ISongMediaStore, SongMediaStore>();
 builder.Services.AddHostedService<SongImportService>();
 builder.Services.AddHostedService<ExternalSongImporterService>();
 
