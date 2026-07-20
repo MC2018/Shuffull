@@ -102,14 +102,24 @@ public partial class SongImportService : BackgroundService
             // song's id and brings new audio/tags, so the dedup-by-hash/external-id guard would reject it.
             if (string.IsNullOrEmpty(songImport.ReplacesSongId))
             {
-                var checkUniquenessResult = await CheckUniqueness(songImport, fileHash, cancellationToken);
-                if (checkUniquenessResult.IsError)
+                var duplicateResult = await FindDuplicateAsync(songImport, fileHash, cancellationToken);
+                if (duplicateResult.IsError)
                 {
-                    return checkUniquenessResult.PreserveErrorAs();
+                    return duplicateResult.PreserveErrorAs();
                 }
-                if (!checkUniquenessResult.Get())
+                var duplicate = duplicateResult.Get().Match;
+                if (duplicate != null)
                 {
-                    return Result.Ok();
+                    if (!ShouldRefreshInPlace(duplicate, songImport.ExternalSongId, fileHash, songImport.Exploratory))
+                    {
+                        return Result.Ok(); // true duplicate — drop it, as before
+                    }
+
+                    // Same video, different audio content: the producer re-converted this song (e.g. a new
+                    // loudness target after its pipeline state was wiped). Route it through the replacement
+                    // path below so the fresh audio is swapped IN PLACE — same SongId, every user association
+                    // and (for MetadataLocked songs) every hand-edit preserved — instead of being discarded.
+                    songImport.ReplacesSongId = duplicate.SongId;
                 }
             }
 
@@ -243,12 +253,32 @@ public partial class SongImportService : BackgroundService
         }
     }
 
-    private async Task<Result<bool>> CheckUniqueness(SongImport songImport, string fileHash, CancellationToken cancellationToken = default!)
+    private async Task<Result<DuplicateProbe>> FindDuplicateAsync(SongImport songImport, string fileHash, CancellationToken cancellationToken = default!)
     {
         using var scope = _services.CreateScope();
         using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
         var existingSong = await context.Songs.Where(x => x.FileHash == fileHash || (x.ExternalSongId != null && x.ExternalSongId == songImport.ExternalSongId)).FirstOrDefaultAsync(cancellationToken);
-        return Result.Ok(existingSong == null);
+        return Result.Ok(new DuplicateProbe(existingSong));
+    }
+
+    /// <summary>The (at most one) existing song a new import collides with; null when the import is unique.</summary>
+    internal sealed record DuplicateProbe(Song? Match);
+
+    /// <summary>
+    /// Whether a colliding import should REFRESH the existing song's audio in place (via the replacement path)
+    /// instead of being dropped as a duplicate. True only for "same source video, different audio content" —
+    /// i.e. the producer re-converted the same song (new loudness target, better stream) after losing its
+    /// pipeline state. Same-hash re-sends stay idempotent skips, a hash-only collision (same audio under a
+    /// different/absent video id) is a true duplicate, and a tag-less exploratory re-rip must never refresh a
+    /// song the user has promoted — it would wipe the tags enrichment gave it.
+    /// </summary>
+    internal static bool ShouldRefreshInPlace(Song duplicate, string? importExternalSongId, string importFileHash, bool importExploratory)
+    {
+        var sameVideoNewAudio = !string.IsNullOrEmpty(importExternalSongId)
+            && duplicate.ExternalSongId == importExternalSongId
+            && !string.Equals(duplicate.FileHash, importFileHash, StringComparison.Ordinal);
+        var wouldWipePromotedTags = importExploratory && !duplicate.Exploratory;
+        return sameVideoNewAudio && !wouldWipePromotedTags;
     }
 
     private async Task<Result<byte[]>> GetFileBytesAsync(SongImport songImport, CancellationToken cancellationToken = default!)
