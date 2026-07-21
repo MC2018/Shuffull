@@ -4,7 +4,7 @@ using Shuffull.Core.Features.Songs.RetagStaleSongs;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Services;
 using Shuffull.Core.Tests.Infrastructure;
-using Shuffull.Core.Tools;
+using Shuffull.Metadata.Tools;
 using Shuffull.Shared.Tools;
 
 namespace Shuffull.Core.Tests.Features.Songs;

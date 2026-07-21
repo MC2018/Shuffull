@@ -4,10 +4,11 @@ using Shuffull.Core.Persistence.Repositories;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Dtos;
 using Shuffull.Core.Persistence.Specifications.Songs;
+using Shuffull.Core.Tools;
 
 namespace Shuffull.Core.Features.Songs.GetSongList;
 
-public class GetSongListHandler(IUnitOfWork unitOfWork) : IRequestHandler<GetSongListQuery, Result<GetSongListResponse>>
+public class GetSongListHandler(IUnitOfWork unitOfWork, TagStalenessJudge staleness) : IRequestHandler<GetSongListQuery, Result<GetSongListResponse>>
 {
     public async Task<Result<GetSongListResponse>> Handle(GetSongListQuery request, CancellationToken cancellationToken)
     {
@@ -21,7 +22,7 @@ public class GetSongListHandler(IUnitOfWork unitOfWork) : IRequestHandler<GetSon
         var dtos = new List<SongDto>();
         foreach (var song in songsResult.Get())
         {
-            var dtoResult = SongDto.Create(song);
+            var dtoResult = SongDto.Create(song, staleness.IsStale(song));
             if (dtoResult.IsError)
             {
                 return Result.Error<GetSongListResponse>(dtoResult.GetError().Message);

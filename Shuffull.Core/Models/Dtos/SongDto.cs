@@ -28,9 +28,14 @@ public record SongDto(
     int? Energy = null,
     // True for an un-vetted "audition" song imported from an exploratory source with no AI tags. The app uses
     // this to surface an audition view and to promote-on-keep (a like enqueues a re-tag, which clears this).
-    bool Exploratory = false)
+    bool Exploratory = false,
+    // True when the song's tags came from a weaker model than the current strong one (per AI:ModelStrengths) —
+    // e.g. a Standard-tier import tagged by the weak model. The app treats it exactly like Exploratory for
+    // promote-on-like: a like enqueues a re-tag that upgrades the tags. Server-computed on the sync paths only
+    // (defaults false elsewhere); never true for exploratory or curator-locked songs.
+    bool TagsStale = false)
 {
-    public static Result<SongDto> Create(Song song)
+    public static Result<SongDto> Create(Song song, bool tagsStale = false)
     {
         if (song is null)
         {
@@ -64,6 +69,7 @@ public record SongDto(
             LyricsSource: song.LyricsSource,
             Bpm: song.Bpm,
             Energy: song.Energy,
-            Exploratory: song.Exploratory));
+            Exploratory: song.Exploratory,
+            TagsStale: tagsStale));
     }
 }

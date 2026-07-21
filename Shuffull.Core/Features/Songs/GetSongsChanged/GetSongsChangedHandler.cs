@@ -4,10 +4,11 @@ using Shuffull.Core.Persistence.Repositories;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Dtos;
 using Shuffull.Core.Persistence.Specifications.Songs;
+using Shuffull.Core.Tools;
 
 namespace Shuffull.Core.Features.Songs.GetSongsChanged;
 
-public class GetSongsChangedHandler(IUnitOfWork unitOfWork) : IRequestHandler<GetSongsChangedQuery, Result<GetSongsChangedResponse>>
+public class GetSongsChangedHandler(IUnitOfWork unitOfWork, TagStalenessJudge staleness) : IRequestHandler<GetSongsChangedQuery, Result<GetSongsChangedResponse>>
 {
     public async Task<Result<GetSongsChangedResponse>> Handle(GetSongsChangedQuery request, CancellationToken cancellationToken)
     {
@@ -28,7 +29,7 @@ public class GetSongsChangedHandler(IUnitOfWork unitOfWork) : IRequestHandler<Ge
         var dtos = new List<SongDto>();
         foreach (var song in page)
         {
-            var dtoResult = SongDto.Create(song);
+            var dtoResult = SongDto.Create(song, staleness.IsStale(song));
             if (dtoResult.IsError)
             {
                 return Result.Error<GetSongsChangedResponse>(dtoResult.GetError().Message);

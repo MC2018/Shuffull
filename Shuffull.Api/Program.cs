@@ -12,7 +12,7 @@ using Shuffull.Core.Behaviors;
 using Shuffull.Core.Persistence;
 using Shuffull.Core.Persistence.Repositories;
 using Shuffull.Core.Services;
-using Shuffull.Core.Tools;
+using Shuffull.Metadata.Tools;
 using Shuffull.Metadata.Models;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -72,6 +72,9 @@ builder.Services.TryAddAIService(builder.Configuration);
 // empty map => nothing is ever considered stale (fail-safe).
 builder.Services.AddSingleton(new ModelStrengths(
     builder.Configuration.GetSection("AI:ModelStrengths").Get<Dictionary<string, int>>()));
+// Flags weak-tagged songs on the sync payloads (SongDto.TagsStale) so the app can promote them on like,
+// mirroring the exploratory promote flow. Same fail-safe as the re-tag paths.
+builder.Services.AddSingleton<Shuffull.Core.Tools.TagStalenessJudge>();
 // On-demand re-tag of a single song from its stored inputs (model upgrades, exploratory promotion).
 builder.Services.AddSingleton<ISongEnrichmentService, SongEnrichmentService>();
 // Deletes a purged song's stored media (audio + album art); used when an exploratory playlist is deleted.

@@ -4,7 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Nut.Results;
 using Shuffull.Core.Persistence;
 using Shuffull.Core.Services;
-using Shuffull.Core.Tools;
+using Shuffull.Metadata.Tools;
 
 namespace Shuffull.Core.Features.Songs.RetagStaleSongs;
 

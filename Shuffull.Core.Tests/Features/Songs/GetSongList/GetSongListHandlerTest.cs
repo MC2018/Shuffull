@@ -2,6 +2,9 @@ using Nut.Results;
 using Shuffull.Core.Tests.Infrastructure;
 using Shuffull.Core.Features.Songs.GetSongList;
 using Shuffull.Core.Models.Database;
+using Microsoft.Extensions.Configuration;
+using Shuffull.Core.Tools;
+using Shuffull.Metadata.Tools;
 
 namespace Shuffull.Core.Tests.Features.Songs.GetSongList;
 
@@ -13,7 +16,9 @@ public class GetSongListHandlerTest : IDisposable
     public GetSongListHandlerTest()
     {
         _database = new DatabaseFixture();
-        _handler = new GetSongListHandler(_database.UnitOfWork);
+        // An empty strengths map => the judge's fail-safe kicks in and nothing is ever stale, matching the
+        // pre-TagsStale behavior these tests assert.
+        _handler = new GetSongListHandler(_database.UnitOfWork, new TagStalenessJudge(new ModelStrengths(), new ConfigurationBuilder().Build()));
     }
 
     public void Dispose()
