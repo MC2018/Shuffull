@@ -5,13 +5,25 @@ using Shuffull.Core.Authentication;
 namespace Shuffull.Core.Features.Songs.RetagSongs;
 
 /// <summary>
-/// Curator-only: force re-tag a specific set of songs from their stored inputs with the current strong model
-/// (no re-download), regardless of staleness. Multi-id so the app's offline outbox can coalesce many queued
-/// re-tags into a single replay call (and to power exploratory "promote on like"). Curator-locked songs are
-/// reported skipped, not touched. For a model-driven sweep of the whole library, use RetagStaleSongs instead.
+/// Curator-only: force re-tag a specific set of songs from their stored inputs (no re-download), regardless
+/// of staleness. PER-ITEM model tiers so the app's offline outbox can flush a MIXED backlog (audition Keeps
+/// queued weak alongside like-promotions queued strong) in a single burst call. Duplicate ids collapse with
+/// stronger-wins — a Like queued after a Keep must not be downgraded by the older weak row. Curator-locked
+/// songs are reported skipped, not touched. For a model-driven library sweep, use RetagStaleSongs instead.
 /// </summary>
 [RequiresRole(Role.Curator)]
-public record RetagSongsCommand(IReadOnlyList<string> SongIds) : IRequest<Result<RetagSongsResponse>>;
+public record RetagSongsCommand(IReadOnlyList<SongRetagItem> Items) : IRequest<Result<RetagSongsResponse>>;
+
+/// <summary>One song to re-tag and the engine tier to run: <c>"weak"</c> (budget — an audition Keep) or
+/// <c>"strong"</c>/null (full quality — likes, curator upgrades).</summary>
+public record SongRetagItem(string SongId, string? Model = null);
+
+/// <summary>The stable model-tier strings on the wire.</summary>
+public static class RetagModels
+{
+    public const string Strong = "strong";
+    public const string Weak = "weak";
+}
 
 /// <summary>
 /// Per-song outcome so the caller (and the outbox) can mark items done or retry only the failures.

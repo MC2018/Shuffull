@@ -20,6 +20,10 @@ public record UpdateSongRequest(
     IReadOnlyList<string> Artists,
     IReadOnlyList<SongTagEdit> Tags);
 
+/// <summary>Body for the batched re-tag: per-song items, each naming its engine tier ("weak" | "strong";
+/// null = strong) — so one call can flush a mixed offline backlog of Keeps and like-promotions.</summary>
+public record RetagSongsRequest(SongRetagItem[]? Items);
+
 /// <summary>
 /// CQRS-style songs API. Thin controller: it only dispatches the request through MediatR and maps
 /// the <see cref="Nut.Results.Result"/> to an HTTP response. This is the reference template for the
@@ -74,15 +78,15 @@ public class SongsController : ControllerBase
             cancellationToken));
 
     /// <summary>
-    /// Curator-only: force re-tag a specific set of songs from their stored inputs with the current strong
-    /// model (no re-download). Multi-id so the app's offline outbox can coalesce queued re-tags into one call.
-    /// Curator-locked songs are reported skipped. Returns a per-song outcome; bumps the version of each song
-    /// that was actually re-tagged.
+    /// Curator-only: force re-tag songs from their stored inputs (no re-download). Per-item model tiers
+    /// ("weak" = the budget engine for an audition Keep; null/"strong" = full quality for likes/upgrades), so
+    /// one call flushes a mixed offline backlog. Duplicate ids collapse stronger-wins. Curator-locked songs
+    /// are reported skipped. Returns a per-song outcome; bumps the version of each song actually re-tagged.
     /// </summary>
     [HttpPost("retag")]
     [Authorize]
-    public async Task<IActionResult> RetagSongs([FromBody] string[] songIds, CancellationToken cancellationToken)
-        => this.ToActionResult(await _mediator.Send(new RetagSongsCommand(songIds), cancellationToken));
+    public async Task<IActionResult> RetagSongs([FromBody] RetagSongsRequest request, CancellationToken cancellationToken)
+        => this.ToActionResult(await _mediator.Send(new RetagSongsCommand(request.Items ?? []), cancellationToken));
 
     /// <summary>
     /// Curator-only: re-tag a bounded batch of stale songs (TagModel weaker than the current strong model).

@@ -60,7 +60,8 @@ public class RetagStaleSongsHandler(
         var failed = 0;
         foreach (var songId in batch)
         {
-            var result = await enrichment.EnrichSongAsync(songId, cancellationToken);
+            // The upgrade sweep always runs the strong model — that's what "no longer stale" means.
+            var result = await enrichment.EnrichSongAsync(songId, EnrichmentModel.Strong, cancellationToken);
             if (result.IsError)
             {
                 failed++;

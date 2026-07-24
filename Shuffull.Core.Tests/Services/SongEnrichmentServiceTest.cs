@@ -203,6 +203,31 @@ public class SongEnrichmentServiceTest : IDisposable
     }
 
     [Fact]
+    public async Task Enrich_PinsEngineToTheRequestedModel_AndStampsIt()
+    {
+        // A weak-tier enrichment (audition Keep) must run the weak model on EVERY engine call — the
+        // ModelOverride pins it so the engine's own strong default can't leak in — and stamp that same
+        // model as TagModel, so the song correctly reads as stale-vs-strong for a later upgrade.
+        await SeedGenresAsync();
+        var song = await SeedSongAsync(exploratory: true);
+        var ai = new FakeAiService();
+
+        var result = await SongEnrichmentService.EnrichSongCoreAsync(
+            _database.Context, ai, "weak-model-y",
+            candidateMoods: ["Energetic"], candidateThemes: [],
+            song.SongId, CancellationToken.None);
+
+        Assert.True(result.IsOk);
+        Assert.Equal("weak-model-y", ai.SeenMainRequest!.ModelOverride);
+        Assert.Equal("weak-model-y", ai.SeenSubRequest!.ModelOverride);
+        Assert.Equal("weak-model-y", ai.SeenOtherRequest!.ModelOverride);
+
+        var updated = await _database.Context.Songs.AsNoTracking().SingleAsync(s => s.SongId == song.SongId);
+        Assert.Equal("weak-model-y", updated.TagModel);
+        Assert.False(updated.Exploratory); // a weak Keep still promotes out of audition
+    }
+
+    [Fact]
     public async Task Enrich_PromotesExploratorySong()
     {
         await SeedGenresAsync();

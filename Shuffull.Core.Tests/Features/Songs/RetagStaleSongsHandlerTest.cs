@@ -30,8 +30,9 @@ public class RetagStaleSongsHandlerTest : IDisposable
     private sealed class RecordingEnrichment : ISongEnrichmentService
     {
         public List<string> Enriched { get; } = [];
-        public Task<Result<SongEnrichmentStatus>> EnrichSongAsync(string songId, CancellationToken cancellationToken = default!)
+        public Task<Result<SongEnrichmentStatus>> EnrichSongAsync(string songId, EnrichmentModel model = EnrichmentModel.Strong, CancellationToken cancellationToken = default!)
         {
+            Assert.Equal(EnrichmentModel.Strong, model); // the upgrade sweep always runs strong
             Enriched.Add(songId);
             return Task.FromResult(Result.Ok(SongEnrichmentStatus.Enriched));
         }

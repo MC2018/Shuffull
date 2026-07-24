@@ -32,7 +32,7 @@ public partial class SongEnrichmentService : ISongEnrichmentService
         _services = services;
     }
 
-    public async Task<Result<SongEnrichmentStatus>> EnrichSongAsync(string songId, CancellationToken cancellationToken = default!)
+    public async Task<Result<SongEnrichmentStatus>> EnrichSongAsync(string songId, EnrichmentModel model = EnrichmentModel.Strong, CancellationToken cancellationToken = default!)
     {
         using var scope = _services.CreateScope();
         using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
@@ -43,8 +43,14 @@ public partial class SongEnrichmentService : ISongEnrichmentService
             return Result.Error<SongEnrichmentStatus>("AI is not enabled; cannot enrich songs.");
         }
 
+        // Weak = the budget tier (audition Keep): ResolvedWeakModelName falls back to strong when no weak
+        // model is configured, so the request never silently loses quality — it just isn't cheaper.
+        var modelName = model == EnrichmentModel.Weak
+            ? aiConfig.ResolvedWeakModelName
+            : aiConfig.ResolvedStrongModelName;
+
         return await EnrichSongCoreAsync(
-            context, aiService, aiConfig.ResolvedStrongModelName,
+            context, aiService, modelName,
             MoodsFile.LoadCanonical().Moods, ThemesFile.LoadCanonical().Themes,
             songId, cancellationToken);
     }
@@ -54,7 +60,7 @@ public partial class SongEnrichmentService : ISongEnrichmentService
     /// unit-tested against an in-memory context with a fake engine.
     /// </summary>
     internal static async Task<Result<SongEnrichmentStatus>> EnrichSongCoreAsync(
-        ShuffullContext dbContext, IAIService aiService, string strongModelName,
+        ShuffullContext dbContext, IAIService aiService, string modelName,
         List<string> candidateMoods, List<string> candidateThemes,
         string songId, CancellationToken cancellationToken = default!)
     {
@@ -88,8 +94,10 @@ public partial class SongEnrichmentService : ISongEnrichmentService
             .ToListAsync(cancellationToken);
 
         var mainGenreNames = allGenres.Where(x => x.IsMain).Select(x => x.Name).ToList();
+        // ModelOverride pins each engine call to THIS enrichment's model (weak for an audition Keep, strong
+        // for likes/upgrades), so the stamped TagModel below is always what actually ran.
         var mainResult = await aiService.GenerateMainGenresAsync(
-            new GenerateMainGenresRequest(song.Name, artistNames, mainGenreNames, lyricsContext), cancellationToken);
+            new GenerateMainGenresRequest(song.Name, artistNames, mainGenreNames, lyricsContext, ModelOverride: modelName), cancellationToken);
         if (mainResult.IsError)
         {
             return mainResult.PreserveErrorAs<SongEnrichmentStatus>();
@@ -104,7 +112,7 @@ public partial class SongEnrichmentService : ISongEnrichmentService
             .Distinct()
             .ToList();
         var subResult = await aiService.GenerateSubGenresAsync(
-            new GenerateSubGenresRequest(song.Name, artistNames, subCandidates, lyricsContext), cancellationToken);
+            new GenerateSubGenresRequest(song.Name, artistNames, subCandidates, lyricsContext, ModelOverride: modelName), cancellationToken);
         if (subResult.IsError)
         {
             return subResult.PreserveErrorAs<SongEnrichmentStatus>();
@@ -117,7 +125,7 @@ public partial class SongEnrichmentService : ISongEnrichmentService
             audioBlock,
             lyricsContext);
         var otherResult = await aiService.GenerateOtherSongDetailsAsync(
-            new GenerateOtherSongDetailsRequest(song.Name, artistNames, otherContext, candidateMoods, candidateThemes, song.MeasuredBpm),
+            new GenerateOtherSongDetailsRequest(song.Name, artistNames, otherContext, candidateMoods, candidateThemes, song.MeasuredBpm, ModelOverride: modelName),
             cancellationToken);
         if (otherResult.IsError)
         {
@@ -159,7 +167,7 @@ public partial class SongEnrichmentService : ISongEnrichmentService
         // BpmResolver: beat trackers are unreliable on dense electronic music); otherwise keep what we had.
         song.Bpm = other.TrueBpm is >= 40 and <= 300 ? other.TrueBpm : (song.MeasuredBpm ?? song.Bpm);
         song.Energy = other.Energy;
-        song.TagModel = strongModelName;
+        song.TagModel = modelName;
         // Enriching an exploratory song promotes it: it now has real tags, so it's no longer provisional (and
         // won't be purged if its audition playlist is later deleted).
         song.Exploratory = false;
