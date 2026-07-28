@@ -1,5 +1,7 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Shuffull.Api.Commands.Songs.RetagSongs;
+using Shuffull.Api.Commands.Songs.UpdateSong;
 using Shuffull.Api.Extensions;
 using Shuffull.Core.Features.Songs.GetSong;
 using Shuffull.Core.Features.Songs.GetSongList;
@@ -11,18 +13,6 @@ using Shuffull.Core.Features.Songs.UpdateSong;
 using Shuffull.Api.Tools.Authorization;
 
 namespace Shuffull.Api.Controllers;
-
-/// <summary>Body for the curator song-metadata edit (the song id comes from the route).</summary>
-public record UpdateSongRequest(
-    string Name,
-    int? Bpm,
-    int? Energy,
-    IReadOnlyList<string> Artists,
-    IReadOnlyList<SongTagEdit> Tags);
-
-/// <summary>Body for the batched re-tag: per-song items, each naming its engine tier ("weak" | "strong";
-/// null = strong) — so one call can flush a mixed offline backlog of Keeps and like-promotions.</summary>
-public record RetagSongsRequest(SongRetagItem[]? Items);
 
 /// <summary>
 /// CQRS-style songs API. Thin controller: it only dispatches the request through MediatR and maps
