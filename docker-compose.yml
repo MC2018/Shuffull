@@ -70,6 +70,22 @@ services:
       - Shuffull__Files__SavedAiResponsesDirectory=/data/ai_responses
       - Shuffull__Files__AlbumArtDirectory=/data/album_art
       - Shuffull__Files__GenresFile=/data/genres/genres.json
+      # ── AI (re-tagging). The producer tags songs at import, so the site only needs AI for the RETAG
+      # endpoints: an audition Keep re-tags with the weak model, a like/upgrade with the strong one. The
+      # committed appsettings.json ships AI disabled, so without these the retag calls return
+      # "AI is not enabled; cannot enrich songs." and every Keep/like-promotion silently fails.
+      # Leave AI_ENABLED unset/false to keep it off; set it true and supply the rest to turn re-tagging on.
+      - AI__Enabled=${AI_ENABLED:-false}
+      - AI__Platform=${AI_PLATFORM:-openai}
+      - AI__OpenAI__ApiKey=${OPENAI_API_KEY:-}
+      # ApiEndpoint is VALIDATED at startup against the supported list ("chat/completions" | "responses") —
+      # an unrecognized value throws and the container won't boot, so it must be right when AI is enabled.
+      - AI__OpenAI__ApiEndpoint=${OPENAI_API_ENDPOINT:-chat/completions}
+      # The capable model for likes/curator upgrades.
+      - AI__OpenAI__StrongModelName=${OPENAI_STRONG_MODEL:-}
+      # The budget model for audition Keeps. OPTIONAL: unset => falls back to the strong model, so Keeps
+      # still work, they just aren't cheaper. Set it to actually realize the tiered-retag savings.
+      - AI__OpenAI__WeakModelName=${OPENAI_WEAK_MODEL:-}
     volumes:
       # Each generated folder is its own bind mount. Point SHUFFULL_*_DIR at dedicated
       # TrueNAS folders in .env, or leave unset to use local ./data/* directories.
