@@ -82,6 +82,33 @@ builder.Services.AddSingleton<ISongMediaStore, SongMediaStore>();
 builder.Services.AddHostedService<SongImportService>();
 builder.Services.AddHostedService<ExternalSongImporterService>();
 
+// --- CORS ---------------------------------------------------------------------------------------
+// The mobile app is React Native, which does not enforce the same-origin policy, so this API never needed
+// CORS. The desktop and browser builds run in a real browser engine and do: without it every call fails as
+// an opaque "Network Error", and a JSON POST is preflighted — which this server answered with 405 because
+// no CORS middleware existed to handle OPTIONS.
+//
+// Origins are configured, never wildcarded: the API is authenticated, and a blanket allow would let any
+// page the user happens to visit talk to it. The desktop shell's origin is the default because it is a
+// fixed constant of that build (Electron serves the app over the app:// scheme).
+const string ShuffullCorsPolicy = "ShuffullClients";
+var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+corsOrigins = corsOrigins.Where(o => !string.IsNullOrWhiteSpace(o)).ToArray();
+if (corsOrigins.Length == 0)
+{
+    corsOrigins = ["app://local"];
+}
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(ShuffullCorsPolicy, policy => policy
+        .WithOrigins(corsOrigins)
+        .AllowAnyHeader()
+        .AllowAnyMethod());
+    // Deliberately no AllowCredentials: auth travels as a bearer token in a header, not a cookie, so
+    // credentialed requests are unnecessary here.
+});
+
 // --- Logging ------------------------------------------------------------------------------------
 builder.Logging.ClearProviders();
 builder.Host.UseNLog();
@@ -131,6 +158,11 @@ app.UseStaticFiles(new StaticFileOptions
 });
 
 app.UseRouting();
+
+// Must sit after UseRouting and BEFORE the auth middleware: a CORS preflight is an unauthenticated OPTIONS
+// request that carries no bearer token, so anything that rejects it earlier turns every cross-origin call
+// into an opaque "Network Error" on the client.
+app.UseCors(ShuffullCorsPolicy);
 
 // Resolves the bearer token (if any) to HttpContext.Items["User"] for the [Authorize] filter.
 app.UseMiddleware<JwtMiddleware>();

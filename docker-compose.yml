@@ -86,6 +86,10 @@ services:
       # The budget model for audition Keeps. OPTIONAL: unset => falls back to the strong model, so Keeps
       # still work, they just aren't cheaper. Set it to actually realize the tiered-retag savings.
       - AI__OpenAI__WeakModelName=${OPENAI_WEAK_MODEL:-}
+      # ── CORS. The mobile app doesn't enforce same-origin, but the desktop/browser builds run in a
+      # browser engine and do. Comma-free list: index each origin. app://local is the Electron shell.
+      - Cors__AllowedOrigins__0=${CORS_ORIGIN_0:-app://local}
+      - Cors__AllowedOrigins__1=${CORS_ORIGIN_1:-}
     volumes:
       # Each generated folder is its own bind mount. Point SHUFFULL_*_DIR at dedicated
       # TrueNAS folders in .env, or leave unset to use local ./data/* directories.
