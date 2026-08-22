@@ -32,10 +32,18 @@ if grep -qE 'replace-with-|ChangeMe!StrongPassword' "$ENVFILE"; then
   exit 1
 fi
 
-# `config` resolves all substitutions; the awk filter drops the 4-space "build:" key and its 6-space children.
+# `config` resolves all substitutions; the awk filter drops the 4-space "build:" key and its 6-space children,
+# replacing it with `pull_policy: always`.
+#
+# The swap matters: the image is published as a moving :latest tag, and compose's DEFAULT policy only pulls
+# when the tag is MISSING locally. TrueNAS already holds a :latest from the previous deploy, so a redeploy
+# silently reuses the stale image and the app reports success while running old code. `always` forces the
+# registry check at deploy time. It belongs in the OUTPUT rather than docker-compose.yml, because that file
+# still has a `build:` section for local development, where pulling instead of using the local build would
+# be exactly wrong.
 docker compose --env-file "$ENVFILE" config \
   | awk '
-      /^    build:[[:space:]]*$/ { inbuild = 1; next }
+      /^    build:[[:space:]]*$/ { inbuild = 1; print "    pull_policy: always"; next }
       inbuild && /^      / { next }
       inbuild { inbuild = 0 }
       { print }
