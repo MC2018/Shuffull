@@ -8,8 +8,13 @@ namespace Shuffull.Core.Features.Songs.RetagSongs;
 /// Re-tags each requested song via the enrichment service - each in its own scope/transaction, so one failure
 /// doesn't roll back the rest. De-dupes ids and bounds the batch (the outbox chunks larger sets). Authorization
 /// is upstream.
+///
+/// <para>Every id here was Kept or Liked by the user, so the batch FIRST promotes them all out of audition
+/// (<see cref="IAuditionPromotionService"/>) and only then attempts enrichment. The two steps are separate on
+/// purpose: the decision is durable even when the engine is disabled or failing, which is exactly the case
+/// that silently destroyed kept songs before. See the hub CLAUDE.md, "The audition ladder".</para>
 /// </summary>
-public class RetagSongsHandler(ISongEnrichmentService enrichment) : IRequestHandler<RetagSongsCommand, Result<RetagSongsResponse>>
+public class RetagSongsHandler(IAuditionPromotionService promotion, ISongEnrichmentService enrichment) : IRequestHandler<RetagSongsCommand, Result<RetagSongsResponse>>
 {
     // Bound a single request; each id is an AI call, so the caller (outbox) chunks larger sets.
     public const int MaxBatch = 200;
@@ -45,6 +50,20 @@ public class RetagSongsHandler(ISongEnrichmentService enrichment) : IRequestHand
         if (order.Count > MaxBatch)
         {
             return Result.Error<RetagSongsResponse>($"Too many songs in one request ({order.Count}); max {MaxBatch}.");
+        }
+
+        // Record intent BEFORE spending (or failing to spend) any AI. Promotion covers EVERY id in the batch,
+        // including one whose model tier fails to parse below: a client-side typo in the tier says nothing
+        // about whether the user kept the song, and intent must not hinge on the rest of the pipeline working.
+        //
+        // A failure here aborts the batch rather than enriching anyway. The caller (the app's outbox) then
+        // keeps its rows and retries, which is the whole point — dropping the decision is the failure mode we
+        // are removing.
+        var promoteResult = await promotion.PromoteAsync(order, cancellationToken);
+        if (promoteResult.IsError)
+        {
+            return Result.Error<RetagSongsResponse>(
+                $"Could not record the keep/promote for this batch; no songs were re-tagged. {promoteResult.GetError().Message}");
         }
 
         var results = new List<SongRetagResult>(order.Count);

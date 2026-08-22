@@ -7,6 +7,10 @@ namespace Shuffull.Core.Tests.Features.Songs;
 /// <summary>
 /// Covers the multi-id targeted retag: per-song outcomes (enriched / skipped-locked / failed), de-dup, the
 /// batch cap, and the empty-list short-circuit. Uses a scripted enrichment service (no db needed).
+///
+/// <para>Also covers the durability contract: every id is promoted out of audition BEFORE any enrichment
+/// runs, and that promotion survives the engine failing. See <see cref="Shuffull.Core.Tests.Services.AuditionPromotionServiceTest"/>
+/// for the persistence side.</para>
 /// </summary>
 public class RetagSongsHandlerTest
 {
@@ -23,11 +27,42 @@ public class RetagSongsHandlerTest
         }
     }
 
+    /// <summary>Records what was promoted, and can be scripted to fail (a down/locked database).</summary>
+    private sealed class SpyPromotion(Result<int>? scripted = null) : IAuditionPromotionService
+    {
+        public List<IReadOnlyList<string>> Calls { get; } = [];
+        public Task<Result<int>> PromoteAsync(IReadOnlyList<string> songIds, CancellationToken cancellationToken = default!)
+        {
+            Calls.Add(songIds);
+            return Task.FromResult(scripted ?? Result.Ok(songIds.Count));
+        }
+    }
+
+    /// <summary>Appends "promote:id1,id2" to a shared log so call ORDER across both seams can be asserted.</summary>
+    private sealed class SequencedPromotion(List<string> log) : IAuditionPromotionService
+    {
+        public Task<Result<int>> PromoteAsync(IReadOnlyList<string> songIds, CancellationToken cancellationToken = default!)
+        {
+            log.Add($"promote:{string.Join(",", songIds)}");
+            return Task.FromResult(Result.Ok(songIds.Count));
+        }
+    }
+
+    /// <summary>Enrichment counterpart of <see cref="SequencedPromotion"/>, writing to the same log.</summary>
+    private sealed class SequencedEnrichment(List<string> log, Func<string, Result<SongEnrichmentStatus>> script) : ISongEnrichmentService
+    {
+        public Task<Result<SongEnrichmentStatus>> EnrichSongAsync(string songId, EnrichmentModel model = EnrichmentModel.Strong, CancellationToken cancellationToken = default!)
+        {
+            log.Add($"enrich:{songId}");
+            return Task.FromResult(script(songId));
+        }
+    }
+
     private static Task<Result<RetagSongsResponse>> RunAsync(ISongEnrichmentService enrichment, params string[] ids)
         => RunItemsAsync(enrichment, ids.Select(id => new SongRetagItem(id)).ToArray());
 
     private static Task<Result<RetagSongsResponse>> RunItemsAsync(ISongEnrichmentService enrichment, params SongRetagItem[] items)
-        => new RetagSongsHandler(enrichment).Handle(new RetagSongsCommand(items), CancellationToken.None);
+        => new RetagSongsHandler(new SpyPromotion(), enrichment).Handle(new RetagSongsCommand(items), CancellationToken.None);
 
     [Theory]
     [InlineData(null, EnrichmentModel.Strong)]
@@ -137,5 +172,110 @@ public class RetagSongsHandlerTest
 
         Assert.True(result.IsError);
         Assert.Empty(enrichment.Calls); // rejected before any work
+    }
+
+    // ---- Durability contract: the decision outlives the engine -------------------------------------------
+
+    [Fact]
+    public async Task PromotesEveryId_BeforeAnyEnrichmentRuns()
+    {
+        var sequence = new List<string>();
+        var promotion = new SequencedPromotion(sequence);
+        var enrichment = new SequencedEnrichment(sequence, _ => Result.Ok(SongEnrichmentStatus.Enriched));
+
+        var result = await new RetagSongsHandler(promotion, enrichment)
+            .Handle(new RetagSongsCommand([new SongRetagItem("a"), new SongRetagItem("b")]), CancellationToken.None);
+
+        Assert.True(result.IsOk);
+        // Promotion must be the FIRST thing that happens, and cover both ids in one write.
+        Assert.Equal(["promote:a,b", "enrich:a", "enrich:b"], sequence);
+    }
+
+    [Fact]
+    public async Task AiDisabled_EveryItemFails_ButThePromotionStillHappened()
+    {
+        // The exact production case that lost 34 songs: AI__Enabled=false, so the engine errors on every
+        // item and the endpoint still returns 200. The keep must survive that.
+        var promotion = new SpyPromotion();
+        var enrichment = new ScriptedEnrichment(_ => Result.Error<SongEnrichmentStatus>("AI is not enabled; cannot enrich songs."));
+
+        var result = await new RetagSongsHandler(promotion, enrichment)
+            .Handle(new RetagSongsCommand([new SongRetagItem("kept", "weak")]), CancellationToken.None);
+
+        Assert.True(result.IsOk);
+        Assert.All(result.Get().Results, r => Assert.Equal(Outcomes.Failed, r.Outcome));
+        Assert.Equal(["kept"], Assert.Single(promotion.Calls));
+    }
+
+    [Fact]
+    public async Task UnknownModelTier_StillPromotesThatSong()
+    {
+        // A typo'd tier is a client bug; it says nothing about whether the user kept the song.
+        var promotion = new SpyPromotion();
+        var enrichment = new ScriptedEnrichment(_ => Result.Ok(SongEnrichmentStatus.Enriched));
+
+        var result = await new RetagSongsHandler(promotion, enrichment)
+            .Handle(new RetagSongsCommand([new SongRetagItem("typo", "weka"), new SongRetagItem("fine", "weak")]), CancellationToken.None);
+
+        Assert.True(result.IsOk);
+        Assert.Equal(["typo", "fine"], Assert.Single(promotion.Calls));
+        Assert.Equal(["fine"], enrichment.Calls); // still no AI spent on the bad item
+    }
+
+    [Fact]
+    public async Task PromotionFailure_AbortsBatch_WithoutEnrichingAnything()
+    {
+        // If we cannot record the decision, enriching anyway would be backwards: the caller must keep its
+        // outbox row and retry rather than have the keep quietly evaporate.
+        var promotion = new SpyPromotion(Result.Error<int>("db is down"));
+        var enrichment = new ScriptedEnrichment(_ => Result.Ok(SongEnrichmentStatus.Enriched));
+
+        var result = await new RetagSongsHandler(promotion, enrichment)
+            .Handle(new RetagSongsCommand([new SongRetagItem("a")]), CancellationToken.None);
+
+        Assert.True(result.IsError);
+        Assert.Contains("db is down", result.GetError().Message);
+        Assert.Empty(enrichment.Calls);
+    }
+
+    [Fact]
+    public async Task DuplicateIds_ArePromotedOnce()
+    {
+        var promotion = new SpyPromotion();
+        var enrichment = new ScriptedEnrichment(_ => Result.Ok(SongEnrichmentStatus.Enriched));
+
+        await new RetagSongsHandler(promotion, enrichment)
+            .Handle(new RetagSongsCommand([new SongRetagItem("s1", "weak"), new SongRetagItem("s1", "strong")]), CancellationToken.None);
+
+        Assert.Equal(["s1"], Assert.Single(promotion.Calls));
+    }
+
+    [Fact]
+    public async Task EmptyList_PromotesNothing()
+    {
+        var promotion = new SpyPromotion();
+        var enrichment = new ScriptedEnrichment(_ => Result.Ok(SongEnrichmentStatus.Enriched));
+
+        var result = await new RetagSongsHandler(promotion, enrichment)
+            .Handle(new RetagSongsCommand([]), CancellationToken.None);
+
+        Assert.True(result.IsOk);
+        Assert.Empty(promotion.Calls);
+    }
+
+    [Fact]
+    public async Task OverCap_PromotesNothing()
+    {
+        // The cap is rejected before any state changes, so an oversized batch can't half-apply.
+        var promotion = new SpyPromotion();
+        var enrichment = new ScriptedEnrichment(_ => Result.Ok(SongEnrichmentStatus.Enriched));
+        var tooMany = Enumerable.Range(0, RetagSongsHandler.MaxBatch + 1).Select(i => new SongRetagItem($"s{i}")).ToArray();
+
+        var result = await new RetagSongsHandler(promotion, enrichment)
+            .Handle(new RetagSongsCommand(tooMany), CancellationToken.None);
+
+        Assert.True(result.IsError);
+        Assert.Empty(promotion.Calls);
+        Assert.Empty(enrichment.Calls);
     }
 }

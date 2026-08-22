@@ -15,9 +15,17 @@ namespace Shuffull.Core.Tests.Infrastructure;
 public class DatabaseFixture : IDisposable
 {
     private readonly SqliteConnection _connection;
+    private readonly DbContextOptions<ShuffullContext> _options;
 
     public ShuffullContext Context { get; }
     public IUnitOfWork UnitOfWork { get; }
+
+    /// <summary>
+    /// A FRESH context over the same in-memory database. Use this for code under test that resolves its own
+    /// context per scope (as the request pipeline does), so assertions made through <see cref="Context"/> read
+    /// committed rows rather than another context's change tracker.
+    /// </summary>
+    public ShuffullContext CreateContext() => new(_options);
 
     public DatabaseFixture()
     {
@@ -26,11 +34,11 @@ public class DatabaseFixture : IDisposable
         _connection = new SqliteConnection("DataSource=:memory:");
         _connection.Open();
 
-        var options = new DbContextOptionsBuilder<ShuffullContext>()
+        _options = new DbContextOptionsBuilder<ShuffullContext>()
             .UseSqlite(_connection)
             .Options;
 
-        Context = new ShuffullContext(options);
+        Context = new ShuffullContext(_options);
         Context.Database.EnsureCreated();
 
         UnitOfWork = new UnitOfWork(Context, NullLogger<UnitOfWork>.Instance);

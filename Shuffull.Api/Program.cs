@@ -76,6 +76,7 @@ builder.Services.AddSingleton(new ModelStrengths(
 // mirroring the exploratory promote flow. Same fail-safe as the re-tag paths.
 builder.Services.AddSingleton<Shuffull.Core.Tools.TagStalenessJudge>();
 // On-demand re-tag of a single song from its stored inputs (model upgrades, exploratory promotion).
+builder.Services.AddSingleton<IAuditionPromotionService, AuditionPromotionService>();
 builder.Services.AddSingleton<ISongEnrichmentService, SongEnrichmentService>();
 // Deletes a purged song's stored media (audio + album art); used when an exploratory playlist is deleted.
 builder.Services.AddSingleton<ISongMediaStore, SongMediaStore>();
