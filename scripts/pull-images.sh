@@ -4,13 +4,15 @@ set -euo pipefail
 # Pull every image the API stack uses, up front. Run this BEFORE a TrueNAS Custom App install/update so the
 # install doesn't time out mid-download.
 #
-# This is the API-side counterpart to YoutubeFunnel/scripts/pull-images.sh, which covers only the funnel's
-# eight images plus postgres/gluetun — it has never pulled shuffull-api. That gap is why the box can sit on a
-# weeks-old API image while a "pull everything" run reports success (verified 2026-08-22: the deployed
-# shuffull-api was still the 2026-07-29 build).
+# The API-side counterpart to YoutubeFunnel/scripts/pull-images.sh (which covers the funnel's own images).
 #
-# The generated TrueNAS compose now also sets `pull_policy: always` on the API service, so a redeploy pulls
-# even if this was skipped. Running it first just keeps the download out of the install's timeout window.
+# Pull the DATABASE image from here, not mssql. Both stacks migrated to postgres:16-alpine to reclaim RAM,
+# and nothing references SQL Server any more — but a hand-rolled pull loop carried
+# mcr.microsoft.com/mssql/server:2022-latest well past the migration, spending 1.7 GB per run on an image
+# the stack cannot use while never fetching postgres at all.
+#
+# The generated TrueNAS compose also sets `pull_policy: always` on the API service, so a redeploy pulls even
+# if this was skipped. Running it first just keeps the download out of the install's timeout window.
 #
 # Usage:
 #   ./scripts/pull-images.sh                 # defaults to the maxc2018/ (Docker Hub) registry
