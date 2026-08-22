@@ -56,10 +56,16 @@ public class YoutubeRatingsController : ControllerBase
     }
 
     /// <summary>
-    /// Producer: mark ratings applied. Each item echoes the rating the producer actually pushed; a row is only
-    /// completed if it is still Pending with that exact rating. If the user re-rated during the producer's
-    /// poll→apply window (the row is now Pending with a newer value), it is left for the next cycle rather than
-    /// being silently completed with the stale value.
+    /// Producer: report what happened to each rating. Each item echoes the rating the producer actually pushed;
+    /// a row is only resolved if it is still Pending with that exact rating. If the user re-rated during the
+    /// producer's poll→apply window (the row is now Pending with a newer value), it is left for the next cycle
+    /// rather than being silently resolved with the stale value.
+    ///
+    /// <para><see cref="YoutubeRatingAckItem.Outcome"/> decides which terminal state: <c>applied</c> (or null,
+    /// for older producers) completes the row; <c>unratable</c> marks it Skipped because YouTube will never
+    /// accept it — the owner has disabled ratings. ONLY a positively-identified permanent refusal may be sent
+    /// as unratable. A transient failure (out of quota, network, expired token) must not be acked at all, so
+    /// the row stays Pending and is retried after the daily reset.</para>
     /// </summary>
     [HttpPost("ack")]
     public async Task<IActionResult> Ack(
@@ -82,24 +88,39 @@ public class YoutubeRatingsController : ControllerBase
             .Where(r => ids.Contains(r.YoutubeRatingRequestId) && r.Status == YoutubeRatingStatus.Pending)
             .ToListAsync(cancellationToken);
 
-        var appliedById = items
+        var ackById = items
             .GroupBy(i => i.RatingRequestId)
-            .ToDictionary(g => g.Key, g => FromApiRating(g.Last().Rating));
+            .ToDictionary(g => g.Key, g => g.Last());
 
         var now = DateTime.UtcNow;
         var completed = 0;
+        var skipped = 0;
         foreach (var row in rows)
         {
-            if (appliedById.TryGetValue(row.YoutubeRatingRequestId, out var applied) && applied == row.Rating)
+            if (!ackById.TryGetValue(row.YoutubeRatingRequestId, out var ack) || FromApiRating(ack.Rating) != row.Rating)
+            {
+                continue;
+            }
+
+            // Unknown outcome strings deliberately fall through to Completed rather than erroring: an older
+            // producer sends no outcome at all, and treating that as "applied" preserves the original contract.
+            // Only the explicit unratable marker is terminal-without-success.
+            if (string.Equals(ack.Outcome, Outcomes.Unratable, StringComparison.OrdinalIgnoreCase))
+            {
+                row.Status = YoutubeRatingStatus.Skipped;
+                skipped++;
+            }
+            else
             {
                 row.Status = YoutubeRatingStatus.Completed;
-                row.UpdatedAt = now;
                 completed++;
             }
+
+            row.UpdatedAt = now;
         }
 
         await _context.SaveChangesAsync(cancellationToken);
-        return Ok(new YoutubeRatingAckResponse(completed));
+        return Ok(new YoutubeRatingAckResponse(completed, skipped));
     }
 
     // The YouTube Data API videos.rate values, so the producer can pass them straight through.
@@ -119,5 +140,17 @@ public class YoutubeRatingsController : ControllerBase
 }
 
 public record YoutubeRatingDto(string RatingRequestId, string SongId, string VideoId, string Rating);
-public record YoutubeRatingAckItem(string RatingRequestId, string Rating);
-public record YoutubeRatingAckResponse(int Completed);
+
+/// <summary>One producer report. <see cref="Outcome"/> is one of <see cref="Outcomes"/>; null means applied.</summary>
+public record YoutubeRatingAckItem(string RatingRequestId, string Rating, string? Outcome = null);
+
+public record YoutubeRatingAckResponse(int Completed, int Skipped = 0);
+
+/// <summary>The stable ack outcome strings on the wire.</summary>
+public static class Outcomes
+{
+    /// <summary>The rating was pushed to YouTube successfully.</summary>
+    public const string Applied = "applied";
+    /// <summary>YouTube will never accept it (ratings disabled on the video). Terminal — stop retrying.</summary>
+    public const string Unratable = "unratable";
+}
