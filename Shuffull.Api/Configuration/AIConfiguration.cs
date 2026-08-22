@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Shuffull.Api.Configuration;
 
@@ -42,6 +42,11 @@ public static class AIConfigurationExtensions
             default:
                 throw new NotSupportedException($"AI platform '{aiConfig.Platform}' is not supported.");
         }
+
+        // Tier -> provider resolution sits alongside the single-provider registration above rather than
+        // replacing it: callers that want "the cheap model for this one" ask IAIServiceResolver, everything
+        // already written keeps resolving IAIService directly.
+        collection.AddAiProviders(configurationManager);
 
         return collection;
     }

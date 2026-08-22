@@ -36,18 +36,22 @@ public partial class SongEnrichmentService : ISongEnrichmentService
     {
         using var scope = _services.CreateScope();
         using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
-        var aiService = scope.ServiceProvider.GetService<IAIService>();
-        var aiConfig = scope.ServiceProvider.GetService<OpenAIConfiguration>();
-        if (aiService == null || aiConfig == null)
+        var resolver = scope.ServiceProvider.GetService<IAIServiceResolver>();
+        if (resolver == null)
         {
             return Result.Error<SongEnrichmentStatus>("AI is not enabled; cannot enrich songs.");
         }
 
-        // Weak = the budget tier (audition Keep): ResolvedWeakModelName falls back to strong when no weak
-        // model is configured, so the request never silently loses quality — it just isn't cheaper.
-        var modelName = model == EnrichmentModel.Weak
-            ? aiConfig.ResolvedWeakModelName
-            : aiConfig.ResolvedStrongModelName;
+        // Weak = the budget tier (audition Keep). The resolver decides WHICH VENDOR serves that tier as well
+        // as which model, so moving bulk tagging onto a cheaper provider needs no change here. When no weak
+        // model is configured the provider's ResolvedWeakModelName falls back to its strong one, so the
+        // request never silently loses quality — it just isn't cheaper.
+        //
+        // Mapped rather than cast: EnrichmentModel is this app's vocabulary and lives in Core, AiTier is the
+        // shared provider abstraction in the Metadata submodule (the funnel maps its own TagTier onto the same
+        // thing). Their numeric values are deliberately NOT aligned, so a cast would be silently wrong.
+        var tier = model == EnrichmentModel.Weak ? AiTier.Weak : AiTier.Strong;
+        var (aiService, modelName) = resolver.Resolve(tier);
 
         return await EnrichSongCoreAsync(
             context, aiService, modelName,
