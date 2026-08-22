@@ -8,6 +8,8 @@ using Shuffull.Core.Features.Songs.GetSongList;
 using Shuffull.Core.Features.Songs.GetSongPage;
 using Shuffull.Core.Features.Songs.GetSongsChanged;
 using Shuffull.Core.Features.Songs.RetagSongs;
+using Shuffull.Core.Features.Songs.ApplySongTags;
+using Shuffull.Core.Features.Songs.GetPendingTagSongs;
 using Shuffull.Core.Features.Songs.RetagStaleSongs;
 using Shuffull.Core.Features.Songs.UpdateSong;
 using Shuffull.Api.Tools.Authorization;
@@ -24,10 +26,12 @@ namespace Shuffull.Api.Controllers;
 public class SongsController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private readonly IConfiguration _configuration;
 
-    public SongsController(IMediator mediator)
+    public SongsController(IMediator mediator, IConfiguration configuration)
     {
         _mediator = mediator;
+        _configuration = configuration;
     }
 
     [HttpGet]
@@ -77,6 +81,52 @@ public class SongsController : ControllerBase
     [Authorize]
     public async Task<IActionResult> RetagSongs([FromBody] RetagSongsRequest request, CancellationToken cancellationToken)
         => this.ToActionResult(await _mediator.Send(new RetagSongsCommand(request.Items ?? []), cancellationToken));
+
+    /// <summary>
+    /// Producer: the songs whose tags are behind the model they deserve, oldest first, with the tier each
+    /// should be tagged at. Shared-secret guarded — this is the funnel's work queue, not a user endpoint.
+    /// </summary>
+    [HttpGet("pending-tags")]
+    public async Task<IActionResult> GetPendingTagSongs(
+        [FromQuery] int limit,
+        [FromHeader(Name = "X-Import-Key")] string? importKey,
+        CancellationToken cancellationToken)
+    {
+        if (!IsProducer(importKey))
+        {
+            return Unauthorized();
+        }
+
+        return this.ToActionResult(await _mediator.Send(new GetPendingTagSongsQuery(limit), cancellationToken));
+    }
+
+    /// <summary>
+    /// Producer: write back the tags an external engine generated, stamped with the model that produced them.
+    /// Shared-secret guarded. Does not touch name/artists and never sets MetadataLocked — see
+    /// <see cref="ApplySongTagsCommand"/> for why this is not UpdateSong.
+    /// </summary>
+    [HttpPost("{songId}/tags")]
+    public async Task<IActionResult> ApplySongTags(
+        string songId,
+        [FromBody] ApplySongTagsRequest request,
+        [FromHeader(Name = "X-Import-Key")] string? importKey,
+        CancellationToken cancellationToken)
+    {
+        if (!IsProducer(importKey))
+        {
+            return Unauthorized();
+        }
+
+        return this.ToActionResult(
+            await _mediator.Send(new ApplySongTagsCommand(songId, request.Tags, request.TagModel), cancellationToken));
+    }
+
+    /// <summary>Shared secret shared with the producer, same key the import/rating queues use.</summary>
+    private bool IsProducer(string? importKey)
+    {
+        var expected = _configuration["Shuffull:Import:Key"];
+        return !string.IsNullOrEmpty(expected) && importKey == expected;
+    }
 
     /// <summary>
     /// Curator-only: re-tag a bounded batch of stale songs (TagModel weaker than the current strong model).

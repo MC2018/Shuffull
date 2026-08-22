@@ -11,7 +11,7 @@ using Shuffull.Api.Configuration;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Persistence;
-using Shuffull.Api.Models.Files;
+using Shuffull.Core.Models.Files;
 using Shuffull.Api.Services.FileStorage;
 using Shuffull.Api.Tools;
 using Shuffull.Api.Tools.SongParsing;

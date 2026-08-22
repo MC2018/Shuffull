@@ -2,12 +2,12 @@ using Shuffull.Metadata.Models;
 using Shuffull.Shared.Tools;
 using Shuffull.Core.Models.Database;
 
-namespace Shuffull.Api.Models.Files;
+namespace Shuffull.Core.Models.Files;
 
 /// <summary>
 /// Maps the engine-produced <see cref="GeneratedSongTags"/> (from Shuffull.Metadata) onto Shuffull's
-/// EF tag entities. Lives in Shuffull.Api because it depends on the database model and id generation —
-/// the metadata library intentionally stays persistence-agnostic.
+/// EF tag entities. Lives in Shuffull.Core alongside the tag entities it builds — the metadata library
+/// intentionally stays persistence-agnostic, and Core handlers (the producer tag write-back) need this too.
 /// </summary>
 public static class GeneratedSongTagsExtensions
 {

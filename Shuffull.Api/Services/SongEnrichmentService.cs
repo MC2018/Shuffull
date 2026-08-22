@@ -4,7 +4,7 @@ using Shuffull.Metadata.Configuration;
 using Shuffull.Metadata.Models;
 using Shuffull.Metadata.Models.AI;
 using Shuffull.Metadata.Services.AI;
-using Shuffull.Api.Models.Files;
+using Shuffull.Core.Models.Files;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Persistence;
 using Shuffull.Core.Services;

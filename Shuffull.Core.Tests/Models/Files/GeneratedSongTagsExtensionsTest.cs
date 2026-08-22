@@ -1,4 +1,4 @@
-using Shuffull.Api.Models.Files;
+using Shuffull.Core.Models.Files;
 using Shuffull.Core.Models.Database;
 using Shuffull.Metadata.Models;
 
