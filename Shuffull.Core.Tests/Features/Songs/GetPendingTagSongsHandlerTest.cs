@@ -42,7 +42,7 @@ public class GetPendingTagSongsHandlerTest : IDisposable
         }).Build();
 
     private async Task<Song> SeedAsync(string? tagModel = null, bool locked = false, bool exploratory = false,
-                                       DateTime? version = null, LikeStatus? like = null)
+                                       DateTime? version = null, LikeStatus? like = null, string? externalId = "yt-abc")
     {
         var song = new Song
         {
@@ -50,6 +50,7 @@ public class GetPendingTagSongsHandlerTest : IDisposable
             Name = $"song-{IdGenerator.Generate()[..6]}",
             FileExtension = ".mp3",
             FileHash = IdGenerator.Generate(),
+            ExternalSongId = externalId,
             TagModel = tagModel,
             MetadataLocked = locked,
             Exploratory = exploratory,
@@ -159,6 +160,24 @@ public class GetPendingTagSongsHandlerTest : IDisposable
 
         Assert.Empty(response.Songs);
         Assert.Equal(0, response.Remaining);
+    }
+
+    [Fact]
+    public async Task CarriesExternalSongId_SoTheProducerCanReuseItsCache()
+    {
+        // The funnel keys its AI-response cache on the video id it saw at ingest. Handing the same id back
+        // lets an already-tagged song be re-tagged from cache instead of paying the engine again.
+        await SeedAsync(externalId: "dQw4w9WgXcQ");
+
+        Assert.Equal("dQw4w9WgXcQ", Assert.Single((await RunAsync()).Get().Songs).ExternalSongId);
+    }
+
+    [Fact]
+    public async Task ManualUploadsHaveNoExternalId()
+    {
+        await SeedAsync(externalId: null);
+
+        Assert.Null(Assert.Single((await RunAsync()).Get().Songs).ExternalSongId);
     }
 
     [Fact]

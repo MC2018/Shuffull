@@ -87,6 +87,7 @@ public class GetPendingTagSongsHandler(
             .Select(s => new
             {
                 s.SongId,
+                s.ExternalSongId,
                 s.Name,
                 Artists = s.SongArtists.Select(sa => sa.Artist.Name).ToList(),
                 IsLiked = likedSongIds.Contains(s.SongId),
@@ -104,7 +105,7 @@ public class GetPendingTagSongsHandler(
 
         var songs = rows
             .Select(r => new PendingTagSong(
-                r.SongId, r.Name, r.Artists,
+                r.SongId, r.ExternalSongId, r.Name, r.Artists,
                 r.IsLiked ? TagTiers.Strong : TagTiers.Weak,
                 r.TagModel, r.PlainLyrics, r.SyncedLyrics, r.LyricsInstrumental,
                 r.MeasuredBpm, r.CrestFactorDb, r.LoudnessRangeLu, r.OnsetsPerSecond, r.OriginalReleaseYear))

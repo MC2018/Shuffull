@@ -32,6 +32,12 @@ public static class TagTiers
 /// </summary>
 public record PendingTagSong(
     string SongId,
+    /// <summary>
+    /// The source YouTube video id, when the song came from the funnel. Passed back so the producer can key
+    /// its AI-response cache on the SAME id it used at ingest — a song it already tagged can then be re-tagged
+    /// from cache instead of paying the engine again. Null for manual uploads.
+    /// </summary>
+    string? ExternalSongId,
     string Name,
     IReadOnlyList<string> Artists,
     string Tier,
