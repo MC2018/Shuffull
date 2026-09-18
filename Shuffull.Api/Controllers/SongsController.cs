@@ -4,6 +4,7 @@ using Shuffull.Api.Commands.Songs.RetagSongs;
 using Shuffull.Api.Commands.Songs.UpdateSong;
 using Shuffull.Api.Extensions;
 using Shuffull.Core.Features.Songs.GetSong;
+using Shuffull.Core.Features.Songs.GetSongByExternalId;
 using Shuffull.Core.Features.Songs.GetSongList;
 using Shuffull.Core.Features.Songs.GetSongPage;
 using Shuffull.Core.Features.Songs.GetSongsChanged;
@@ -13,6 +14,7 @@ using Shuffull.Core.Features.Songs.GetPendingTagSongs;
 using Shuffull.Core.Features.Songs.RetagStaleSongs;
 using Shuffull.Core.Features.Songs.UpdateSong;
 using Shuffull.Api.Tools.Authorization;
+using Nut.Results;
 
 namespace Shuffull.Api.Controllers;
 
@@ -98,6 +100,29 @@ public class SongsController : ControllerBase
         }
 
         return this.ToActionResult(await _mediator.Send(new GetPendingTagSongsQuery(limit), cancellationToken));
+    }
+
+    /// <summary>
+    /// Producer: resolve the song imported from a given external (YouTube video) id. The funnel needs our
+    /// SongId to replace a song in place (e.g. promoting a duplicate candidate over the copy it matched) but
+    /// only knows the source video. 404 when no song carries that id — a replaced song's OLD video id no
+    /// longer resolves, since the id moves to the new source. Shared-secret guarded.
+    /// </summary>
+    [HttpGet("by-external/{externalSongId}")]
+    public async Task<IActionResult> GetSongByExternalId(
+        string externalSongId,
+        [FromHeader(Name = "X-Import-Key")] string? importKey,
+        CancellationToken cancellationToken)
+    {
+        if (!IsProducer(importKey))
+        {
+            return Unauthorized();
+        }
+
+        var result = await _mediator.Send(new GetSongByExternalIdQuery(externalSongId), cancellationToken);
+        return result.IsOk
+            ? Ok(result.Get())
+            : NotFound(new { error = result.GetError().Message });
     }
 
     /// <summary>
