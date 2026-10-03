@@ -213,7 +213,8 @@ public partial class SongImportService : BackgroundService
                     CrestFactorDb = songImport.CrestFactorDb,
                     OnsetsPerSecond = songImport.OnsetsPerSecond,
                     OriginalReleaseYear = songImport.OriginalReleaseYear,
-                    // Provisional until the user keeps it; a keep triggers a re-tag which clears this + adds tags.
+                    // Provisional until the user keeps it (Keep or Like); ImportToDbCoreAsync clears it up front for
+                    // an import that arrives already liked.
                     Exploratory = songImport.Exploratory,
                     Version = DateTime.UtcNow
                 };
@@ -501,6 +502,16 @@ public partial class SongImportService : BackgroundService
     {
         using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
+        // A liked song is a promoted song: never create one that is both Exploratory and liked (Shuffull#38). The
+        // like is the user's decision to keep it, and an Exploratory flag would leave it purge-eligible until some
+        // later, optional job cleared it. The import's audition INTENT is still what decides a new target
+        // playlist's status below, so one liked song can't turn a whole audition playlist into an ordinary one.
+        var importedForAudition = song.Exploratory;
+        if (song.Exploratory && likeStatus.RetainsSong())
+        {
+            song.Exploratory = false;
+        }
+
         // Add newly generated items to the db
         dbContext.Songs.Add(song);
         dbContext.Artists.AddRange(newArtists);
@@ -557,7 +568,7 @@ public partial class SongImportService : BackgroundService
                     // The first song imported into a freshly-created playlist decides its audition status: an
                     // exploratory source imports its songs untagged into a dedicated target playlist, so that
                     // playlist becomes an audition playlist (and a later delete can purge the un-kept songs).
-                    IsExploratory = song.Exploratory,
+                    IsExploratory = importedForAudition,
                     Version = DateTime.UtcNow
                 };
                 dbContext.Playlists.Add(playlist);

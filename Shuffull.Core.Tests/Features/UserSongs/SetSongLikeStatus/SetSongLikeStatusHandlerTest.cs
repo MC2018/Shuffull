@@ -38,7 +38,7 @@ public class SetSongLikeStatusHandlerTest : IDisposable
         return user;
     }
 
-    private async Task<UserSong> SeedUserSongAsync(string userId, LikeStatus likeStatus, DateTime version, string? externalSongId = null)
+    private async Task<UserSong> SeedUserSongAsync(string userId, LikeStatus likeStatus, DateTime version, string? externalSongId = null, bool exploratory = false)
     {
         var song = new Song
         {
@@ -47,6 +47,8 @@ public class SetSongLikeStatusHandlerTest : IDisposable
             FileExtension = ".mp3",
             FileHash = Guid.NewGuid().ToString(),
             ExternalSongId = externalSongId,
+            Exploratory = exploratory,
+            Version = version,
         };
         await _database.Context.Songs.AddAsync(song);
         await _database.Context.SaveChangesAsync();
@@ -224,5 +226,84 @@ public class SetSongLikeStatusHandlerTest : IDisposable
         var savedUserSong = await _database.Context.UserSongs.AsNoTracking()
             .SingleAsync(us => us.UserId == user.UserId && us.SongId == userSong.SongId);
         Assert.Equal(target, savedUserSong.LikeStatus);
+    }
+
+    // Shuffull#38: a Like/Love is the user's decision to keep the song, so it must take the song out of the audition
+    // pool in the like's own commit. It used to depend on the client's follow-up /retag call; when that failed,
+    // was rejected or abandoned, the liked song stayed Exploratory and an audition-mix delete could purge it.
+    // The handler has no AI dependency at all, so this holds with the site's AI disabled.
+    [Theory]
+    [InlineData(LikeStatus.Like)]
+    [InlineData(LikeStatus.Love)]
+    public async Task Handle_LikingAnExploratorySong_PromotesItInTheSameCommit(LikeStatus liked)
+    {
+        var old = DateTime.UtcNow.AddDays(-3);
+        var user = await SeedUserAsync(old);
+        var userSong = await SeedUserSongAsync(user.UserId, LikeStatus.Neutral, old, externalSongId: "yt-audition", exploratory: true);
+
+        var result = await _handler.Handle(new SetSongLikeStatusCommand(user.UserId, userSong.SongId, liked), CancellationToken.None);
+
+        Assert.True(result.IsOk);
+        var song = await _database.Context.Songs.AsNoTracking().SingleAsync(s => s.SongId == userSong.SongId);
+        Assert.False(song.Exploratory);
+        Assert.True(song.Version > old); // clients re-pull the song and drop their local audition state
+        Assert.Null(song.TagModel);       // left untagged, so the RetagStaleSongs query still finds it
+        var savedUserSong = await _database.Context.UserSongs.AsNoTracking().SingleAsync(us => us.SongId == userSong.SongId);
+        Assert.Equal(liked, savedUserSong.LikeStatus);
+        Assert.Equal(YoutubeRatingStatus.Pending, (await _database.Context.YoutubeRatingRequests.AsNoTracking().SingleAsync()).Status);
+    }
+
+    [Theory]
+    [InlineData(LikeStatus.Dislike)]
+    [InlineData(LikeStatus.Neutral)]
+    public async Task Handle_NonKeepingStatus_LeavesTheSongInAudition(LikeStatus target)
+    {
+        var old = DateTime.UtcNow.AddDays(-3);
+        var user = await SeedUserAsync(old);
+        var start = target == LikeStatus.Neutral ? LikeStatus.Dislike : LikeStatus.Neutral;
+        var userSong = await SeedUserSongAsync(user.UserId, start, old, exploratory: true);
+
+        var result = await _handler.Handle(new SetSongLikeStatusCommand(user.UserId, userSong.SongId, target), CancellationToken.None);
+
+        Assert.True(result.IsOk);
+        var song = await _database.Context.Songs.AsNoTracking().SingleAsync(s => s.SongId == userSong.SongId);
+        Assert.True(song.Exploratory);
+        Assert.Equal(old, song.Version);
+    }
+
+    [Fact]
+    public async Task Handle_ResendingALikeForAStillExploratorySong_HealsIt_WithoutTouchingTheLike()
+    {
+        // Liked before this fix, so the like is already recorded but the song never left the audition pool.
+        var old = DateTime.UtcNow.AddDays(-3);
+        var user = await SeedUserAsync(old);
+        var userSong = await SeedUserSongAsync(user.UserId, LikeStatus.Like, old, externalSongId: "yt-healed", exploratory: true);
+
+        var result = await _handler.Handle(new SetSongLikeStatusCommand(user.UserId, userSong.SongId, LikeStatus.Like), CancellationToken.None);
+
+        Assert.True(result.IsOk);
+        var song = await _database.Context.Songs.AsNoTracking().SingleAsync(s => s.SongId == userSong.SongId);
+        Assert.False(song.Exploratory);
+        Assert.True(song.Version > old);
+        // The sentiment didn't change, so neither its versions nor the YouTube mirror do.
+        var savedUserSong = await _database.Context.UserSongs.AsNoTracking().SingleAsync(us => us.SongId == userSong.SongId);
+        Assert.Equal(old, savedUserSong.Version);
+        Assert.Equal(old, (await _database.Context.Users.AsNoTracking().SingleAsync(u => u.UserId == user.UserId)).Version);
+        Assert.Equal(0, await _database.Context.YoutubeRatingRequests.CountAsync());
+    }
+
+    [Fact]
+    public async Task Handle_LikingAnAlreadyPromotedSong_DoesNotChurnTheSongVersion()
+    {
+        var old = DateTime.UtcNow.AddDays(-3);
+        var user = await SeedUserAsync(old);
+        var userSong = await SeedUserSongAsync(user.UserId, LikeStatus.Neutral, old, exploratory: false);
+
+        var result = await _handler.Handle(new SetSongLikeStatusCommand(user.UserId, userSong.SongId, LikeStatus.Love), CancellationToken.None);
+
+        Assert.True(result.IsOk);
+        var song = await _database.Context.Songs.AsNoTracking().SingleAsync(s => s.SongId == userSong.SongId);
+        Assert.False(song.Exploratory);
+        Assert.Equal(old, song.Version);
     }
 }

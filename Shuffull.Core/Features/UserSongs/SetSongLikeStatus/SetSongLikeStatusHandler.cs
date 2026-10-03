@@ -29,9 +29,23 @@ public class SetSongLikeStatusHandler(IUnitOfWork unitOfWork)
             return Result.Error<SetSongLikeStatusResponse>("No matching song was found for this user.");
         }
 
-        if (userSong.LikeStatus != request.LikeStatus)
+        // Tracked (FindAsync) so the promotion below is persisted by the same SaveChanges as the like. Null only
+        // for a dangling UserSong; the like still saves, there is just nothing to promote or mirror.
+        var songResult = await unitOfWork.Repository<Song>().GetByIdAsync(request.SongId, cancellationToken);
+        var song = songResult.IsOk ? songResult.Get() : null;
+
+        var statusChanged = userSong.LikeStatus != request.LikeStatus;
+        // Checked even when the status is unchanged: re-sending a Like heals a song that was liked before this
+        // rule existed and is still sitting in the audition pool.
+        var promotes = song is { Exploratory: true } && request.LikeStatus.RetainsSong();
+        if (!statusChanged && !promotes)
         {
-            var now = DateTime.UtcNow;
+            return Result.Ok(new SetSongLikeStatusResponse(request.SongId, userSong.LikeStatus));
+        }
+
+        var now = DateTime.UtcNow;
+        if (statusChanged)
+        {
             userSong.LikeStatus = request.LikeStatus;
             userSong.Version = now;
 
@@ -45,13 +59,27 @@ public class SetSongLikeStatusHandler(IUnitOfWork unitOfWork)
 
             // Like-parity: mirror the new sentiment onto the song's YouTube video (if it has one). Staged into
             // the same unit of work so it commits atomically with the like below.
-            await EnqueueYoutubeRatingAsync(request.SongId, request.LikeStatus, now, cancellationToken);
-
-            var saveResult = await unitOfWork.SaveChangesAsync(cancellationToken);
-            if (saveResult.IsError)
+            if (song is not null)
             {
-                return Result.Error<SetSongLikeStatusResponse>(saveResult.GetError().Message);
+                await EnqueueYoutubeRatingAsync(song, request.LikeStatus, now, cancellationToken);
             }
+        }
+
+        if (promotes)
+        {
+            // A Like is a decision to keep the song, so it leaves the audition pool HERE, in the like's own
+            // commit. It used to happen only through the client's follow-up /retag call; when that row failed,
+            // was rejected or was abandoned, a liked song stayed Exploratory and DeletePlaylistHandler's purge
+            // could delete it (Shuffull#38). Same write as AuditionPromotionService: TagModel is left alone so
+            // the untagged song still matches the RetagStaleSongs work query.
+            song!.Exploratory = false;
+            song.Version = now;
+        }
+
+        var saveResult = await unitOfWork.SaveChangesAsync(cancellationToken);
+        if (saveResult.IsError)
+        {
+            return Result.Error<SetSongLikeStatusResponse>(saveResult.GetError().Message);
         }
 
         return Result.Ok(new SetSongLikeStatusResponse(request.SongId, userSong.LikeStatus));
@@ -70,15 +98,15 @@ public class SetSongLikeStatusHandler(IUnitOfWork unitOfWork)
     /// <see cref="Song.ExternalSongId"/> (the video id) — manual uploads are skipped. Keeps a single row per
     /// video, re-queued Pending with the latest rating, so the producer applies only the newest value.
     /// </summary>
-    private async Task EnqueueYoutubeRatingAsync(string songId, LikeStatus likeStatus, DateTime now, CancellationToken cancellationToken)
+    private async Task EnqueueYoutubeRatingAsync(Song song, LikeStatus likeStatus, DateTime now, CancellationToken cancellationToken)
     {
-        var songResult = await unitOfWork.Repository<Song>().GetByIdAsync(songId, cancellationToken);
-        if (songResult.IsError || string.IsNullOrWhiteSpace(songResult.Get().ExternalSongId))
+        if (string.IsNullOrWhiteSpace(song.ExternalSongId))
         {
             return;
         }
 
-        var videoId = songResult.Get().ExternalSongId!;
+        var songId = song.SongId;
+        var videoId = song.ExternalSongId;
         var rating = MapToYoutubeRating(likeStatus);
         var repo = unitOfWork.Repository<YoutubeRatingRequest>();
 
