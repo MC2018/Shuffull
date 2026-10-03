@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Nut.Results;
 using Shuffull.Core.Persistence;
 using Shuffull.Core.Services;
+using Shuffull.Core.Tools;
 using Shuffull.Metadata.Tools;
 
 namespace Shuffull.Core.Features.Songs.RetagStaleSongs;
@@ -28,12 +29,8 @@ public class RetagStaleSongsHandler(
     {
         var limit = request.Limit <= 0 ? DefaultLimit : Math.Min(request.Limit, MaxLimit);
 
-        // The strong model the engine tags toward - the same resolution the site's OpenAI config uses.
-        var strongModel = configuration["AI:OpenAI:StrongModelName"];
-        if (string.IsNullOrWhiteSpace(strongModel))
-        {
-            strongModel = configuration["AI:OpenAI:ModelName"];
-        }
+        // The strong model the engine tags toward: the strong tier's provider, as IAIServiceResolver picks it.
+        var strongModel = TierModelConfiguration.ResolveModel(configuration, TierModelConfiguration.Strong);
 
         // Fail-safe: if the current strong model has no registered strength (0), nothing is stale. Never let a
         // forgotten registration turn into a whole-library re-tag.

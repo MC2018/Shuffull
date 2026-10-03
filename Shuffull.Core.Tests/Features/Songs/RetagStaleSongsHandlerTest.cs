@@ -143,4 +143,26 @@ public class RetagStaleSongsHandlerTest : IDisposable
         Assert.Equal(0, response.Remaining);
         Assert.Empty(enrichment.Enriched);
     }
+
+    [Fact]
+    public async Task StrongModel_IsReadFromTheStrongTiersProvider()
+    {
+        // The sweep enriches through IAIServiceResolver, which serves the strong tier from AI:Tiers:Strong. Judging
+        // staleness against AI:OpenAI regardless meant judging against a model the sweep would not run.
+        var baseTime = new DateTime(2022, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var weak = await SeedSongAsync("weak", locked: false, baseTime);
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["AI:Tiers:Strong"] = "Meta",
+            ["AI:Meta:StrongModelName"] = "strong",
+            ["AI:OpenAI:StrongModelName"] = "",
+        }).Build();
+
+        var enrichment = new RecordingEnrichment();
+        var response = (await new RetagStaleSongsHandler(_database.Context, Strengths(), config, enrichment)
+            .Handle(new RetagStaleSongsCommand(100), CancellationToken.None)).Get();
+
+        Assert.Equal([weak.SongId], enrichment.Enriched);
+        Assert.Equal("strong", response.StrongModel);
+    }
 }
