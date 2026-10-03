@@ -10,6 +10,7 @@ namespace Shuffull.Core.Features.Songs.RetagSongs;
 /// queued weak alongside like-promotions queued strong) in a single burst call. Duplicate ids collapse with
 /// stronger-wins — a Like queued after a Keep must not be downgraded by the older weak row. Curator-locked
 /// songs are reported skipped, not touched. For a model-driven library sweep, use RetagStaleSongs instead.
+/// A Keep on its own needs no curator: any user records one through KeepSongs, which promotes without AI.
 /// </summary>
 [RequiresRole(Role.Curator)]
 public record RetagSongsCommand(IReadOnlyList<SongRetagItem> Items) : IRequest<Result<RetagSongsResponse>>;

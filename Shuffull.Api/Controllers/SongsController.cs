@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Shuffull.Api.Commands.Songs.KeepSongs;
 using Shuffull.Api.Commands.Songs.RetagSongs;
 using Shuffull.Api.Commands.Songs.UpdateSong;
 using Shuffull.Api.Extensions;
@@ -7,12 +8,14 @@ using Shuffull.Core.Features.Songs.GetSong;
 using Shuffull.Core.Features.Songs.GetSongList;
 using Shuffull.Core.Features.Songs.GetSongPage;
 using Shuffull.Core.Features.Songs.GetSongsChanged;
+using Shuffull.Core.Features.Songs.KeepSongs;
 using Shuffull.Core.Features.Songs.RetagSongs;
 using Shuffull.Core.Features.Songs.ApplySongTags;
 using Shuffull.Core.Features.Songs.GetPendingTagSongs;
 using Shuffull.Core.Features.Songs.RetagStaleSongs;
 using Shuffull.Core.Features.Songs.UpdateSong;
 using Shuffull.Api.Tools.Authorization;
+using Shuffull.Core.Models.Database;
 
 namespace Shuffull.Api.Controllers;
 
@@ -70,6 +73,24 @@ public class SongsController : ControllerBase
         => this.ToActionResult(await _mediator.Send(
             new UpdateSongCommand(songId, request.Name, request.Bpm, request.Energy, request.Artists, request.Tags),
             cancellationToken));
+
+    /// <summary>
+    /// Any signed-in user: record a Keep of audition songs in their library — clears <c>Exploratory</c>, runs no
+    /// AI. Returns a per-song outcome ("kept" | "failed", same shape as <see cref="RetagSongs"/>). Separate from
+    /// re-tag on purpose: the Keep is the user's decision, re-tagging is curator work, and sharing a gate meant a
+    /// non-curator's Keep was never recorded.
+    /// </summary>
+    [HttpPost("keep")]
+    [Authorize]
+    public async Task<IActionResult> KeepSongs([FromBody] KeepSongsRequest request, CancellationToken cancellationToken)
+    {
+        if (HttpContext.Items["User"] is not User user)
+        {
+            return Unauthorized();
+        }
+
+        return this.ToActionResult(await _mediator.Send(new KeepSongsCommand(user.UserId, request.SongIds ?? []), cancellationToken));
+    }
 
     /// <summary>
     /// Curator-only: force re-tag songs from their stored inputs (no re-download). Per-item model tiers
