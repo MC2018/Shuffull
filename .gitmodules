@@ -1,0 +1,3 @@
+[submodule "Shuffull.Metadata"]
+	path = Shuffull.Metadata
+	url = https://github.com/MC2018/Shuffull.Metadata.git

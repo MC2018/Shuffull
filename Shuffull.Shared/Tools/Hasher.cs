@@ -16,7 +16,7 @@ namespace Shuffull.Shared.Tools
                 MemorySize = (int)Math.Pow(2, 14),
                 DegreeOfParallelism = 4,
                 Iterations = 5,
-                Salt = Encoding.UTF8.GetBytes("ShuffullSaltingSixteenBytesLong!")
+                Salt = Encoding.UTF8.GetBytes("ShuffullSaltingSixteenBytesLong!") // TODO: move to appsettings.json, turn into service
             };
             var hash = argon2.GetBytes(16);
             return BitConverter.ToString(hash).Replace("-", "").ToLower();

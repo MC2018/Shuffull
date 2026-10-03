@@ -10,6 +10,8 @@ namespace Shuffull.Shared.Enums
     {
         Genre = 0,
         TimePeriod = 1,
-        Language = 2
+        Language = 2,
+        Mood = 3,
+        Theme = 4
     }
 }

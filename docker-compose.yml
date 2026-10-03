@@ -1,26 +1,42 @@
 services:
   db:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    environment:
-      ACCEPT_EULA: Y
-      MSSQL_SA_PASSWORD: Password!
-    ports:
-      - "1433:1433"
+    # PostgreSQL replaced SQL Server here: a Postgres instance idles at ~30-50MB resident vs SQL
+    # Server's ~700MB+ engine floor, so no memory cap/budget is needed (left to Postgres' modest
+    # defaults). The DB schema is recreated by EF migrations on the api's first start.
+    image: postgres:16-alpine
     container_name: shuffull-db
     restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_SA_PASSWORD:-Password!}
+      POSTGRES_DB: Shuffull
+      # Store data in a SUBDIR of the mount, not the mount root. initdb chmods PGDATA to 0700; on a bind
+      # mount (esp. a TrueNAS ZFS dataset) it often can't chmod the mount POINT itself ("could not change
+      # permissions of directory ... Operation not permitted"), but it CAN chmod a subdir it creates inside.
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
     networks:
       - shuffull-net
+    volumes:
+      # Persist the DB on a host path (on the pool, alongside the media folders) so one dataset snapshot
+      # backs up database + files together. The postgres image's entrypoint auto-chowns this dir to its
+      # own user on first start (no manual chown needed, unlike mssql). It MUST be empty on first start —
+      # Postgres runs initdb into it; an old SQL Server data dir won't work, so point at a fresh folder.
+      - ${SHUFFULL_DB_DIR:-./data/db}:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "Password!", "-Q", "SELECT 1"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d Shuffull"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  site:
+  api:
+    # Pushable image (build locally, push to your registry, pull on the server) — matches the producer.
+    image: ${DOCKER_REGISTRY-}shuffull-api
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: shuffull-site
+    container_name: shuffull-api
     ports:
       - "7117:7117"
       - "5117:5117"
@@ -29,11 +45,84 @@ services:
         condition: service_healthy
     networks:
       - shuffull-net
+      # Shared external network so the producer's web-api/downloader reach this service as
+      # http://shuffull-api:7117 (no public hop). Create it once: docker network create shuffull-ingest-net
+      - shuffull-ingest-net
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
+      # Workstation GC (single heap) instead of the default server GC (one managed heap per CPU core) —
+      # lower idle RSS on a many-core host, at a throughput cost that's irrelevant for this API's load.
+      - DOTNET_gcServer=0
+      # ── Secrets / cross-service config, supplied at runtime (NEVER baked into the image; the
+      # appsettings.Production.json that held these is .dockerignored). Set real values in .env. ──
+      # DB connection points at the Postgres db service; password from DB_SA_PASSWORD, user from DB_USER.
+      - ConnectionStrings__Shuffull=Host=shuffull-db;Port=5432;Database=Shuffull;Username=${DB_USER:-postgres};Password=${DB_SA_PASSWORD:-Password!}
+      # Token-signing key — the committed appsettings.json value is a public dummy; MUST override in prod.
+      - Jwt__Secret=${JWT_SECRET}
+      # Shared secret the producer sends as X-Import-Key (song POST + replacement-queue GET). Empty => rejected.
+      - Shuffull__Import__Key=${SHUFFULL_IMPORT_KEY}
+      # Fixed in-container paths; the host side of each is set by the SHUFFULL_*_DIR vars below.
+      - Shuffull__Files__MusicRootDirectory=/data/music
+      - Shuffull__Files__SongImportDirectory=/data/imports
+      - Shuffull__Files__ExternalSongImportDirectory=/data/external_imports
+      - Shuffull__Files__FailedImportDirectory=/data/failed_imports
+      - Shuffull__Files__ManualSongImportDirectory=/data/manual_imports
+      - Shuffull__Files__SavedAiResponsesDirectory=/data/ai_responses
+      - Shuffull__Files__AlbumArtDirectory=/data/album_art
+      - Shuffull__Files__GenresFile=/data/genres/genres.json
+      # ── AI (re-tagging). The producer tags songs at import, so the site only needs AI for the RETAG
+      # endpoints: an audition Keep re-tags with the weak model, a like/upgrade with the strong one. The
+      # committed appsettings.json ships AI disabled, so without these the retag calls return
+      # "AI is not enabled; cannot enrich songs." and every Keep/like-promotion silently fails.
+      # Leave AI_ENABLED unset/false to keep it off; set it true and supply the rest to turn re-tagging on.
+      - AI__Enabled=${AI_ENABLED:-false}
+      - AI__Platform=${AI_PLATFORM:-openai}
+      - AI__OpenAI__ApiKey=${OPENAI_API_KEY:-}
+      # ApiEndpoint is VALIDATED at startup against the supported list ("chat/completions" | "responses") —
+      # an unrecognized value throws and the container won't boot, so it must be right when AI is enabled.
+      - AI__OpenAI__ApiEndpoint=${OPENAI_API_ENDPOINT:-chat/completions}
+      # The capable model for likes/curator upgrades.
+      - AI__OpenAI__StrongModelName=${OPENAI_STRONG_MODEL:-}
+      # The budget model for audition Keeps. OPTIONAL: unset => falls back to the strong model, so Keeps
+      # still work, they just aren't cheaper. Set it to actually realize the tiered-retag savings.
+      - AI__OpenAI__WeakModelName=${OPENAI_WEAK_MODEL:-}
+      # ── Which provider serves each tier ("OpenAI" | "Meta"). Both default to OpenAI, so an existing
+      # deployment that says nothing here behaves exactly as it did before providers existed.
+      - AI__Tiers__Weak=${AI_TIER_WEAK:-OpenAI}
+      - AI__Tiers__Strong=${AI_TIER_STRONG:-OpenAI}
+      # Meta's Model API speaks the same chat/completions shape, so it is configuration rather than code.
+      # A blank key is fine until a tier names Meta — at which point startup fails loudly instead of the
+      # first enrichment call failing quietly hours later.
+      - AI__Meta__ApiKey=${META_API_KEY:-}
+      - AI__Meta__BaseUrl=${META_BASE_URL:-https://api.meta.ai/v1}
+      - AI__Meta__ApiEndpoint=${META_API_ENDPOINT:-chat/completions}
+      - AI__Meta__StrongModelName=${META_STRONG_MODEL:-}
+      - AI__Meta__WeakModelName=${META_WEAK_MODEL:-}
+      # ── CORS. The mobile app doesn't enforce same-origin, but the desktop/browser builds run in a
+      # browser engine and do. Comma-free list: index each origin. app://local is the Electron shell.
+      - Cors__AllowedOrigins__0=${CORS_ORIGIN_0:-app://local}
+      - Cors__AllowedOrigins__1=${CORS_ORIGIN_1:-}
     volumes:
-      - ./data/site:/root/shuffull_data
+      # Each generated folder is its own bind mount. Point SHUFFULL_*_DIR at dedicated
+      # TrueNAS folders in .env, or leave unset to use local ./data/* directories.
+      #
+      # IMPORTANT: SHUFFULL_EXTERNAL_IMPORT_DIR must be the SAME host folder the producer
+      # exports songs to. That shared folder is the song handoff queue:
+      # the producer writes mp3+json there; Shuffull reads it, moves the mp3 into its
+      # import dir, and deletes the json (so it needs read-write access).
+      - ${SHUFFULL_MUSIC_DIR:-./data/music}:/data/music
+      - ${SHUFFULL_IMPORT_DIR:-./data/imports}:/data/imports
+      - ${SHUFFULL_EXTERNAL_IMPORT_DIR:-./data/external_imports}:/data/external_imports
+      - ${SHUFFULL_FAILED_IMPORT_DIR:-./data/failed_imports}:/data/failed_imports
+      - ${SHUFFULL_MANUAL_IMPORT_DIR:-./data/manual_imports}:/data/manual_imports
+      - ${SHUFFULL_AI_RESPONSES_DIR:-./data/ai_responses}:/data/ai_responses
+      - ${SHUFFULL_ALBUM_ART_DIR:-./data/album_art}:/data/album_art
+      - ${SHUFFULL_GENRES_DIR:-./data/genres}:/data/genres
 
 networks:
   shuffull-net:
     driver: bridge
+  # Cross-stack network shared with the producer (must already exist):
+  #   docker network create shuffull-ingest-net
+  shuffull-ingest-net:
+    external: true
