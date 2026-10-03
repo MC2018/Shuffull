@@ -14,6 +14,8 @@
     <PackageReference Include="Microsoft.Extensions.Http" Version="7.0.0" />
     <PackageReference Include="morelinq" Version="3.4.2" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <!-- Microsoft.Extensions.* 7.0 pull System.Text.Json 7.0.0 (CVE-2024-30105). -->
+    <PackageReference Include="System.Text.Json" Version="8.0.6" />
     <PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.0.18" />
     <PackageReference Include="Vlc.DotNet.Forms" Version="3.1.0" />
   </ItemGroup>
