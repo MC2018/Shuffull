@@ -29,6 +29,8 @@
 	    <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 	  </PackageReference>
 	  <PackageReference Include="morelinq" Version="3.4.2" />
+	  <!-- Lift EF Sqlite's bundled native SQLite past GHSA-2m69-gcr7-jv3q (lib.e_sqlite3 <= 2.1.11). -->
+	  <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.13" />
 	  <PackageReference Include="System.ComponentModel.Annotations" Version="5.0.0" />
 	  <PackageReference Include="Ulid" Version="1.3.4" />
 	</ItemGroup>
