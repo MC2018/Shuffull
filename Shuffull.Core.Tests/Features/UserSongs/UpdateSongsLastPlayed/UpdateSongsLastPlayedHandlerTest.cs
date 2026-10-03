@@ -114,7 +114,7 @@ public class UpdateSongsLastPlayedHandlerTest : IDisposable
     }
 
     [Fact]
-    public async Task Handle_WhenNoMatchingUserSong_ReturnsError()
+    public async Task Handle_WhenNoMatchingUserSong_ReturnsOkWithZeroUpdates()
     {
         // Arrange
         var user = await SeedUserAsync(DateTime.UtcNow);
@@ -125,7 +125,9 @@ public class UpdateSongsLastPlayedHandlerTest : IDisposable
             CancellationToken.None);
 
         // Assert
-        Assert.True(result.IsError);
-        Assert.Contains("No matching data", result.GetError().Message, StringComparison.OrdinalIgnoreCase);
+        // Ids with no play record are not a client error -- a client still holding a song the server has since
+        // deleted is the ordinary case. Failing here 400s the entire batch and strands the client's outbox.
+        Assert.True(result.IsOk);
+        Assert.Equal(0, result.Get().UpdatedCount);
     }
 }

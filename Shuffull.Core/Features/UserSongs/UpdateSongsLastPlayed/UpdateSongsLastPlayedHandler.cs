@@ -22,11 +22,12 @@ public class UpdateSongsLastPlayedHandler(IUnitOfWork unitOfWork) : IRequestHand
             return Result.Error<UpdateSongsLastPlayedResponse>(userSongsResult.GetError().Message);
         }
 
+        // No matching play records is NOT a client error: the ids are simply songs this user has none for --
+        // most often because the song was deleted server-side while a client still holds it locally. Reporting
+        // that as a failure made the whole batch 400, which pinned the client's outbox rows in place and, until
+        // the status was read correctly, wedged its entire sync. Fall through and report 0 updated instead,
+        // exactly as a batch of stale (older) timestamps already does.
         var userSongs = userSongsResult.Get();
-        if (userSongs.Count == 0)
-        {
-            return Result.Error<UpdateSongsLastPlayedResponse>("No matching data was found.");
-        }
 
         // Keep the latest requested timestamp per song in case a song appears more than once.
         var latestBySong = request.Updates
