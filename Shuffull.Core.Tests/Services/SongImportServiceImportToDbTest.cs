@@ -261,4 +261,45 @@ public class SongImportServiceImportToDbTest : IDisposable
         Assert.False(await _database.Context.PlaylistSongs.AsNoTracking()
             .AnyAsync(ps => ps.PlaylistId == othersPlaylist.PlaylistId && ps.SongId == song.SongId));
     }
+
+    // Shuffull#38: a liked song is a promoted song. An import that arrives both exploratory and liked (the
+    // producer's MarkAsLiked) used to be stored as both, leaving a song the user liked purge-eligible.
+    [Theory]
+    [InlineData(LikeStatus.Like)]
+    [InlineData(LikeStatus.Love)]
+    public async Task ImportToDbCoreAsync_ExploratoryAndLiked_IsStoredPromoted_InAnAuditionPlaylist(LikeStatus liked)
+    {
+        var user = await SeedUserAsync();
+        var song = NewSong();
+        song.Exploratory = true;
+
+        var result = await ImportAsync(song, user.UserId, playlistName: "Audition", likeStatus: liked);
+
+        Assert.True(result.IsOk);
+        var saved = await _database.Context.Songs.AsNoTracking().SingleAsync(s => s.SongId == song.SongId);
+        Assert.False(saved.Exploratory);
+        var userSong = await _database.Context.UserSongs.AsNoTracking().SingleAsync(us => us.SongId == song.SongId);
+        Assert.Equal(liked, userSong.LikeStatus);
+        // The import was still an audition import: the playlist it creates is an audition playlist, so the
+        // un-liked songs that follow it in remain purgeable when it is deleted.
+        var playlist = await _database.Context.Playlists.AsNoTracking().SingleAsync(p => p.Name == "Audition");
+        Assert.True(playlist.IsExploratory);
+    }
+
+    [Theory]
+    [InlineData(LikeStatus.Neutral)]
+    [InlineData(LikeStatus.Dislike)]
+    public async Task ImportToDbCoreAsync_ExploratoryNotLiked_StaysExploratory(LikeStatus likeStatus)
+    {
+        var user = await SeedUserAsync();
+        var song = NewSong();
+        song.Exploratory = true;
+
+        var result = await ImportAsync(song, user.UserId, playlistName: "Audition", likeStatus: likeStatus);
+
+        Assert.True(result.IsOk);
+        var saved = await _database.Context.Songs.AsNoTracking().SingleAsync(s => s.SongId == song.SongId);
+        Assert.True(saved.Exploratory);
+        Assert.True((await _database.Context.Playlists.AsNoTracking().SingleAsync(p => p.Name == "Audition")).IsExploratory);
+    }
 }

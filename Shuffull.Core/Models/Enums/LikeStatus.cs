@@ -17,3 +17,12 @@ public enum LikeStatus
     Love = 2,
     Dislike = 3,
 }
+
+public static class LikeStatusExtensions
+{
+    /// <summary>
+    /// Whether the sentiment is a decision to keep the song: Like and Love are, Dislike and Neutral aren't. A
+    /// retained song is never left in the audition pool (<c>Song.Exploratory</c>), where a purge could delete it.
+    /// </summary>
+    public static bool RetainsSong(this LikeStatus likeStatus) => likeStatus is LikeStatus.Like or LikeStatus.Love;
+}
