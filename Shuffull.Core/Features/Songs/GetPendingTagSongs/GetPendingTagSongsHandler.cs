@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Nut.Results;
 using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Persistence;
+using Shuffull.Core.Tools;
 using Shuffull.Metadata.Tools;
 
 namespace Shuffull.Core.Features.Songs.GetPendingTagSongs;
@@ -22,31 +23,14 @@ public class GetPendingTagSongsHandler(
     private const int DefaultLimit = 25;
     private const int MaxLimit = 200;
 
-    /// <summary>
-    /// The model a tier resolves to, read straight from configuration rather than through IAIServiceResolver
-    /// (which is only registered when the site's own AI is enabled). Mirrors the resolver's fallback chain:
-    /// the tier names a provider section, and a missing weak model falls back to that provider's strong one.
-    /// </summary>
-    internal string? ResolveTierModel(string tier)
-    {
-        var provider = configuration[$"AI:Tiers:{tier}"];
-        if (string.IsNullOrWhiteSpace(provider))
-        {
-            provider = "OpenAI";
-        }
-
-        var strong = configuration[$"AI:{provider}:StrongModelName"] ?? configuration[$"AI:{provider}:ModelName"];
-        return tier == "Weak"
-            ? configuration[$"AI:{provider}:WeakModelName"] ?? strong
-            : strong;
-    }
-
     public async Task<Result<PendingTagSongsResponse>> Handle(GetPendingTagSongsQuery request, CancellationToken cancellationToken)
     {
         var limit = request.Limit <= 0 ? DefaultLimit : Math.Min(request.Limit, MaxLimit);
 
-        var weakModel = ResolveTierModel("Weak");
-        var strongModel = ResolveTierModel("Strong");
+        // Read straight from configuration rather than through IAIServiceResolver, which is only registered when
+        // the site's own AI is enabled. Blank counts as missing — see TierModelConfiguration.
+        var weakModel = TierModelConfiguration.ResolveModel(configuration, TierModelConfiguration.Weak);
+        var strongModel = TierModelConfiguration.ResolveModel(configuration, TierModelConfiguration.Strong);
 
         // Fail SAFE, exactly as RetagStaleSongs does: an unregistered target model scores 0, which would make
         // every song look "behind" and hand the producer the entire library to re-tag. Returning nothing until

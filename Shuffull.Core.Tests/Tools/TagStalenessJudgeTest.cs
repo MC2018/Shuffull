@@ -67,4 +67,36 @@ public class TagStalenessJudgeTest
     [Fact]
     public void MissingStrongModelConfig_FailsSafe_NothingIsStale()
         => Assert.False(Judge(DefaultStrengths, strongModel: null).IsStale(NewSong(null)));
+
+    private static TagStalenessJudge JudgeFrom(Dictionary<string, string?> settings) =>
+        new(new ModelStrengths(DefaultStrengths), new ConfigurationBuilder().AddInMemoryCollection(settings).Build());
+
+    [Fact]
+    public void EmptyStrongModel_FallsBackToLegacyModelName()
+    {
+        // Compose renders an unset variable as "KEY=", which arrives as "" — blank must mean missing.
+        var judge = JudgeFrom(new()
+        {
+            ["AI:OpenAI:StrongModelName"] = "",
+            ["AI:OpenAI:ModelName"] = StrongModel,
+        });
+
+        Assert.True(judge.IsStale(NewSong(WeakModel)));
+    }
+
+    [Fact]
+    public void StrongModel_IsReadFromTheStrongTiersProvider()
+    {
+        // TagsStale must agree with the pending-tags queue, which routes through AI:Tiers. Reading AI:OpenAI
+        // unconditionally made the two disagree whenever the strong tier was served by another provider.
+        var judge = JudgeFrom(new()
+        {
+            ["AI:Tiers:Strong"] = "Meta",
+            ["AI:Meta:StrongModelName"] = StrongModel,
+            ["AI:OpenAI:StrongModelName"] = WeakModel,
+        });
+
+        Assert.True(judge.IsStale(NewSong(WeakModel)));
+        Assert.False(judge.IsStale(NewSong(StrongModel)));
+    }
 }

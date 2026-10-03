@@ -81,7 +81,8 @@ services:
       # ApiEndpoint is VALIDATED at startup against the supported list ("chat/completions" | "responses") —
       # an unrecognized value throws and the container won't boot, so it must be right when AI is enabled.
       - AI__OpenAI__ApiEndpoint=${OPENAI_API_ENDPOINT:-chat/completions}
-      # The capable model for likes/curator upgrades.
+      # The capable model for likes/curator upgrades. Needed even with AI off: pending-tags and TagsStale judge
+      # songs against it, and a blank one silently disables strong upgrades (gen-truenas-compose.sh enforces it).
       - AI__OpenAI__StrongModelName=${OPENAI_STRONG_MODEL:-}
       # The budget model for audition Keeps. OPTIONAL: unset => falls back to the strong model, so Keeps
       # still work, they just aren't cheaper. Set it to actually realize the tiered-retag savings.

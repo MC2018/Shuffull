@@ -116,6 +116,15 @@ builder.Host.UseNLog();
 
 var app = builder.Build();
 
+// A tier model missing from AI:ModelStrengths makes every consumer fail SAFE and SILENT — likes stop queuing
+// strong re-tags, nothing reads TagsStale — which is how prod's strong tier went dark unnoticed (Shuffull#36).
+// Say so once at boot. The "Shuffull.Startup" logger is routed to the console in nlog.config, so this shows in
+// `docker logs`; ordinary app logs only reach the log files.
+Shuffull.Core.Tools.TierModelConfiguration.WarnOnUnregisteredModels(
+    app.Configuration,
+    app.Services.GetRequiredService<ModelStrengths>(),
+    app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Shuffull.Startup"));
+
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {

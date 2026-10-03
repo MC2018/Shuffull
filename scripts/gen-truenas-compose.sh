@@ -32,6 +32,36 @@ if grep -qE 'replace-with-|ChangeMe!StrongPassword' "$ENVFILE"; then
   exit 1
 fi
 
+# Refuse to render a tier with no model, or with one the strength ladder doesn't know. The site does no tagging
+# itself, but it still decides WHICH songs are behind (pending-tags, TagsStale) by comparing each song's TagModel
+# against the tier models. A blank one renders as `KEY=` -> an empty string -> strength 0, and every consumer
+# fails safe and silent: likes simply stop queuing strong re-tags (Shuffull#36). So this is required even with
+# AI_ENABLED=false.
+envval() { { grep -E "^$1=" "$ENVFILE" || true; } | tail -n1 | cut -d= -f2- | sed -E "s/^[\"']//; s/[\"']$//"; }
+tier_provider() { local p; p="$(envval "AI_TIER_${1^^}")"; echo "${p:-OpenAI}"; }
+tier_model() { # <Weak|Strong> -> the model that tier resolves to, mirroring TierModelConfiguration
+  local prefix strong weak
+  prefix="$(tier_provider "$1")"; prefix="${prefix^^}"
+  strong="$(envval "${prefix}_STRONG_MODEL")"
+  weak="$(envval "${prefix}_WEAK_MODEL")"
+  if [ "$1" = Weak ]; then echo "${weak:-$strong}"; else echo "$strong"; fi
+}
+for tier in Weak Strong; do
+  provider="$(tier_provider "$tier")"
+  model="$(tier_model "$tier")"
+  if [ -z "$model" ]; then
+    echo "ERROR: the $tier tier (AI_TIER_${tier^^}=$provider) has no model in $ENVFILE." >&2
+    hint="${provider^^}_STRONG_MODEL"; [ "$tier" = Weak ] && hint="${provider^^}_WEAK_MODEL (or ${provider^^}_STRONG_MODEL)"
+    echo "       Set $hint to the model the funnel tags that tier with." >&2
+    exit 1
+  fi
+  if ! grep -qE "^[[:space:]]*\"${model//./\\.}\"[[:space:]]*:[[:space:]]*[0-9]+" Shuffull.Api/appsettings.json; then
+    echo "ERROR: the $tier tier model '$model' is not in AI:ModelStrengths (Shuffull.Api/appsettings.json)." >&2
+    echo "       An unregistered model scores 0 and silently disables tag upgrades. Register it in both maps (see CLAUDE.md)." >&2
+    exit 1
+  fi
+done
+
 # `config` resolves all substitutions; the awk filter drops the 4-space "build:" key and its 6-space children,
 # replacing it with `pull_policy: always`.
 #

@@ -163,6 +163,45 @@ public class GetPendingTagSongsHandlerTest : IDisposable
     }
 
     [Fact]
+    public async Task EmptyStrongModel_FallsBackToLegacyModelName_SoLikesStillQueueTheUpgrade()
+    {
+        // Prod on 2026-10-03: compose rendered AI__OpenAI__StrongModelName= (empty). `??` stopped at the "", the
+        // strong tier scored 0, every registered model counted as "strong enough", and a liked song on weaker
+        // tags was never queued. Blank must mean missing.
+        var liked = await SeedAsync(tagModel: "weak-model", like: LikeStatus.Like);
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["AI:Tiers:Weak"] = "Meta",
+            ["AI:Tiers:Strong"] = "OpenAI",
+            ["AI:Meta:WeakModelName"] = "weak-model",
+            ["AI:OpenAI:StrongModelName"] = "",
+            ["AI:OpenAI:ModelName"] = "strong-model",
+        }).Build();
+
+        var song = Assert.Single((await RunAsync(config: config)).Get().Songs);
+
+        Assert.Equal(liked.SongId, song.SongId);
+        Assert.Equal(TagTiers.Strong, song.Tier);
+    }
+
+    [Fact]
+    public async Task EmptyWeakModel_FallsBackToTheStrongModel()
+    {
+        // Same blank-is-missing rule on the weak side: an empty WeakModelName means "use the strong model".
+        var unliked = await SeedAsync(tagModel: "weak-model");
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["AI:OpenAI:WeakModelName"] = "",
+            ["AI:OpenAI:StrongModelName"] = "strong-model",
+        }).Build();
+
+        var song = Assert.Single((await RunAsync(config: config)).Get().Songs);
+
+        Assert.Equal(unliked.SongId, song.SongId);
+        Assert.Equal(TagTiers.Weak, song.Tier);
+    }
+
+    [Fact]
     public async Task CarriesExternalSongId_SoTheProducerCanReuseItsCache()
     {
         // The funnel keys its AI-response cache on the video id it saw at ingest. Handing the same id back

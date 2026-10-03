@@ -20,11 +20,8 @@ public sealed class TagStalenessJudge
 
     public TagStalenessJudge(ModelStrengths strengths, IConfiguration configuration)
     {
-        var strongModel = configuration["AI:OpenAI:StrongModelName"];
-        if (string.IsNullOrWhiteSpace(strongModel))
-        {
-            strongModel = configuration["AI:OpenAI:ModelName"];
-        }
+        // Through AI:Tiers, exactly as the pending-tags queue resolves it, so TagsStale and the queue agree.
+        var strongModel = TierModelConfiguration.ResolveModel(configuration, TierModelConfiguration.Strong);
 
         _strongEnough = strengths.GetStrength(strongModel) > 0
             ? new HashSet<string>(strengths.ModelsAtLeastAsStrongAs(strongModel), StringComparer.OrdinalIgnoreCase)
