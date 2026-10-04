@@ -1,29 +1,31 @@
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Nut.Results;
 using Shuffull.Core.Features.Playlists.DeletePlaylist;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Enums;
-using Shuffull.Core.Services;
 using Shuffull.Core.Tests.Infrastructure;
 
 namespace Shuffull.Core.Tests.Features.Playlists.DeletePlaylist;
 
 /// <summary>
-/// Covers deleting a playlist and the audition-purge that rides along with an exploratory one: only songs the
-/// user never kept (still Exploratory) that no other playlist references are removed — rows + media — while
-/// kept/promoted songs and songs on another playlist survive. Non-exploratory playlists purge nothing, and a
-/// missing/not-owned playlist is an idempotent no-op.
+/// Covers deleting a playlist and the audition purge that comes with deleting an exploratory one. Only songs
+/// nobody kept are removed: still Exploratory, on no other playlist, in no other user's library, and liked or loved
+/// by nobody. Each purge leaves a tombstone, and media is never deleted inline (a sweep does that after a grace
+/// window). Promoted songs, songs on another playlist, songs another user owns, liked songs, and a song promoted
+/// while the purge runs all survive. Non-exploratory playlists purge nothing, and a missing/not-owned playlist is
+/// an idempotent no-op.
 /// </summary>
 public class DeletePlaylistHandlerTest : IDisposable
 {
     private readonly DatabaseFixture _database;
-    private readonly RecordingMediaStore _mediaStore = new();
     private readonly DeletePlaylistHandler _handler;
 
     public DeletePlaylistHandlerTest()
     {
         _database = new DatabaseFixture();
-        _handler = new DeletePlaylistHandler(_database.Context, _mediaStore);
+        _handler = new DeletePlaylistHandler(_database.Context);
     }
 
     public void Dispose()
@@ -32,14 +34,45 @@ public class DeletePlaylistHandlerTest : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    /// <summary>Records the media it was asked to delete; never touches disk.</summary>
-    private sealed class RecordingMediaStore : ISongMediaStore
+    /// <summary>
+    /// Stands in for a concurrent Keep/Like. The first time the code under test is about to WRITE to <c>Songs</c>,
+    /// it promotes <see cref="SongId"/> on the same connection and transaction. The promotion therefore lands after
+    /// any earlier read of the song and before the purge's first write.
+    /// </summary>
+    private sealed class PromoteBeforeFirstSongWrite(string songId) : DbCommandInterceptor
     {
-        public List<(string FileHash, string FileExtension)> Deleted { get; } = [];
-        public Task<Result> DeleteSongMediaAsync(string fileHash, string fileExtension, CancellationToken cancellationToken = default)
+        public string SongId { get; } = songId;
+        public bool Fired { get; private set; }
+
+        private void PromoteOnce(DbCommand command)
         {
-            Deleted.Add((fileHash, fileExtension));
-            return Task.FromResult(Result.Ok());
+            var text = command.CommandText;
+            if (Fired || !(text.Contains("UPDATE \"Songs\"") || text.Contains("DELETE FROM \"Songs\"")))
+            {
+                return;
+            }
+
+            Fired = true;
+            using var promote = command.Connection!.CreateCommand();
+            promote.Transaction = command.Transaction;
+            promote.CommandText = "UPDATE \"Songs\" SET \"Exploratory\" = 0 WHERE \"SongId\" = $id";
+            var id = promote.CreateParameter();
+            id.ParameterName = "$id";
+            id.Value = SongId;
+            promote.Parameters.Add(id);
+            promote.ExecuteNonQuery();
+        }
+
+        public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(DbCommand command, CommandEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            PromoteOnce(command);
+            return base.NonQueryExecutingAsync(command, eventData, result, cancellationToken);
+        }
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            PromoteOnce(command);
+            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
         }
     }
 
@@ -101,6 +134,15 @@ public class DeletePlaylistHandlerTest : IDisposable
         await _database.Context.SaveChangesAsync();
     }
 
+    private async Task AddUserSongAsync(string userId, string songId, LikeStatus likeStatus)
+    {
+        await _database.Context.UserSongs.AddAsync(new UserSong { UserId = userId, SongId = songId, LastPlayed = DateTime.MinValue, Version = DateTime.UtcNow, LikeStatus = likeStatus });
+        await _database.Context.SaveChangesAsync();
+    }
+
+    private Task<bool> SongExistsAsync(string songId) =>
+        _database.Context.Songs.AsNoTracking().AnyAsync(s => s.SongId == songId);
+
     /// <summary>Gives the song a full set of dependent rows so the purge's cascade can be asserted.</summary>
     private async Task SeedSongChildrenAsync(Song song, string userId)
     {
@@ -142,8 +184,102 @@ public class DeletePlaylistHandlerTest : IDisposable
         Assert.False(await _database.Context.SongReplacements.AsNoTracking().AnyAsync(sr => sr.SongId == unkept.SongId));
         Assert.False(await _database.Context.PlaylistSongs.AsNoTracking().AnyAsync(ps => ps.SongId == unkept.SongId));
 
-        // Media cleanup was requested for exactly the purged song.
-        Assert.Equal([(unkept.FileHash, unkept.FileExtension)], _mediaStore.Deleted);
+        // A tombstone records the purge, holding the media for the sweep.
+        var tombstone = Assert.Single(await _database.Context.SongTombstones.AsNoTracking().ToListAsync());
+        Assert.Equal(unkept.SongId, tombstone.SongId);
+        Assert.Equal(unkept.FileHash, tombstone.FileHash);
+        Assert.Equal(unkept.FileExtension, tombstone.FileExtension);
+        Assert.Equal(unkept.Name, tombstone.Name);
+        Assert.Equal(user.UserId, tombstone.DeletedByUserId);
+        Assert.Equal(playlist.PlaylistId, tombstone.PlaylistId);
+        Assert.Null(tombstone.MediaSweptAt);
+        Assert.False(tombstone.MediaDeleted);
+    }
+
+    [Theory]
+    [InlineData(LikeStatus.Like)]
+    [InlineData(LikeStatus.Love)]
+    public async Task Delete_ExploratoryPlaylist_KeepsSongTheUserLikes(LikeStatus likeStatus)
+    {
+        // A song liked before a Like started promoting is still flagged Exploratory. The like itself must save it.
+        var user = await SeedUserAsync();
+        var playlist = await SeedPlaylistAsync(user.UserId, isExploratory: true);
+        var liked = await SeedSongAsync(exploratory: true);
+        await AddJoinAsync(playlist.PlaylistId, liked.SongId);
+        await AddUserSongAsync(user.UserId, liked.SongId, likeStatus);
+
+        var result = await _handler.Handle(new DeletePlaylistCommand(user.UserId, playlist.PlaylistId), CancellationToken.None);
+
+        Assert.True(result.Get().Deleted);
+        Assert.Empty(result.Get().PurgedSongIds);
+        Assert.True(await SongExistsAsync(liked.SongId));
+        Assert.True(await _database.Context.UserSongs.AsNoTracking().AnyAsync(us => us.SongId == liked.SongId && us.LikeStatus == likeStatus));
+        Assert.Empty(await _database.Context.SongTombstones.AsNoTracking().ToListAsync());
+    }
+
+    [Theory]
+    [InlineData(LikeStatus.Neutral)]
+    [InlineData(LikeStatus.Dislike)]
+    public async Task Delete_ExploratoryPlaylist_PurgesSongTheUserDidNotLike(LikeStatus likeStatus)
+    {
+        var user = await SeedUserAsync();
+        var playlist = await SeedPlaylistAsync(user.UserId, isExploratory: true);
+        var song = await SeedSongAsync(exploratory: true);
+        await AddJoinAsync(playlist.PlaylistId, song.SongId);
+        await AddUserSongAsync(user.UserId, song.SongId, likeStatus);
+
+        var result = await _handler.Handle(new DeletePlaylistCommand(user.UserId, playlist.PlaylistId), CancellationToken.None);
+
+        Assert.Equal([song.SongId], result.Get().PurgedSongIds);
+        Assert.False(await SongExistsAsync(song.SongId));
+    }
+
+    [Fact]
+    public async Task Delete_ExploratoryPlaylist_KeepsSongInAnotherUsersLibrary()
+    {
+        // Songs are shared rows. One user deleting their mix must not take the song, or the library entry, from
+        // someone else.
+        var user = await SeedUserAsync();
+        var otherUser = await SeedUserAsync();
+        var playlist = await SeedPlaylistAsync(user.UserId, isExploratory: true);
+        var song = await SeedSongAsync(exploratory: true);
+        await AddJoinAsync(playlist.PlaylistId, song.SongId);
+        await AddUserSongAsync(user.UserId, song.SongId, LikeStatus.Neutral);
+        await AddUserSongAsync(otherUser.UserId, song.SongId, LikeStatus.Neutral);
+
+        var result = await _handler.Handle(new DeletePlaylistCommand(user.UserId, playlist.PlaylistId), CancellationToken.None);
+
+        Assert.True(result.Get().Deleted);
+        Assert.Empty(result.Get().PurgedSongIds);
+        Assert.True(await SongExistsAsync(song.SongId));
+        Assert.True(await _database.Context.UserSongs.AsNoTracking().AnyAsync(us => us.SongId == song.SongId && us.UserId == otherUser.UserId));
+        Assert.Empty(await _database.Context.SongTombstones.AsNoTracking().ToListAsync());
+    }
+
+    [Fact]
+    public async Task Delete_ExploratoryPlaylist_SongPromotedWhileThePurgeRuns_Survives()
+    {
+        var user = await SeedUserAsync();
+        var playlist = await SeedPlaylistAsync(user.UserId, isExploratory: true);
+        var racing = await SeedSongAsync(exploratory: true);
+        var unkept = await SeedSongAsync(exploratory: true);
+        await AddJoinAsync(playlist.PlaylistId, racing.SongId);
+        await AddJoinAsync(playlist.PlaylistId, unkept.SongId);
+
+        var promote = new PromoteBeforeFirstSongWrite(racing.SongId);
+        using var racedContext = _database.CreateContext(promote);
+        var handler = new DeletePlaylistHandler(racedContext);
+
+        var result = await handler.Handle(new DeletePlaylistCommand(user.UserId, playlist.PlaylistId), CancellationToken.None);
+
+        Assert.True(promote.Fired);
+        Assert.True(result.IsOk);
+        Assert.True(await SongExistsAsync(racing.SongId));
+        Assert.DoesNotContain(racing.SongId, result.Get().PurgedSongIds);
+        Assert.False(await _database.Context.SongTombstones.AsNoTracking().AnyAsync(t => t.SongId == racing.SongId));
+        // The other, genuinely un-kept song is still purged: the race spares one song, not the whole purge.
+        Assert.Equal([unkept.SongId], result.Get().PurgedSongIds);
+        Assert.False(await SongExistsAsync(unkept.SongId));
     }
 
     [Fact]
@@ -163,7 +299,7 @@ public class DeletePlaylistHandlerTest : IDisposable
         Assert.True(await _database.Context.Songs.AsNoTracking().AnyAsync(s => s.SongId == song.SongId));
         Assert.False(await _database.Context.PlaylistSongs.AsNoTracking().AnyAsync(ps => ps.PlaylistId == auditionList.PlaylistId));
         Assert.True(await _database.Context.PlaylistSongs.AsNoTracking().AnyAsync(ps => ps.PlaylistId == otherList.PlaylistId && ps.SongId == song.SongId));
-        Assert.Empty(_mediaStore.Deleted);
+        Assert.Empty(await _database.Context.SongTombstones.AsNoTracking().ToListAsync());
     }
 
     [Fact]
@@ -180,7 +316,7 @@ public class DeletePlaylistHandlerTest : IDisposable
         Assert.Empty(result.Get().PurgedSongIds);
         Assert.False(await _database.Context.Playlists.AsNoTracking().AnyAsync(p => p.PlaylistId == playlist.PlaylistId));
         Assert.True(await _database.Context.Songs.AsNoTracking().AnyAsync(s => s.SongId == song.SongId)); // never purged from a normal list
-        Assert.Empty(_mediaStore.Deleted);
+        Assert.Empty(await _database.Context.SongTombstones.AsNoTracking().ToListAsync());
     }
 
     [Fact]
@@ -210,6 +346,6 @@ public class DeletePlaylistHandlerTest : IDisposable
         Assert.False(result.Get().Deleted);
         Assert.True(await _database.Context.Playlists.AsNoTracking().AnyAsync(p => p.PlaylistId == playlist.PlaylistId));
         Assert.True(await _database.Context.Songs.AsNoTracking().AnyAsync(s => s.SongId == song.SongId));
-        Assert.Empty(_mediaStore.Deleted);
+        Assert.Empty(await _database.Context.SongTombstones.AsNoTracking().ToListAsync());
     }
 }

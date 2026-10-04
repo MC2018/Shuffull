@@ -80,6 +80,7 @@ builder.Services.AddSingleton<IAuditionPromotionService, AuditionPromotionServic
 builder.Services.AddSingleton<ISongEnrichmentService, SongEnrichmentService>();
 // Deletes a purged song's stored media (audio + album art); used when an exploratory playlist is deleted.
 builder.Services.AddSingleton<ISongMediaStore, SongMediaStore>();
+builder.Services.AddHostedService<PurgedSongMediaSweepService>();
 builder.Services.AddHostedService<SongImportService>();
 builder.Services.AddHostedService<ExternalSongImporterService>();
 
