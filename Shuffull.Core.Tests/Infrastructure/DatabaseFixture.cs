@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shuffull.Core.Persistence;
 using Shuffull.Core.Persistence.Repositories;
@@ -26,6 +27,13 @@ public class DatabaseFixture : IDisposable
     /// committed rows rather than another context's change tracker.
     /// </summary>
     public ShuffullContext CreateContext() => new(_options);
+
+    /// <summary>
+    /// A fresh context over the same database with <paramref name="interceptors"/> attached, e.g. to land a
+    /// competing write at an exact point inside the code under test.
+    /// </summary>
+    public ShuffullContext CreateContext(params IInterceptor[] interceptors) =>
+        new(new DbContextOptionsBuilder<ShuffullContext>(_options).AddInterceptors(interceptors).Options);
 
     public DatabaseFixture()
     {
