@@ -12,7 +12,7 @@ using Shuffull.Core.Persistence;
 namespace Shuffull.Api.Migrations
 {
     [DbContext(typeof(ShuffullContext))]
-    [Migration("20261004091524_AddSongTombstone")]
+    [Migration("20261008104957_AddSongTombstone")]
     partial class AddSongTombstone
     {
         /// <inheritdoc />
@@ -386,6 +386,9 @@ namespace Shuffull.Api.Migrations
 
                     b.Property<bool>("MediaDeleted")
                         .HasColumnType("boolean");
+
+                    b.Property<int>("MediaSweepFailures")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime?>("MediaSweptAt")
                         .HasColumnType("timestamp with time zone");

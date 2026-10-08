@@ -11,9 +11,9 @@ namespace Shuffull.Core.Services;
 public interface ISongMediaStore
 {
     /// <summary>
-    /// Best-effort deletion of the audio + album-art files for a song, keyed by its <paramref name="fileHash"/>.
-    /// Missing files are ignored (a no-op). Intended to run after the DB rows are already gone, so a storage
-    /// hiccup only leaves an orphaned file rather than failing the operation.
+    /// Deletes the audio + album-art files for a song, keyed by its <paramref name="fileHash"/>. Missing files are
+    /// ignored (a no-op), so a retry is safe. Returns an error when a file exists but could not be deleted, so the
+    /// caller can retry rather than record the media as gone.
     /// </summary>
     Task<Result> DeleteSongMediaAsync(string fileHash, string fileExtension, CancellationToken cancellationToken = default);
 }

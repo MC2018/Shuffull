@@ -24,7 +24,8 @@ namespace Shuffull.Api.Migrations
                     PlaylistId = table.Column<string>(type: "text", nullable: true),
                     DeletedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     MediaSweptAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    MediaDeleted = table.Column<bool>(type: "boolean", nullable: false)
+                    MediaDeleted = table.Column<bool>(type: "boolean", nullable: false),
+                    MediaSweepFailures = table.Column<int>(type: "integer", nullable: false)
                 },
                 constraints: table =>
                 {

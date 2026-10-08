@@ -78,7 +78,7 @@ builder.Services.AddSingleton<Shuffull.Core.Tools.TagStalenessJudge>();
 // On-demand re-tag of a single song from its stored inputs (model upgrades, exploratory promotion).
 builder.Services.AddSingleton<IAuditionPromotionService, AuditionPromotionService>();
 builder.Services.AddSingleton<ISongEnrichmentService, SongEnrichmentService>();
-// Deletes a purged song's stored media (audio + album art); used when an exploratory playlist is deleted.
+// Deletes a purged song's stored media (audio + album art); used by PurgedSongMediaSweepService once a tombstone's grace window has passed.
 builder.Services.AddSingleton<ISongMediaStore, SongMediaStore>();
 builder.Services.AddHostedService<PurgedSongMediaSweepService>();
 builder.Services.AddHostedService<SongImportService>();

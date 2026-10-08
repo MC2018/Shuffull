@@ -384,6 +384,9 @@ namespace Shuffull.Api.Migrations
                     b.Property<bool>("MediaDeleted")
                         .HasColumnType("boolean");
 
+                    b.Property<int>("MediaSweepFailures")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime?>("MediaSweptAt")
                         .HasColumnType("timestamp with time zone");
 

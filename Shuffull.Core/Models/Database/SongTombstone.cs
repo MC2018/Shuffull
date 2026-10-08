@@ -40,8 +40,13 @@ public class SongTombstone
     /// <summary>When the media sweep handled this row; null while it is still inside the grace window.</summary>
     public DateTime? MediaSweptAt { get; set; }
     /// <summary>
-    /// Whether that sweep deleted the files. False after a sweep means another live song shares the hash, so
-    /// the file belongs to that song now.
+    /// Whether that sweep deleted the files. False after a sweep means the file was left in place: a live song or
+    /// a newer tombstone shares the hash, or the delete kept failing and was abandoned.
     /// </summary>
     public bool MediaDeleted { get; set; }
+    /// <summary>
+    /// How many sweep passes failed to delete the media. Failed rows are retried behind fresh ones, and abandoned
+    /// once this reaches the sweep's attempt cap.
+    /// </summary>
+    public int MediaSweepFailures { get; set; }
 }

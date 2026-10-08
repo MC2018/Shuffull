@@ -20,10 +20,13 @@ namespace Shuffull.Core.Features.Playlists.DeletePlaylist;
 /// Each purge leaves a <see cref="SongTombstone"/>. Media is NOT deleted here: the tombstone holds it for a grace
 /// window and a sweep removes it later, and only when no live song shares the file hash.
 /// <para>
-/// The decision and the delete are one transaction, and the decision is a conditional UPDATE. A promotion that
-/// commits first makes the song fail the condition, so it survives. One that arrives after waits on the row lock
-/// and then finds no exploratory row left. The old version read the songs first and deleted them in a later
-/// SaveChanges, so a promotion that landed between those two steps was purged anyway.
+/// The decision and the delete are one transaction. The candidate song rows are locked first, then each song is
+/// claimed by a conditional UPDATE that re-checks every rule against committed state. Anything that commits
+/// before the lock (a Keep, a Like, another user adding the song to their library or a playlist) makes the song
+/// fail the check, so it survives. Anything that arrives after the lock waits for the purge to commit, then fails:
+/// a promotion finds no exploratory row, and an insert referencing the song fails its foreign key. The old version
+/// read the songs first and deleted them in a later SaveChanges, so a promotion that landed between those two
+/// steps was purged anyway.
 /// </para>
 /// </summary>
 public class DeletePlaylistHandler(ShuffullContext context)
@@ -62,10 +65,12 @@ public class DeletePlaylistHandler(ShuffullContext context)
                     .Distinct()
                     .ToListAsync(cancellationToken);
 
+                await LockSongRowsAsync(songIds, cancellationToken);
+
                 foreach (var songId in songIds)
                 {
-                    // Claim the song: decide AND lock it in one statement. Every rule from the summary goes in the
-                    // WHERE clause, so it is checked against the row as it is now, not against an earlier read.
+                    // Claim the song. Every rule from the summary goes in the WHERE clause, so it is checked against
+                    // the row as it is now, not against an earlier read.
                     var claimed = await context.Songs
                         .Where(s => s.SongId == songId
                             && s.Exploratory
@@ -140,5 +145,29 @@ public class DeletePlaylistHandler(ShuffullContext context)
         }
 
         return Result.Ok(new DeletePlaylistResponse(playlistId, Deleted: true, purgedSongIds));
+    }
+
+    private const string NpgsqlProviderName = "Npgsql.EntityFrameworkCore.PostgreSQL";
+
+    /// <summary>
+    /// Takes a FOR UPDATE lock on the candidate songs. The claim's UPDATE alone isn't enough on Postgres: it only
+    /// changes a non-key column, and the lock that takes doesn't conflict with the one an insert takes on the row
+    /// its foreign key references. So a <c>UserSong</c> or <c>PlaylistSong</c> added during the purge would neither
+    /// wait nor fail, and the song delete would then cascade it away without an error. FOR UPDATE does conflict, so
+    /// such an insert either commits before this lock (and the claim sees it) or waits and then fails on its foreign
+    /// key. Rows are locked in id order so two purges sharing songs can't deadlock. SQLite takes a database-wide
+    /// write lock and has no FOR UPDATE, so it is skipped there.
+    /// </summary>
+    private async Task LockSongRowsAsync(List<string> songIds, CancellationToken cancellationToken)
+    {
+        if (songIds.Count == 0 || context.Database.ProviderName != NpgsqlProviderName)
+        {
+            return;
+        }
+
+        var ids = songIds.ToArray();
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT 1 FROM \"Songs\" WHERE \"SongId\" = ANY({ids}) ORDER BY \"SongId\" FOR UPDATE",
+            cancellationToken);
     }
 }

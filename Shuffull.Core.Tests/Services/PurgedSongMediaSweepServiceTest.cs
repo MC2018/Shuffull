@@ -11,7 +11,8 @@ namespace Shuffull.Core.Tests.Services;
 
 /// <summary>
 /// The second half of a purge: a tombstone's media is deleted only after the grace window, never while a live
-/// song shares its file hash, and a failed delete is retried on the next pass instead of being marked done.
+/// song or a newer purge still in its grace window shares the file hash. A failed delete is retried behind fresh
+/// work instead of being marked done, and abandoned loudly (file left on disk) after the attempt cap.
 /// </summary>
 public class PurgedSongMediaSweepServiceTest : IDisposable
 {
@@ -39,10 +40,11 @@ public class PurgedSongMediaSweepServiceTest : IDisposable
     {
         public List<string> Deleted { get; } = [];
         public bool Fail { get; set; }
+        public HashSet<string> FailingHashes { get; } = [];
 
         public Task<Result> DeleteSongMediaAsync(string fileHash, string fileExtension, CancellationToken cancellationToken = default)
         {
-            if (Fail)
+            if (Fail || FailingHashes.Contains(fileHash))
             {
                 return Task.FromResult(Result.Error(new Exception("disk unavailable")));
             }
@@ -133,12 +135,79 @@ public class PurgedSongMediaSweepServiceTest : IDisposable
 
         await _service.SweepAsync(Now, CancellationToken.None);
 
-        Assert.Null((await ReloadAsync(tombstone.SongId)).MediaSweptAt);
+        var failed = await ReloadAsync(tombstone.SongId);
+        Assert.Null(failed.MediaSweptAt);
+        Assert.Equal(1, failed.MediaSweepFailures);
 
         _mediaStore.Fail = false;
         await _service.SweepAsync(Now, CancellationToken.None);
 
         Assert.Equal([tombstone.FileHash], _mediaStore.Deleted);
         Assert.True((await ReloadAsync(tombstone.SongId)).MediaDeleted);
+    }
+
+    [Fact]
+    public async Task Sweep_NewerPurgeOfSameFileStillInGraceWindow_KeepsMediaForIt()
+    {
+        // The same audio purged twice: A long ago, then re-imported and purged again as B two days ago. A's turn must
+        // not delete the file B's tombstone is still holding for recovery.
+        var sharedHash = Guid.NewGuid().ToString();
+        var older = await SeedTombstoneAsync(SongTombstone.MediaGracePeriod + TimeSpan.FromDays(1), sharedHash);
+        var newer = await SeedTombstoneAsync(TimeSpan.FromDays(2), sharedHash);
+
+        await _service.SweepAsync(Now, CancellationToken.None);
+
+        Assert.Empty(_mediaStore.Deleted);
+        var olderReloaded = await ReloadAsync(older.SongId);
+        Assert.Equal(Now, olderReloaded.MediaSweptAt);
+        Assert.False(olderReloaded.MediaDeleted);
+        Assert.Null((await ReloadAsync(newer.SongId)).MediaSweptAt);
+
+        // Once B's own window passes, B deletes the file.
+        var later = Now + SongTombstone.MediaGracePeriod;
+        await _service.SweepAsync(later, CancellationToken.None);
+
+        Assert.Equal([sharedHash], _mediaStore.Deleted);
+        Assert.True((await ReloadAsync(newer.SongId)).MediaDeleted);
+    }
+
+    [Fact]
+    public async Task Sweep_FailedRow_IsRetriedBehindFreshWork()
+    {
+        var stuck = await SeedTombstoneAsync(SongTombstone.MediaGracePeriod + TimeSpan.FromDays(3));
+        var fresh = await SeedTombstoneAsync(SongTombstone.MediaGracePeriod + TimeSpan.FromDays(1));
+        _mediaStore.FailingHashes.Add(stuck.FileHash);
+
+        // Oldest first: the stuck row is tried and fails.
+        await _service.SweepAsync(Now, CancellationToken.None, batchSize: 1);
+        Assert.Equal(1, (await ReloadAsync(stuck.SongId)).MediaSweepFailures);
+        Assert.Null((await ReloadAsync(fresh.SongId)).MediaSweptAt);
+
+        // Next pass: the failed row sorts behind the fresh one, so the fresh one gets the slot.
+        await _service.SweepAsync(Now, CancellationToken.None, batchSize: 1);
+        Assert.Equal([fresh.FileHash], _mediaStore.Deleted);
+        Assert.True((await ReloadAsync(fresh.SongId)).MediaDeleted);
+        Assert.Equal(1, (await ReloadAsync(stuck.SongId)).MediaSweepFailures);
+    }
+
+    [Fact]
+    public async Task Sweep_DeleteKeepsFailing_AbandonsAfterMaxAttempts()
+    {
+        var tombstone = await SeedTombstoneAsync(SongTombstone.MediaGracePeriod + TimeSpan.FromDays(1));
+        _mediaStore.Fail = true;
+
+        for (var attempt = 1; attempt < PurgedSongMediaSweepService.MaxDeleteAttempts; attempt++)
+        {
+            await _service.SweepAsync(Now, CancellationToken.None);
+            Assert.Null((await ReloadAsync(tombstone.SongId)).MediaSweptAt);
+        }
+
+        await _service.SweepAsync(Now, CancellationToken.None);
+
+        var abandoned = await ReloadAsync(tombstone.SongId);
+        Assert.Equal(PurgedSongMediaSweepService.MaxDeleteAttempts, abandoned.MediaSweepFailures);
+        Assert.Equal(Now, abandoned.MediaSweptAt);
+        Assert.False(abandoned.MediaDeleted);
+        Assert.Equal(0, await _service.SweepAsync(Now, CancellationToken.None));
     }
 }

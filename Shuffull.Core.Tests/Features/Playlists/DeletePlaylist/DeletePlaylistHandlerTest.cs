@@ -154,6 +154,9 @@ public class DeletePlaylistHandlerTest : IDisposable
         await _database.Context.SongTags.AddAsync(new SongTag { SongTagId = Guid.NewGuid().ToString(), SongId = song.SongId, TagId = mood.TagId });
         await _database.Context.UserSongs.AddAsync(new UserSong { UserId = userId, SongId = song.SongId, LastPlayed = DateTime.MinValue, Version = DateTime.UtcNow, LikeStatus = LikeStatus.Neutral });
         await _database.Context.SongReplacements.AddAsync(new SongReplacement { SongReplacementId = Guid.NewGuid().ToString(), SongId = song.SongId, Status = SongReplacementStatus.Pending, CreatedAt = DateTime.UtcNow });
+        await _database.Context.YoutubeRatingRequests.AddAsync(new YoutubeRatingRequest { YoutubeRatingRequestId = Guid.NewGuid().ToString(), SongId = song.SongId, VideoId = "video", Rating = YoutubeRating.Like, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
+        // The import that produced the song. It is history, not a dependent: the purge unlinks it rather than deleting it.
+        await _database.Context.SongImports.AddAsync(new SongImport { SongImportId = Guid.NewGuid().ToString(), Name = "Import", ImportFolder = "imports", FileType = ".mp3", UserId = userId, SongId = song.SongId });
         await _database.Context.SaveChangesAsync();
     }
 
@@ -182,7 +185,10 @@ public class DeletePlaylistHandlerTest : IDisposable
         Assert.False(await _database.Context.SongTags.AsNoTracking().AnyAsync(st => st.SongId == unkept.SongId));
         Assert.False(await _database.Context.UserSongs.AsNoTracking().AnyAsync(us => us.SongId == unkept.SongId));
         Assert.False(await _database.Context.SongReplacements.AsNoTracking().AnyAsync(sr => sr.SongId == unkept.SongId));
+        Assert.False(await _database.Context.YoutubeRatingRequests.AsNoTracking().AnyAsync(r => r.SongId == unkept.SongId));
         Assert.False(await _database.Context.PlaylistSongs.AsNoTracking().AnyAsync(ps => ps.SongId == unkept.SongId));
+        var import = Assert.Single(await _database.Context.SongImports.AsNoTracking().ToListAsync());
+        Assert.Null(import.SongId);
 
         // A tombstone records the purge, holding the media for the sweep.
         var tombstone = Assert.Single(await _database.Context.SongTombstones.AsNoTracking().ToListAsync());
