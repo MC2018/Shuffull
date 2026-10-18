@@ -12,6 +12,7 @@ using Shuffull.Core.Features.Songs.KeepSongs;
 using Shuffull.Core.Features.Songs.RetagSongs;
 using Shuffull.Core.Features.Songs.ApplySongTags;
 using Shuffull.Core.Features.Songs.GetPendingTagSongs;
+using Shuffull.Core.Features.Songs.GetLibrarySongs;
 using Shuffull.Core.Features.Songs.RetagStaleSongs;
 using Shuffull.Core.Features.Songs.UpdateSong;
 using Shuffull.Api.Tools.Authorization;
@@ -119,6 +120,25 @@ public class SongsController : ControllerBase
         }
 
         return this.ToActionResult(await _mediator.Send(new GetPendingTagSongsQuery(limit), cancellationToken));
+    }
+
+    /// <summary>
+    /// Producer: every library song, keyset-paged by id, so the funnel's duplicate registry also covers songs it
+    /// never exported (the pre-funnel library, manual imports). Shared-secret guarded.
+    /// </summary>
+    [HttpGet("library")]
+    public async Task<IActionResult> GetLibrarySongs(
+        [FromQuery] string? after,
+        [FromQuery] int limit,
+        [FromHeader(Name = "X-Import-Key")] string? importKey,
+        CancellationToken cancellationToken)
+    {
+        if (!IsProducer(importKey))
+        {
+            return Unauthorized();
+        }
+
+        return this.ToActionResult(await _mediator.Send(new GetLibrarySongsQuery(after, limit), cancellationToken));
     }
 
     /// <summary>
