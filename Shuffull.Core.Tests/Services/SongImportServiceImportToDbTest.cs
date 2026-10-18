@@ -151,6 +151,63 @@ public class SongImportServiceImportToDbTest : IDisposable
     }
 
     [Fact]
+    public async Task LinkDuplicateToDbCoreAsync_AttachesExistingSongToImportingUserAndPlaylist()
+    {
+        var owner = await SeedUserAsync();
+        var importer = await SeedUserAsync();
+        var song = NewSong("existing-song");
+        song.Exploratory = false;
+        var playlist = new Playlist
+        {
+            PlaylistId = "duplicate-target",
+            UserId = importer.UserId,
+            Name = "Imported",
+            PercentUntilReplayable = 0.9m,
+            Version = DateTime.UtcNow.AddDays(-1),
+        };
+        var import = new SongImport
+        {
+            SongImportId = "duplicate-import",
+            Name = song.Name,
+            ImportFolder = "folder",
+            FileType = ".mp3",
+            UserId = importer.UserId,
+            ExternalSource = Shuffull.Metadata.Enums.ExternalSource.Youtube,
+            PlaylistId = playlist.PlaylistId,
+            MarkAsLiked = true,
+            LastUpdatedAt = DateTime.UtcNow,
+        };
+
+        await _database.Context.Songs.AddAsync(song);
+        await _database.Context.Playlists.AddAsync(playlist);
+        await _database.Context.SongImports.AddAsync(import);
+        await _database.Context.UserSongs.AddAsync(new UserSong
+        {
+            UserId = owner.UserId,
+            SongId = song.SongId,
+            LastPlayed = DateTime.MinValue,
+            Version = DateTime.UtcNow,
+            LikeStatus = LikeStatus.Neutral,
+        });
+        await _database.Context.SaveChangesAsync();
+
+        var result = await SongImportService.LinkDuplicateToDbCoreAsync(
+            _database.Context, import, song.SongId, CancellationToken.None);
+
+        Assert.True(result.IsOk);
+        Assert.Equal(song.SongId, await _database.Context.SongImports
+            .Where(x => x.SongImportId == import.SongImportId)
+            .Select(x => x.SongId)
+            .SingleAsync());
+        var userSong = await _database.Context.UserSongs.AsNoTracking()
+            .SingleAsync(x => x.UserId == importer.UserId && x.SongId == song.SongId);
+        Assert.Equal(LikeStatus.Like, userSong.LikeStatus);
+        Assert.True(await _database.Context.PlaylistSongs.AsNoTracking()
+            .AnyAsync(x => x.PlaylistId == playlist.PlaylistId && x.SongId == song.SongId));
+        Assert.False((await _database.Context.Songs.AsNoTracking().SingleAsync(x => x.SongId == song.SongId)).Exploratory);
+    }
+
+    [Fact]
     public async Task ImportToDbCoreAsync_WithExistingPlaylistId_AddsSongAndBumpsVersion()
     {
         // Arrange

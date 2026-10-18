@@ -112,7 +112,8 @@ public partial class SongImportService : BackgroundService
                 {
                     if (!ShouldRefreshInPlace(duplicate, songImport.ExternalSongId, fileHash, songImport.Exploratory))
                     {
-                        return Result.Ok(); // true duplicate — drop it, as before
+                        var linkResult = await LinkDuplicateAsync(songImport, duplicate.SongId, cancellationToken);
+                        return linkResult;
                     }
 
                     // Same video, different audio content: the producer re-converted this song (e.g. a new
@@ -260,6 +261,99 @@ public partial class SongImportService : BackgroundService
         using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
         var existingSong = await context.Songs.Where(x => x.FileHash == fileHash || (x.ExternalSongId != null && x.ExternalSongId == songImport.ExternalSongId)).FirstOrDefaultAsync(cancellationToken);
         return Result.Ok(new DuplicateProbe(existingSong));
+    }
+
+    private async Task<Result> LinkDuplicateAsync(SongImport songImport, string songId, CancellationToken cancellationToken)
+    {
+        using var scope = _services.CreateScope();
+        using var dbContext = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
+        return await LinkDuplicateToDbCoreAsync(dbContext, songImport, songId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Records the result of a duplicate import without creating another Song. The import still belongs to the
+    /// requesting user and its requested playlist, so dropping it must not make the song disappear from their library.
+    /// </summary>
+    internal static async Task<Result> LinkDuplicateToDbCoreAsync(
+        ShuffullContext dbContext,
+        SongImport songImport,
+        string songId,
+        CancellationToken cancellationToken = default!)
+    {
+        using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        var persistedImport = await dbContext.SongImports
+            .SingleOrDefaultAsync(x => x.SongImportId == songImport.SongImportId, cancellationToken);
+        if (persistedImport == null)
+        {
+            return Result.Error($"SongImport '{songImport.SongImportId}' was not found.");
+        }
+
+        persistedImport.SongId = songId;
+
+        var userSong = await dbContext.UserSongs
+            .SingleOrDefaultAsync(x => x.UserId == songImport.UserId && x.SongId == songId, cancellationToken);
+        if (userSong == null)
+        {
+            dbContext.UserSongs.Add(new UserSong
+            {
+                UserId = songImport.UserId,
+                SongId = songId,
+                LastPlayed = DateTime.MinValue,
+                Version = DateTime.UtcNow,
+                LikeStatus = songImport.MarkAsLiked ? LikeStatus.Like : LikeStatus.Neutral,
+            });
+        }
+
+        Playlist? playlist = null;
+        if (!string.IsNullOrWhiteSpace(songImport.PlaylistId))
+        {
+            playlist = await dbContext.Playlists.FindAsync([songImport.PlaylistId], cancellationToken: cancellationToken);
+        }
+
+        if (playlist == null && !string.IsNullOrWhiteSpace(songImport.TargetPlaylistName))
+        {
+            playlist = await dbContext.Playlists
+                .FirstOrDefaultAsync(
+                    p => p.UserId == songImport.UserId && p.Name == songImport.TargetPlaylistName,
+                    cancellationToken);
+
+            if (playlist == null)
+            {
+                playlist = new Playlist
+                {
+                    PlaylistId = string.IsNullOrWhiteSpace(songImport.PlaylistId)
+                        ? IdGenerator.Generate()
+                        : songImport.PlaylistId,
+                    UserId = songImport.UserId,
+                    Name = songImport.TargetPlaylistName,
+                    CurrentSongId = null,
+                    PercentUntilReplayable = 0.9m,
+                    Version = DateTime.UtcNow,
+                };
+                dbContext.Playlists.Add(playlist);
+            }
+        }
+
+        if (playlist != null)
+        {
+            var linked = await dbContext.PlaylistSongs
+                .AnyAsync(x => x.PlaylistId == playlist.PlaylistId && x.SongId == songId, cancellationToken);
+            if (!linked)
+            {
+                dbContext.PlaylistSongs.Add(new PlaylistSong
+                {
+                    PlaylistSongId = IdGenerator.Generate(),
+                    PlaylistId = playlist.PlaylistId,
+                    SongId = songId,
+                });
+                playlist.Version = DateTime.UtcNow;
+            }
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return Result.Ok();
     }
 
     /// <summary>The (at most one) existing song a new import collides with; null when the import is unique.</summary>
