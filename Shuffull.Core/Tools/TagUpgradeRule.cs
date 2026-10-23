@@ -23,10 +23,13 @@ public static class TagUpgradeRule
     /// <summary>
     /// SQL form. <paramref name="atLeastAsStrongAsModel"/> is <see cref="ModelStrengths.ModelsAtLeastAsStrongAs"/>
     /// of the model being considered, so a TagModel outside it is weaker. As that method requires, callers must
-    /// first short-circuit when the model is unregistered.
+    /// first short-circuit when the model is unregistered. Names compare case-insensitively, as ModelStrengths does.
     /// </summary>
-    public static Expression<Func<Song, bool>> WouldUpgrade(IReadOnlyList<string> atLeastAsStrongAsModel) =>
-        s => s.TagModel == null ? !s.MetadataLocked : !atLeastAsStrongAsModel.Contains(s.TagModel);
+    public static Expression<Func<Song, bool>> WouldUpgrade(IReadOnlyList<string> atLeastAsStrongAsModel)
+    {
+        var names = atLeastAsStrongAsModel.Select(n => n.ToLowerInvariant()).ToList();
+        return s => s.TagModel == null ? !s.MetadataLocked : !names.Contains(s.TagModel.ToLower());
+    }
 
     /// <summary>The same rule for one loaded song.</summary>
     public static bool WouldUpgrade(Song song, string? model, ModelStrengths strengths) =>

@@ -186,13 +186,12 @@ public class GetPendingTagSongsHandlerTest : IDisposable
     }
 
     [Theory]
-    [InlineData(1, 5)]       // sooner than the funnel's 10-minute cycle, so a batch-held song is back next pass
+    [InlineData(1, 5)]      // sooner than the funnel's 10-minute cycle, so a batch-held song is back next pass
     [InlineData(2, 10)]
     [InlineData(4, 40)]
-    [InlineData(9, 1280)]
-    [InlineData(10, 1440)]   // capped at a day
-    [InlineData(1000, 1440)]
-    public void RetryDelayDoublesUpToADay(int attempts, int minutes)
+    [InlineData(5, 60)]     // capped at an hour: a song held through chained batches never waits much longer
+    [InlineData(1000, 60)]
+    public void RetryDelayDoublesUpToAnHour(int attempts, int minutes)
     {
         Assert.Equal(TimeSpan.FromMinutes(minutes), GetPendingTagSongsHandler.RetryDelay(attempts));
     }
@@ -208,6 +207,7 @@ public class GetPendingTagSongsHandlerTest : IDisposable
     [InlineData("strong-model", true, "strong-model")]
     [InlineData("retired-model", false, "weak-model")]
     [InlineData("retired-model", true, "strong-model")]
+    [InlineData("WEAK-MODEL", false, "weak-model")] // ModelStrengths ignores case, so the SQL form must too
     public async Task OffersExactlyTheSongsApplySongTagsWouldAccept(string? tagModel, bool locked, string target)
     {
         // The queue and the write share TagUpgradeRule, in SQL and in memory. If they disagree, the producer is

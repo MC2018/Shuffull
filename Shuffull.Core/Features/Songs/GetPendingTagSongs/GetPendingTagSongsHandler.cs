@@ -27,11 +27,13 @@ public class GetPendingTagSongsHandler(
     private const int DefaultLimit = 25;
     private const int MaxLimit = 200;
 
-    // The first retry comes sooner than the funnel's 10-minute cycle, so a song held for an AI batch is offered
-    // again on the next pass, as it was before the backoff. Each further miss doubles the wait, up to a day, so a
-    // song that can never be tagged costs one slot a day rather than one every cycle.
+    // The first retry comes sooner than the funnel's 10-minute cycle. Each further miss doubles the wait, up to an
+    // hour. The cap is low because a hold is not a failure: the funnel tags a song in up to three chained AI
+    // batches, holding it each time and needing it offered again to queue the next, so a held song should wait at
+    // most an hour past its batch landing. A song that can never be tagged still drops from every cycle to once
+    // an hour. The site can't tell the two apart; the funnel would have to report holds (shuffull-workspace#36).
     private static readonly TimeSpan FirstRetryDelay = TimeSpan.FromMinutes(5);
-    private static readonly TimeSpan MaxRetryDelay = TimeSpan.FromDays(1);
+    private static readonly TimeSpan MaxRetryDelay = TimeSpan.FromHours(1);
 
     public async Task<Result<PendingTagSongsResponse>> Handle(GetPendingTagSongsQuery request, CancellationToken cancellationToken)
     {
