@@ -90,6 +90,8 @@ public class SongEnrichmentServiceTest : IDisposable
             OriginalReleaseYear = originalReleaseYear,
             Exploratory = exploratory,
             TagModel = "old-weak-model",
+            TagAttempts = 4,
+            NextTagAttemptAt = DateTime.UtcNow.AddMinutes(30),
             Version = DateTime.UtcNow.AddDays(-30),
         };
         var artist = new Artist { ArtistId = IdGenerator.Generate(), Name = "Test Artist" };
@@ -136,6 +138,8 @@ public class SongEnrichmentServiceTest : IDisposable
 
         var updated = await _database.Context.Songs.AsNoTracking().SingleAsync(s => s.SongId == song.SongId);
         Assert.Equal("strong-model-x", updated.TagModel);
+        Assert.Equal(0, updated.TagAttempts);     // freshly tagged, so the producer queue's backoff starts over
+        Assert.Null(updated.NextTagAttemptAt);
         Assert.Equal(7, updated.Energy);
         Assert.Equal(175, updated.Bpm); // plausible TrueBpm wins over the measured 128
         Assert.True(updated.Version > DateTime.UtcNow.AddDays(-1));

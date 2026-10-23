@@ -160,6 +160,43 @@ public class ApplySongTagsHandlerTest : IDisposable
         Assert.True(reloaded.MetadataLocked); // the lock itself survives
     }
 
+    [Theory]
+    [InlineData("weak-model", "weak-model")]   // the same model again
+    [InlineData("strong-model", "weak-model")] // a downgrade
+    public async Task RejectsUnlockedSong_WhenNotAnUpgrade_AndLeavesVersionAlone(string current, string incoming)
+    {
+        // Shuffull#40: a producer whose model is weaker than the site's tier target had every write accepted, so
+        // the song stayed behind, came straight back, and was rewritten with a new Version on every cycle,
+        // forcing every client to re-sync it. A write that upgrades nothing is refused instead.
+        var song = await SeedAsync(tagModel: current);
+        var before = song.Version;
+
+        var result = await RunAsync(song.SongId, Tags("Rock"), incoming);
+
+        Assert.True(result.IsError);
+        Assert.Contains("not an upgrade", result.GetError().Message);
+        var reloaded = await ReloadAsync(song.SongId);
+        Assert.Equal(current, reloaded.TagModel);
+        Assert.Equal(before, reloaded.Version);
+    }
+
+    [Fact]
+    public async Task ASuccessfulWrite_ResetsTagAttempts()
+    {
+        // The queue backs a song off longer with every miss. A song that was finally tagged starts clean, so if
+        // it falls behind again later (a like earns it the strong model) it is offered on the next pass.
+        var song = await SeedAsync();
+        song.TagAttempts = 8;
+        song.NextTagAttemptAt = DateTime.UtcNow.AddHours(12);
+        await _database.Context.SaveChangesAsync();
+
+        Assert.True((await RunAsync(song.SongId, Tags("Rock"), "weak-model")).IsOk);
+
+        var reloaded = await ReloadAsync(song.SongId);
+        Assert.Equal(0, reloaded.TagAttempts);
+        Assert.Null(reloaded.NextTagAttemptAt);
+    }
+
     [Fact]
     public async Task UnknownSongIsAnError()
     {

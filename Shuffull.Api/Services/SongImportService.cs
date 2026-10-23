@@ -654,6 +654,7 @@ public partial class SongImportService : BackgroundService
             // Refresh the tag provenance + raw AI inputs from this re-source so a later model-upgrade re-tag
             // sees the current model/inputs (and so they don't go stale against the new audio).
             song.TagModel = songImport.TagModel;
+            song.ResetTagAttempts();
             song.MeasuredBpm = songImport.MeasuredBpm;
             song.LoudnessRangeLu = songImport.LoudnessRangeLu;
             song.CrestFactorDb = songImport.CrestFactorDb;

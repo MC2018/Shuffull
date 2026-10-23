@@ -172,6 +172,7 @@ public partial class SongEnrichmentService : ISongEnrichmentService
         song.Bpm = other.TrueBpm is >= 40 and <= 300 ? other.TrueBpm : (song.MeasuredBpm ?? song.Bpm);
         song.Energy = other.Energy;
         song.TagModel = modelName;
+        song.ResetTagAttempts();
         // Enriching an exploratory song promotes it: it now has real tags, so it's no longer provisional (and
         // won't be purged if its audition playlist is later deleted).
         song.Exploratory = false;

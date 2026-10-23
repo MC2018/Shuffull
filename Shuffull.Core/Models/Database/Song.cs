@@ -59,6 +59,20 @@ namespace Shuffull.Core.Models.Database
         // (Name/Bpm/Energy/artists/tags) alone, so a later re-source can't silently clobber a human correction.
         public bool MetadataLocked { get; set; }
 
+        // Producer tagging queue backoff (GetPendingTagSongs). TagAttempts counts hand-outs since tags were last
+        // written, and the queue skips the song until NextTagAttemptAt, so a song that can't be tagged backs off
+        // instead of holding the head of the queue forever (Shuffull#40). Never touches Version: clients don't
+        // sync these, and bumping it would make them re-fetch the song every cycle.
+        public int TagAttempts { get; set; }
+        public DateTime? NextTagAttemptAt { get; set; }
+
+        /// <summary>Call wherever TagModel is written: freshly tagged, the song owes the queue nothing.</summary>
+        public void ResetTagAttempts()
+        {
+            TagAttempts = 0;
+            NextTagAttemptAt = null;
+        }
+
         // Last-modified timestamp for incremental song sync (mirrors UserSong.Version). Stamped on create and on
         // every mutation (e.g. an in-place replacement), so the app can pull only songs changed since its cursor
         // and refresh its local copy — otherwise an app that already holds a song never re-fetches it.

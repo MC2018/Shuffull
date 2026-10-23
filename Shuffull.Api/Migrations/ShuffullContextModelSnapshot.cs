@@ -163,6 +163,9 @@ namespace Shuffull.Api.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<DateTime?>("NextTagAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<double?>("OnsetsPerSecond")
                         .HasColumnType("double precision");
 
@@ -174,6 +177,9 @@ namespace Shuffull.Api.Migrations
 
                     b.Property<string>("SyncedLyrics")
                         .HasColumnType("text");
+
+                    b.Property<int>("TagAttempts")
+                        .HasColumnType("integer");
 
                     b.Property<string>("TagModel")
                         .HasColumnType("text");
