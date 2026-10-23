@@ -4,6 +4,7 @@ using Shuffull.Core.Features.Songs.GetPendingTagSongs;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Tests.Infrastructure;
+using Shuffull.Core.Tools;
 using Shuffull.Metadata.Tools;
 using Shuffull.Shared.Tools;
 
@@ -127,6 +128,95 @@ public class GetPendingTagSongsHandlerTest : IDisposable
 
         Assert.Equal([oldest.SongId, middle.SongId], response.Songs.Select(s => s.SongId));
         Assert.Equal(3, response.Remaining); // the full outstanding count, not just this page
+    }
+
+    [Fact]
+    public async Task ASongThatIsNeverTagged_NoLongerBlocksTheNextPage()
+    {
+        // Shuffull#40: only a successful write moved a song, so a page of songs the producer can't tag (nothing
+        // inferable, held in a batch, a write refused) was handed back first on every cycle, and nothing behind
+        // it was ever reached.
+        var stuck1 = await SeedAsync(version: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+        var stuck2 = await SeedAsync(version: new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc));
+        var behind = await SeedAsync(version: new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        var first = (await RunAsync(limit: 2)).Get();
+        Assert.Equal([stuck1.SongId, stuck2.SongId], first.Songs.Select(s => s.SongId));
+
+        // The producer writes nothing back for either. The next page reaches the song behind them.
+        var second = (await RunAsync(limit: 2)).Get();
+        Assert.Equal([behind.SongId], second.Songs.Select(s => s.SongId));
+        Assert.Equal(3, second.Remaining); // still outstanding, just backing off
+    }
+
+    [Fact]
+    public async Task ASongBackingOff_IsOfferedAgainOnceItsDelayPasses_AheadOfNewerWork()
+    {
+        // A song held for an AI batch has to come back, and in its old place: oldest first.
+        var held = await SeedAsync(version: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+        var newer = await SeedAsync(version: new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc));
+        await RunAsync(limit: 1);
+
+        await using (var context = _database.CreateContext())
+        {
+            var song = await context.Songs.FindAsync(held.SongId);
+            song!.NextTagAttemptAt = DateTime.UtcNow.AddSeconds(-1);
+            await context.SaveChangesAsync();
+        }
+
+        var page = (await RunAsync(limit: 2)).Get();
+        Assert.Equal([held.SongId, newer.SongId], page.Songs.Select(s => s.SongId));
+    }
+
+    [Fact]
+    public async Task HandingOutCountsAnAttempt_WithoutBumpingVersion()
+    {
+        // Version drives client sync. Queue bookkeeping must not make every client re-fetch the song.
+        var version = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var song = await SeedAsync(version: version);
+
+        var before = DateTime.UtcNow;
+        await RunAsync();
+
+        await using var check = _database.CreateContext();
+        var reloaded = await check.Songs.FindAsync(song.SongId);
+        Assert.Equal(1, reloaded!.TagAttempts);
+        Assert.InRange(reloaded.NextTagAttemptAt!.Value, before.AddMinutes(5), DateTime.UtcNow.AddMinutes(5));
+        Assert.Equal(version, reloaded.Version);
+    }
+
+    [Theory]
+    [InlineData(1, 5)]       // sooner than the funnel's 10-minute cycle, so a batch-held song is back next pass
+    [InlineData(2, 10)]
+    [InlineData(4, 40)]
+    [InlineData(9, 1280)]
+    [InlineData(10, 1440)]   // capped at a day
+    [InlineData(1000, 1440)]
+    public void RetryDelayDoublesUpToADay(int attempts, int minutes)
+    {
+        Assert.Equal(TimeSpan.FromMinutes(minutes), GetPendingTagSongsHandler.RetryDelay(attempts));
+    }
+
+    [Theory]
+    [InlineData(null, false, "weak-model")]
+    [InlineData(null, true, "weak-model")]
+    [InlineData("weak-model", false, "weak-model")]
+    [InlineData("weak-model", true, "weak-model")]
+    [InlineData("weak-model", false, "strong-model")]
+    [InlineData("weak-model", true, "strong-model")]
+    [InlineData("strong-model", false, "weak-model")]
+    [InlineData("strong-model", true, "strong-model")]
+    [InlineData("retired-model", false, "weak-model")]
+    [InlineData("retired-model", true, "strong-model")]
+    public async Task OffersExactlyTheSongsApplySongTagsWouldAccept(string? tagModel, bool locked, string target)
+    {
+        // The queue and the write share TagUpgradeRule, in SQL and in memory. If they disagree, the producer is
+        // handed songs it can never write (or never offered songs it could), which is how #40 churned.
+        var song = await SeedAsync(tagModel: tagModel, locked: locked);
+
+        var offered = (await RunAsync(config: Config(weak: target))).Get().Songs.Any(s => s.SongId == song.SongId);
+
+        Assert.Equal(TagUpgradeRule.WouldUpgrade(song, target, Strengths()), offered);
     }
 
     [Fact]

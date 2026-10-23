@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Nut.Results;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Persistence;
+using Shuffull.Core.Tools;
 using Shuffull.Core.Models.Files;
 using Shuffull.Metadata.Tools;
 using Shuffull.Shared.Tools;
@@ -32,20 +33,17 @@ public class ApplySongTagsHandler(ShuffullContext context, ModelStrengths modelS
             return Result.Error<ApplySongTagsResponse>($"Song '{request.SongId}' was not found.");
         }
 
-        // A locked song only yields to a genuine MODEL upgrade. Guarded here as well as in the work query
-        // because the producer polls and writes independently: a song can be curated in the window between,
-        // and the write is the last point that can still refuse.
-        // Note the null check is SEPARATE from the strength comparison, and both are required. GetStrength(null)
-        // is 0, so a strength test alone would read "any model beats nothing" and let the weak model overwrite
-        // a song a person tagged by hand — UpdateSong never stamps TagModel, so hand-tagged and never-tagged
-        // look identical. A locked song with no prior model has nothing to upgrade FROM, so it is untouchable.
-        // This mirrors the work query exactly; they must agree, and this is the last point that can refuse.
-        if (song.MetadataLocked
-            && (song.TagModel == null
-                || modelStrengths.GetStrength(request.TagModel) <= modelStrengths.GetStrength(song.TagModel)))
+        // Only a genuine MODEL upgrade is written, by the same rule the work query hands songs out by. Checked
+        // here as well because the producer polls and writes independently: a song can be curated or re-tagged
+        // in the window between, and the write is the last point that can still refuse. It also refuses a
+        // producer whose model is no stronger than the song's, rather than rewriting the same song and bumping
+        // its Version on every cycle (Shuffull#40). A refused song keeps its TagAttempts, so the queue keeps
+        // backing it off.
+        if (!TagUpgradeRule.WouldUpgrade(song, request.TagModel, modelStrengths))
         {
+            var locked = song.MetadataLocked ? " (curator-locked)" : "";
             return Result.Error<ApplySongTagsResponse>(
-                $"Song '{request.SongId}' is curator-locked and '{request.TagModel}' is not an upgrade on '{song.TagModel ?? "(hand-tagged)"}'.");
+                $"Song '{request.SongId}'{locked}: '{request.TagModel}' is not an upgrade on '{song.TagModel ?? "(hand-tagged)"}'.");
         }
 
         using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
@@ -77,6 +75,7 @@ public class ApplySongTagsHandler(ShuffullContext context, ModelStrengths modelS
         }
 
         song.TagModel = request.TagModel;
+        song.ResetTagAttempts();
 
         // NOT set: Name, artists (curator territory) and MetadataLocked (a producer write is not a human
         // decision, and locking here would exclude the song from every future upgrade).

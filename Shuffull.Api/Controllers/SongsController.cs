@@ -106,7 +106,8 @@ public class SongsController : ControllerBase
 
     /// <summary>
     /// Producer: the songs whose tags are behind the model they deserve, oldest first, with the tier each
-    /// should be tagged at. Shared-secret guarded — this is the funnel's work queue, not a user endpoint.
+    /// should be tagged at. Shared-secret guarded — this is the funnel's work queue, not a user endpoint. Not
+    /// read-only: every song returned counts an attempt and is held back until its retry delay passes.
     /// </summary>
     [HttpGet("pending-tags")]
     public async Task<IActionResult> GetPendingTagSongs(
