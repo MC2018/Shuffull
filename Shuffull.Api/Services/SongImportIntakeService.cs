@@ -89,6 +89,7 @@ public class SongImportIntakeService
                 // with a better model later without re-downloading/re-analysing the audio.
                 MeasuredBpm = details.MeasuredBpm,
                 TagModel = details.TagModel,
+                TagRevision = details.TagRevision,
                 LoudnessRangeLu = details.LoudnessRangeLu,
                 CrestFactorDb = details.CrestFactorDb,
                 OnsetsPerSecond = details.OnsetsPerSecond,

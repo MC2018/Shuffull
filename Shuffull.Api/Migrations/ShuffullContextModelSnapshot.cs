@@ -184,6 +184,9 @@ namespace Shuffull.Api.Migrations
                     b.Property<string>("TagModel")
                         .HasColumnType("text");
 
+                    b.Property<int>("TagRevision")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime>("Version")
                         .HasColumnType("timestamp with time zone");
 
@@ -294,6 +297,9 @@ namespace Shuffull.Api.Migrations
 
                     b.Property<string>("TagModel")
                         .HasColumnType("text");
+
+                    b.Property<int>("TagRevision")
+                        .HasColumnType("integer");
 
                     b.Property<string>("TargetPlaylistName")
                         .HasColumnType("text");

@@ -4,6 +4,7 @@ using Shuffull.Core.Features.Songs.GetPendingTagSongs;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Tests.Infrastructure;
+using Shuffull.Metadata.Services.AI;
 using Shuffull.Metadata.Tools;
 
 namespace Shuffull.Core.Tests.Features.Songs;
@@ -47,7 +48,8 @@ public class GetPendingTagSongsHandlerPostgresTest : IAsyncLifetime
         ["AI:OpenAI:StrongModelName"] = "strong-model",
     }).Build();
 
-    private async Task<Song> SeedSongAsync(DateTime version, string? tagModel = null, string? likedBy = null)
+    private async Task<Song> SeedSongAsync(DateTime version, string? tagModel = null, string? likedBy = null,
+                                           int tagRevision = TagRevision.Current, bool locked = false)
     {
         await using var context = Database.CreateContext();
         var song = new Song
@@ -57,6 +59,8 @@ public class GetPendingTagSongsHandlerPostgresTest : IAsyncLifetime
             FileExtension = ".mp3",
             FileHash = Guid.NewGuid().ToString(),
             TagModel = tagModel,
+            TagRevision = tagRevision,
+            MetadataLocked = locked,
             Version = version,
         };
         context.Songs.Add(song);
@@ -109,5 +113,23 @@ public class GetPendingTagSongsHandlerPostgresTest : IAsyncLifetime
         Assert.Equal(1, reloaded!.TagAttempts);
         Assert.True(reloaded.NextTagAttemptAt > DateTime.UtcNow);
         Assert.Equal(day, reloaded.Version);
+    }
+
+    [PostgresFact]
+    public async Task OlderRevisions_AreOffered_OnATierNoWeakerThanTheirTags()
+    {
+        // The revision branch and the tier projection both carry a model-name list into SQL. SQLite translates
+        // those differently, so pin the Postgres shape too (shuffull-workspace#41).
+        var day = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var weakTagged = await SeedSongAsync(day, tagModel: "weak-model", tagRevision: TagRevision.Current - 1);
+        var strongTagged = await SeedSongAsync(day.AddDays(1), tagModel: "STRONG-model", tagRevision: TagRevision.Current - 1);
+        await SeedSongAsync(day.AddDays(2), tagModel: "weak-model", tagRevision: TagRevision.Current - 1, locked: true);
+        await SeedSongAsync(day.AddDays(3), tagModel: "weak-model");
+
+        var page = await RunAsync(limit: 10);
+
+        Assert.Equal([weakTagged.SongId, strongTagged.SongId], page.Songs.Select(s => s.SongId));
+        Assert.Equal([TagTiers.Weak, TagTiers.Strong], page.Songs.Select(s => s.Tier));
+        Assert.Equal(2, page.Remaining);
     }
 }

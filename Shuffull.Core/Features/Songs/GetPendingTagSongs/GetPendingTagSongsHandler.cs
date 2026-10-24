@@ -5,6 +5,7 @@ using Nut.Results;
 using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Persistence;
 using Shuffull.Core.Tools;
+using Shuffull.Metadata.Services.AI;
 using Shuffull.Metadata.Tools;
 
 namespace Shuffull.Core.Features.Songs.GetPendingTagSongs;
@@ -57,6 +58,18 @@ public class GetPendingTagSongsHandler(
         var weakEnough = modelStrengths.ModelsAtLeastAsStrongAs(weakModel).ToList();
         var strongEnough = modelStrengths.ModelsAtLeastAsStrongAs(strongModel).ToList();
 
+        // A re-score for a newer prompt revision must run a model no weaker than the one that tagged the song, or
+        // the write is refused (TagUpgradeRule.WouldRescore) and the song's provenance would drop. So a song whose
+        // tags came from a model STRONGER than the weak tier is re-scored on the strong tier, liked or not. Off
+        // entirely while the weak model is unregistered: every tag model would then look stronger than it, and
+        // the whole library would go to the strong tier.
+        var weakStrength = modelStrengths.GetStrength(weakModel);
+        var rescoreEnabled = weakStrength > 0;
+        var strongerThanWeak = weakEnough
+            .Where(m => modelStrengths.GetStrength(m) > weakStrength)
+            .Select(m => m.ToLowerInvariant())
+            .ToList();
+
         // Positive sentiment from ANY user earns the strong model. Love collapses into Like here; the site
         // already flattens it that way for YouTube parity, and the ladder only has two tiers.
         var likedSongIds = context.UserSongs
@@ -67,6 +80,7 @@ public class GetPendingTagSongsHandler(
         // rule ApplySongTags refuses by, so anything handed out here is a write the site will accept. Un-vetted
         // audition songs spend nothing until kept.
         // Matched by id rather than used directly, because EF can't project the artists collection off a UNION.
+        // A song tagged under an older prompt revision is pending too, once (shuffull-workspace#41).
         var candidates = context.Songs.Where(s => !s.Exploratory);
         var pendingIds = candidates
             .Where(s => likedSongIds.Contains(s.SongId))
@@ -75,6 +89,10 @@ public class GetPendingTagSongsHandler(
             .Concat(candidates
                 .Where(s => !likedSongIds.Contains(s.SongId))
                 .Where(TagUpgradeRule.WouldUpgrade(weakEnough))
+                .Select(s => s.SongId))
+            .Concat(candidates
+                .Where(_ => rescoreEnabled)
+                .Where(TagUpgradeRule.IsBehindRevision(TagRevision.Current))
                 .Select(s => s.SongId));
         var pending = context.Songs.Where(s => pendingIds.Contains(s.SongId));
 
@@ -96,6 +114,7 @@ public class GetPendingTagSongsHandler(
                 s.Name,
                 Artists = s.SongArtists.Select(sa => sa.Artist.Name).ToList(),
                 IsLiked = likedSongIds.Contains(s.SongId),
+                TaggedAboveWeak = s.TagModel != null && strongerThanWeak.Contains(s.TagModel.ToLower()),
                 s.TagModel,
                 s.PlainLyrics,
                 s.SyncedLyrics,
@@ -127,7 +146,7 @@ public class GetPendingTagSongsHandler(
         var songs = rows
             .Select(r => new PendingTagSong(
                 r.SongId, r.ExternalSongId, r.Name, r.Artists,
-                r.IsLiked ? TagTiers.Strong : TagTiers.Weak,
+                r.IsLiked || r.TaggedAboveWeak ? TagTiers.Strong : TagTiers.Weak,
                 r.TagModel, r.PlainLyrics, r.SyncedLyrics, r.LyricsInstrumental,
                 r.MeasuredBpm, r.CrestFactorDb, r.LoudnessRangeLu, r.OnsetsPerSecond, r.OriginalReleaseYear))
             .ToList();

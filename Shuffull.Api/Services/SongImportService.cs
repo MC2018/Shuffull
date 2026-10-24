@@ -163,7 +163,7 @@ public partial class SongImportService : BackgroundService
                 ? null
                 : JsonConvert.DeserializeObject<SongLyrics>(songImport.LyricsJson);
 
-            // The producer's generated tags also carry an AI energy score (1-10); persist it on the Song.
+            // The producer's generated tags also carry an AI heaviness score (1-10, stored as Energy); persist it on the Song.
             // Null for manual uploads (no producer tags), mirroring how Bpm is producer-only.
             var generatedTags = string.IsNullOrWhiteSpace(songImport.GeneratedTagsJson)
                 ? null
@@ -208,6 +208,10 @@ public partial class SongImportService : BackgroundService
                     TagModel = !string.IsNullOrWhiteSpace(songImport.GeneratedTagsJson)
                         ? songImport.TagModel
                         : (existingTags.Count + newTags.Count > 0 ? _selfTagModelName : null),
+                    // Same split: the producer's revision for its tags, ours when we generated them.
+                    TagRevision = !string.IsNullOrWhiteSpace(songImport.GeneratedTagsJson)
+                        ? songImport.TagRevision
+                        : (existingTags.Count + newTags.Count > 0 ? TagRevision.Current : 0),
                     MeasuredBpm = songImport.MeasuredBpm,
                     LoudnessRangeLu = songImport.LoudnessRangeLu,
                     CrestFactorDb = songImport.CrestFactorDb,
@@ -654,6 +658,7 @@ public partial class SongImportService : BackgroundService
             // Refresh the tag provenance + raw AI inputs from this re-source so a later model-upgrade re-tag
             // sees the current model/inputs (and so they don't go stale against the new audio).
             song.TagModel = songImport.TagModel;
+            song.TagRevision = songImport.TagRevision;
             song.ResetTagAttempts();
             song.MeasuredBpm = songImport.MeasuredBpm;
             song.LoudnessRangeLu = songImport.LoudnessRangeLu;
