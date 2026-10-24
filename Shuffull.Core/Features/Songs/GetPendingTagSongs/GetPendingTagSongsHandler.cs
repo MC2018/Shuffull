@@ -59,14 +59,21 @@ public class GetPendingTagSongsHandler(
         var strongEnough = modelStrengths.ModelsAtLeastAsStrongAs(strongModel).ToList();
 
         // A re-score for a newer prompt revision must run a model no weaker than the one that tagged the song, or
-        // the write is refused (TagUpgradeRule.WouldRescore) and the song's provenance would drop. So a song whose
-        // tags came from a model STRONGER than the weak tier is re-scored on the strong tier, liked or not. Off
-        // entirely while the weak model is unregistered: every tag model would then look stronger than it, and
-        // the whole library would go to the strong tier.
+        // the write is refused (TagUpgradeRule.WouldRescore). So a song whose tags came from a model STRONGER than
+        // the weak tier is re-scored on the strong tier, liked or not, and a song tagged above BOTH tiers is not
+        // offered at all: no tier could write it, and it would come back refused forever (Shuffull#40). That
+        // includes every song above the weak tier while the strong model is unregistered. Off entirely while the
+        // weak model is unregistered: every tag model would look stronger than it.
         var weakStrength = modelStrengths.GetStrength(weakModel);
+        var strongStrength = modelStrengths.GetStrength(strongModel);
         var rescoreEnabled = weakStrength > 0;
         var strongerThanWeak = weakEnough
             .Where(m => modelStrengths.GetStrength(m) > weakStrength)
+            .Select(m => m.ToLowerInvariant())
+            .ToList();
+        // ModelsAtLeastAsStrongAs(null) is every registered model; an unregistered TagModel is never rescorable.
+        var rescorable = modelStrengths.ModelsAtLeastAsStrongAs(null)
+            .Where(m => modelStrengths.GetStrength(m) <= Math.Max(weakStrength, strongStrength))
             .Select(m => m.ToLowerInvariant())
             .ToList();
 
@@ -82,30 +89,33 @@ public class GetPendingTagSongsHandler(
         // Matched by id rather than used directly, because EF can't project the artists collection off a UNION.
         // A song tagged under an older prompt revision is pending too, once (shuffull-workspace#41).
         var candidates = context.Songs.Where(s => !s.Exploratory);
-        var pendingIds = candidates
+        var upgradeIds = candidates
             .Where(s => likedSongIds.Contains(s.SongId))
             .Where(TagUpgradeRule.WouldUpgrade(strongEnough))
             .Select(s => s.SongId)
             .Concat(candidates
                 .Where(s => !likedSongIds.Contains(s.SongId))
                 .Where(TagUpgradeRule.WouldUpgrade(weakEnough))
-                .Select(s => s.SongId))
-            .Concat(candidates
-                .Where(_ => rescoreEnabled)
-                .Where(TagUpgradeRule.IsBehindRevision(TagRevision.Current))
                 .Select(s => s.SongId));
-        var pending = context.Songs.Where(s => pendingIds.Contains(s.SongId));
+        var rescoreIds = candidates
+            .Where(_ => rescoreEnabled)
+            .Where(TagUpgradeRule.IsBehindRevision(TagRevision.Current))
+            .Where(s => rescorable.Contains(s.TagModel!.ToLower()))
+            .Select(s => s.SongId);
+        var pending = context.Songs.Where(s => upgradeIds.Contains(s.SongId) || rescoreIds.Contains(s.SongId));
 
         // The whole outstanding backlog, including songs still backing off.
         var remaining = await pending.CountAsync(cancellationToken);
 
-        // Oldest first among the songs that are due: the queue drains in the order work was requested, so a long
-        // legacy backfill cannot be starved by newer arrivals. A song that was handed out and is still behind (no
+        // Real upgrades (a Keep, a Like, untagged songs) first, then revision re-scores, so a library-wide re-score
+        // never queues ahead of what a user just asked for. Oldest first within each: the queue drains in the order
+        // work was requested, so a long legacy backfill cannot be starved by newer arrivals. A song that was handed out and is still behind (no
         // tags inferable, held in a batch, a write refused) sits out its backoff instead of filling the page.
         var now = DateTime.UtcNow;
         var rows = await pending
             .Where(s => s.NextTagAttemptAt == null || s.NextTagAttemptAt <= now)
-            .OrderBy(s => s.Version)
+            .OrderBy(s => upgradeIds.Contains(s.SongId) ? 0 : 1)
+            .ThenBy(s => s.Version)
             .Take(limit)
             .Select(s => new
             {

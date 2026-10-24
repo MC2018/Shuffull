@@ -74,6 +74,35 @@ public class ApplySongTagsHandlerTest : IDisposable
     }
 
     [Fact]
+    public async Task NewerRevision_WithNoScore_ClearsTheOldScaleScore()
+    {
+        // The old value is on the energy scale. Keeping it while marking the song current would pass it off as
+        // a heaviness score for good.
+        var song = await SeedAsync(tagModel: "weak-model", tagRevision: TagRevision.Current - 1);
+        song.Energy = 9;
+        await _database.Context.SaveChangesAsync();
+
+        var result = await RunAsync(song.SongId, Tags("Rock") with { Energy = null }, "weak-model");
+
+        Assert.True(result.IsOk);
+        var reloaded = await ReloadAsync(song.SongId);
+        Assert.Null(reloaded.Energy);
+        Assert.Equal(TagRevision.Current, reloaded.TagRevision);
+    }
+
+    [Fact]
+    public async Task SameRevision_WithNoScore_KeepsTheScore()
+    {
+        var song = await SeedAsync(tagModel: "weak-model");
+        song.Energy = 6;
+        await _database.Context.SaveChangesAsync();
+
+        Assert.True((await RunAsync(song.SongId, Tags("Rock") with { Energy = null }, "strong-model")).IsOk);
+
+        Assert.Equal(6, (await ReloadAsync(song.SongId)).Energy);
+    }
+
+    [Fact]
     public async Task SameModel_SameRevision_IsRefused()
     {
         // Otherwise every cycle would rewrite the song and bump its Version (Shuffull#40).

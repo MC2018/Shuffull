@@ -40,6 +40,7 @@ public class GetPendingTagSongsHandlerPostgresTest : IAsyncLifetime
     {
         ["weak-model"] = 10,
         ["strong-model"] = 30,
+        ["frontier-model"] = 50,
     });
 
     private static readonly IConfiguration Config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
@@ -130,6 +131,20 @@ public class GetPendingTagSongsHandlerPostgresTest : IAsyncLifetime
 
         Assert.Equal([weakTagged.SongId, strongTagged.SongId], page.Songs.Select(s => s.SongId));
         Assert.Equal([TagTiers.Weak, TagTiers.Strong], page.Songs.Select(s => s.Tier));
+        Assert.Equal(2, page.Remaining);
+    }
+
+    [PostgresFact]
+    public async Task RealUpgrades_ComeFirst_AndASongNoTierCanWriteIsNotOffered()
+    {
+        var day = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var rescore = await SeedSongAsync(day, tagModel: "weak-model", tagRevision: TagRevision.Current - 1);
+        await SeedSongAsync(day.AddDays(1), tagModel: "frontier-model", tagRevision: TagRevision.Current - 1);
+        var untagged = await SeedSongAsync(day.AddDays(2));
+
+        var page = await RunAsync(limit: 10);
+
+        Assert.Equal([untagged.SongId, rescore.SongId], page.Songs.Select(s => s.SongId));
         Assert.Equal(2, page.Remaining);
     }
 }

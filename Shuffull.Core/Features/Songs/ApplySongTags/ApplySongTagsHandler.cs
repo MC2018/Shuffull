@@ -76,6 +76,12 @@ public class ApplySongTagsHandler(ShuffullContext context, ModelStrengths modelS
         {
             song.Energy = energy;
         }
+        else if (request.TagRevision > song.TagRevision)
+        {
+            // A newer revision with no score: the old value is on a scale that no longer applies, so unknown is
+            // the honest answer. Leaving the revision behind instead would hand the song straight back forever.
+            song.Energy = null;
+        }
 
         song.TagModel = request.TagModel;
         // Taken as sent, even when lower: a model upgrade from a producer on an older prompt leaves the song due

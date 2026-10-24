@@ -32,7 +32,7 @@ namespace Shuffull.Core.Models.Database
         public string? LyricsSource { get; set; }
         public int? Bpm { get; set; }
         // 1-10 HEAVINESS score from the producer's AI: one absolute scale across genres (1 = ambient, 10 =
-        // punishing). Named Energy for history; the app shows it as Heaviness (shuffull-workspace#41).
+        // punishing). Named Energy for history (shuffull-workspace#41).
         public int? Energy { get; set; }
 
         // Tag provenance + the raw AI inputs, persisted so the library can be re-tagged with a better model
