@@ -31,7 +31,8 @@ namespace Shuffull.Core.Models.Database
         public bool LyricsInstrumental { get; set; }
         public string? LyricsSource { get; set; }
         public int? Bpm { get; set; }
-        // Best-effort 1-10 perceived intensity/drive score from the producer's AI (weighs BPM but not purely it).
+        // 1-10 HEAVINESS score from the producer's AI: one absolute scale across genres (1 = ambient, 10 =
+        // punishing). Named Energy for history (shuffull-workspace#41).
         public int? Energy { get; set; }
 
         // Tag provenance + the raw AI inputs, persisted so the library can be re-tagged with a better model
@@ -40,6 +41,9 @@ namespace Shuffull.Core.Models.Database
         // (distinct from the resolved Bpm above); LoudnessRangeLu / CrestFactorDb / OnsetsPerSecond are the
         // objective audio-shape features that grounded the energy estimate. All optional / producer-supplied.
         public string? TagModel { get; set; }
+        // The prompt revision (Shuffull.Metadata TagRevision) the tags came from. 0 = before revisions existed.
+        // A tagged song behind TagRevision.Current is re-scored once by the producer queue (GetPendingTagSongs).
+        public int TagRevision { get; set; }
         public int? MeasuredBpm { get; set; }
         public double? LoudnessRangeLu { get; set; }
         public double? CrestFactorDb { get; set; }

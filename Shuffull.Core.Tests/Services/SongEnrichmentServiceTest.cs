@@ -138,6 +138,7 @@ public class SongEnrichmentServiceTest : IDisposable
 
         var updated = await _database.Context.Songs.AsNoTracking().SingleAsync(s => s.SongId == song.SongId);
         Assert.Equal("strong-model-x", updated.TagModel);
+        Assert.Equal(Shuffull.Metadata.Services.AI.TagRevision.Current, updated.TagRevision); // scored by this prompt
         Assert.Equal(0, updated.TagAttempts);     // freshly tagged, so the producer queue's backoff starts over
         Assert.Null(updated.NextTagAttemptAt);
         Assert.Equal(7, updated.Energy);

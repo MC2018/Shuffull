@@ -13,12 +13,16 @@ namespace Shuffull.Core.Features.Songs.ApplySongTags;
 /// <c>TagModel</c>, so the song would stay "behind" forever and be handed back on the next poll — an infinite,
 /// self-refilling work queue.</para>
 ///
-/// <para>This writes tags, BPM/energy and <c>TagModel</c> only. Name and artists are untouched, so a curator's
+/// <para><see cref="TagRevision"/> is the prompt revision the tags came from (Shuffull.Metadata TagRevision). 0 from a
+/// producer that predates revisions, which leaves the song due for a re-score.</para>
+///
+/// <para>This writes tags, BPM/energy, <c>TagModel</c> and <c>TagRevision</c> only. Name and artists are untouched, so a curator's
 /// identity corrections survive a re-tag.</para>
 /// </summary>
 public record ApplySongTagsCommand(
     string SongId,
     GeneratedSongTags Tags,
-    string TagModel) : IRequest<Result<ApplySongTagsResponse>>;
+    string TagModel,
+    int TagRevision = 0) : IRequest<Result<ApplySongTagsResponse>>;
 
 public record ApplySongTagsResponse(string SongId, int TagCount, string TagModel);

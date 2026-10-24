@@ -160,7 +160,7 @@ public class SongsController : ControllerBase
         }
 
         return this.ToActionResult(
-            await _mediator.Send(new ApplySongTagsCommand(songId, request.Tags, request.TagModel), cancellationToken));
+            await _mediator.Send(new ApplySongTagsCommand(songId, request.Tags, request.TagModel, request.TagRevision), cancellationToken));
     }
 
     /// <summary>Shared secret shared with the producer, same key the import/rating queues use.</summary>
