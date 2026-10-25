@@ -70,23 +70,23 @@ public class ApplySongTagsHandlerTest : IDisposable
         Assert.True(result.IsOk);
         var reloaded = await ReloadAsync(song.SongId);
         Assert.Equal(TagRevision.Current, reloaded.TagRevision);
-        Assert.Equal(7, reloaded.Energy);
+        Assert.Equal(7, reloaded.Heaviness);
     }
 
     [Fact]
     public async Task NewerRevision_WithNoScore_ClearsTheOldScaleScore()
     {
-        // The old value is on the energy scale. Keeping it while marking the song current would pass it off as
-        // a heaviness score for good.
+        // The old value is on the previous revision's scale. Keeping it while marking the song current would pass
+        // it off as a current score for good.
         var song = await SeedAsync(tagModel: "weak-model", tagRevision: TagRevision.Current - 1);
-        song.Energy = 9;
+        song.Heaviness = 9;
         await _database.Context.SaveChangesAsync();
 
-        var result = await RunAsync(song.SongId, Tags("Rock") with { Energy = null }, "weak-model");
+        var result = await RunAsync(song.SongId, Tags("Rock") with { Heaviness = null }, "weak-model");
 
         Assert.True(result.IsOk);
         var reloaded = await ReloadAsync(song.SongId);
-        Assert.Null(reloaded.Energy);
+        Assert.Null(reloaded.Heaviness);
         Assert.Equal(TagRevision.Current, reloaded.TagRevision);
     }
 
@@ -94,12 +94,12 @@ public class ApplySongTagsHandlerTest : IDisposable
     public async Task SameRevision_WithNoScore_KeepsTheScore()
     {
         var song = await SeedAsync(tagModel: "weak-model");
-        song.Energy = 6;
+        song.Heaviness = 6;
         await _database.Context.SaveChangesAsync();
 
-        Assert.True((await RunAsync(song.SongId, Tags("Rock") with { Energy = null }, "strong-model")).IsOk);
+        Assert.True((await RunAsync(song.SongId, Tags("Rock") with { Heaviness = null }, "strong-model")).IsOk);
 
-        Assert.Equal(6, (await ReloadAsync(song.SongId)).Energy);
+        Assert.Equal(6, (await ReloadAsync(song.SongId)).Heaviness);
     }
 
     [Fact]

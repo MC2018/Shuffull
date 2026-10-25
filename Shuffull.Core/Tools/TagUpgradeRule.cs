@@ -41,7 +41,7 @@ public static class TagUpgradeRule
     /// <summary>
     /// SQL form of "machine tags from an older prompt revision": the song is re-scored once with a model no weaker
     /// than the one that tagged it. A song with no TagModel is already covered by <see cref="WouldUpgrade(IReadOnlyList{string})"/>.
-    /// A curator-locked song is left alone: UpdateSong sets its tags and Energy by hand while keeping the old
+    /// A curator-locked song is left alone: UpdateSong sets its tags and Heaviness by hand while keeping the old
     /// TagModel, so a re-score would overwrite a human's decision with a prompt change.
     /// </summary>
     public static Expression<Func<Song, bool>> IsBehindRevision(int currentRevision) =>

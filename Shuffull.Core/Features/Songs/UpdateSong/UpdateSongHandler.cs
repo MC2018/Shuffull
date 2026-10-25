@@ -30,7 +30,7 @@ public class UpdateSongHandler(IUnitOfWork unitOfWork) : IRequestHandler<UpdateS
 
         song.Name = request.Name;
         song.Bpm = request.Bpm;
-        song.Energy = request.Energy;
+        song.Heaviness = request.Heaviness;
         // Mark the song as curator-corrected so a future re-source won't overwrite this metadata
         // (SongImportService.ReplaceInDbAsync respects the lock).
         song.MetadataLocked = true;

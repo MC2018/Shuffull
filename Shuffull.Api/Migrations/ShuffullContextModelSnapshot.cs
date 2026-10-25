@@ -127,9 +127,6 @@ namespace Shuffull.Api.Migrations
                     b.Property<double?>("CrestFactorDb")
                         .HasColumnType("double precision");
 
-                    b.Property<int?>("Energy")
-                        .HasColumnType("integer");
-
                     b.Property<bool>("Exploratory")
                         .HasColumnType("boolean");
 
@@ -143,6 +140,9 @@ namespace Shuffull.Api.Migrations
                     b.Property<string>("FileHash")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<int?>("Heaviness")
+                        .HasColumnType("integer");
 
                     b.Property<double?>("LoudnessRangeLu")
                         .HasColumnType("double precision");

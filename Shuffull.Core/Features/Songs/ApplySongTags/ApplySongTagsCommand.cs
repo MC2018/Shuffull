@@ -16,7 +16,7 @@ namespace Shuffull.Core.Features.Songs.ApplySongTags;
 /// <para><see cref="TagRevision"/> is the prompt revision the tags came from (Shuffull.Metadata TagRevision). 0 from a
 /// producer that predates revisions, which leaves the song due for a re-score.</para>
 ///
-/// <para>This writes tags, BPM/energy, <c>TagModel</c> and <c>TagRevision</c> only. Name and artists are untouched, so a curator's
+/// <para>This writes tags, BPM/heaviness, <c>TagModel</c> and <c>TagRevision</c> only. Name and artists are untouched, so a curator's
 /// identity corrections survive a re-tag.</para>
 /// </summary>
 public record ApplySongTagsCommand(
