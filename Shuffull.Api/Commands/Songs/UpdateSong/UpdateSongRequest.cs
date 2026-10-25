@@ -14,7 +14,8 @@ public record UpdateSongRequest(
     /// <summary>
     /// Heaviness under its name before shuffull-workspace#50. App builds from before the rename send it, and so
     /// do edits they queued in their outbox, which a renamed app still sends as written. Without this the edit
-    /// would land with no heaviness and clear the song's score. Read only.
+    /// would land with no heaviness and clear the song's score. Read from JSON, never written. Remove with Shuffull#69,
+    /// once no pre-rename build is installed and none of its queued edits can still be waiting.
     /// </summary>
     [JsonPropertyName("energy")]
     [JsonInclude]

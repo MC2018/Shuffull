@@ -39,7 +39,7 @@ public record SongDto(
     /// <summary>
     /// Heaviness again, under its name before shuffull-workspace#50, for app builds that still read "energy".
     /// Sync replaces a song's whole local row, so without it those builds would blank the score of every song they
-    /// re-sync. Remove once every installed app reads "heaviness" (ShuffullApp#122).
+    /// re-sync. Remove with Shuffull#69, once no pre-rename build is installed anywhere.
     /// </summary>
     [JsonPropertyName("energy")]
     public int? LegacyEnergy => Heaviness;
