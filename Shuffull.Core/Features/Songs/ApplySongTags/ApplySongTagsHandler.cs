@@ -33,17 +33,20 @@ public class ApplySongTagsHandler(ShuffullContext context, ModelStrengths modelS
             return Result.Error<ApplySongTagsResponse>($"Song '{request.SongId}' was not found.");
         }
 
-        // Only a genuine MODEL upgrade is written, by the same rule the work query hands songs out by. Checked
+        // Only a genuine upgrade is written, by the same rules the work query hands songs out by: a stronger model,
+        // or a newer prompt revision from a model no weaker than the current one. Checked
         // here as well because the producer polls and writes independently: a song can be curated or re-tagged
         // in the window between, and the write is the last point that can still refuse. It also refuses a
         // producer whose model is no stronger than the song's, rather than rewriting the same song and bumping
         // its Version on every cycle (Shuffull#40). A refused song keeps its TagAttempts, so the queue keeps
         // backing it off.
-        if (!TagUpgradeRule.WouldUpgrade(song, request.TagModel, modelStrengths))
+        if (!TagUpgradeRule.WouldUpgrade(song, request.TagModel, modelStrengths)
+            && !TagUpgradeRule.WouldRescore(song, request.TagModel, request.TagRevision, modelStrengths))
         {
             var locked = song.MetadataLocked ? " (curator-locked)" : "";
             return Result.Error<ApplySongTagsResponse>(
-                $"Song '{request.SongId}'{locked}: '{request.TagModel}' is not an upgrade on '{song.TagModel ?? "(hand-tagged)"}'.");
+                $"Song '{request.SongId}'{locked}: '{request.TagModel}' (revision {request.TagRevision}) is not an upgrade on " +
+                $"'{song.TagModel ?? "(hand-tagged)"}' (revision {song.TagRevision}).");
         }
 
         using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
@@ -73,8 +76,17 @@ public class ApplySongTagsHandler(ShuffullContext context, ModelStrengths modelS
         {
             song.Energy = energy;
         }
+        else if (request.TagRevision > song.TagRevision)
+        {
+            // A newer revision with no score: the old value is on a scale that no longer applies, so unknown is
+            // the honest answer. Leaving the revision behind instead would hand the song straight back forever.
+            song.Energy = null;
+        }
 
         song.TagModel = request.TagModel;
+        // Taken as sent, even when lower: a model upgrade from a producer on an older prompt leaves the song due
+        // for a re-score, which is true.
+        song.TagRevision = request.TagRevision;
         song.ResetTagAttempts();
 
         // NOT set: Name, artists (curator territory) and MetadataLocked (a producer write is not a human

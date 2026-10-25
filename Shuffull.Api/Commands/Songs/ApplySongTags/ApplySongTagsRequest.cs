@@ -6,5 +6,6 @@ namespace Shuffull.Api.Controllers;
 /// Producer write-back body. <see cref="Tags"/> is the engine's own output shape (shared via Shuffull.Metadata,
 /// so the funnel sends exactly what it already produces), and <see cref="TagModel"/> is the model that made
 /// them — required, because without provenance the song stays "behind" and re-queues forever.
+/// <see cref="TagRevision"/> is the prompt revision they came from; a producer that predates it sends none (0).
 /// </summary>
-public record ApplySongTagsRequest(GeneratedSongTags Tags, string TagModel);
+public record ApplySongTagsRequest(GeneratedSongTags Tags, string TagModel, int TagRevision = 0);

@@ -143,7 +143,7 @@ public partial class SongEnrichmentService : ISongEnrichmentService
             ? TimePeriodFormat.FromYear(year)
             : other.TimePeriod;
 
-        var generatedTags = new GeneratedSongTags(mainGenres, subGenres, other.Languages, timePeriod, other.Moods, other.Energy, other.Themes);
+        var generatedTags = new GeneratedSongTags(mainGenres, subGenres, other.Languages, timePeriod, other.Moods, other.Heaviness, other.Themes);
 
         using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
@@ -170,8 +170,9 @@ public partial class SongEnrichmentService : ISongEnrichmentService
         // Prefer the model's plausible known tempo over the stored measurement (mirrors the funnel's
         // BpmResolver: beat trackers are unreliable on dense electronic music); otherwise keep what we had.
         song.Bpm = other.TrueBpm is >= 40 and <= 300 ? other.TrueBpm : (song.MeasuredBpm ?? song.Bpm);
-        song.Energy = other.Energy;
+        song.Energy = other.Heaviness;
         song.TagModel = modelName;
+        song.TagRevision = TagRevision.Current;
         song.ResetTagAttempts();
         // Enriching an exploratory song promotes it: it now has real tags, so it's no longer provisional (and
         // won't be purged if its audition playlist is later deleted).

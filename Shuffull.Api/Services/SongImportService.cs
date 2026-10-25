@@ -163,7 +163,7 @@ public partial class SongImportService : BackgroundService
                 ? null
                 : JsonConvert.DeserializeObject<SongLyrics>(songImport.LyricsJson);
 
-            // The producer's generated tags also carry an AI energy score (1-10); persist it on the Song.
+            // The producer's generated tags also carry an AI heaviness score (1-10, stored as Energy); persist it on the Song.
             // Null for manual uploads (no producer tags), mirroring how Bpm is producer-only.
             var generatedTags = string.IsNullOrWhiteSpace(songImport.GeneratedTagsJson)
                 ? null
@@ -208,6 +208,7 @@ public partial class SongImportService : BackgroundService
                     TagModel = !string.IsNullOrWhiteSpace(songImport.GeneratedTagsJson)
                         ? songImport.TagModel
                         : (existingTags.Count + newTags.Count > 0 ? _selfTagModelName : null),
+                    TagRevision = ImportedTagRevision(songImport),
                     MeasuredBpm = songImport.MeasuredBpm,
                     LoudnessRangeLu = songImport.LoudnessRangeLu,
                     CrestFactorDb = songImport.CrestFactorDb,
@@ -273,6 +274,14 @@ public partial class SongImportService : BackgroundService
     /// different/absent video id) is a true duplicate, and a tag-less exploratory re-rip must never refresh a
     /// song the user has promoted — it would wipe the tags enrichment gave it.
     /// </summary>
+    /// <summary>
+    /// The prompt revision an import's tags count as: the producer's, when it sent tags. Tags generated here at
+    /// import carry no heaviness (Energy comes only from producer tags), so they count as 0 and the producer
+    /// queue fills them in once.
+    /// </summary>
+    internal static int ImportedTagRevision(SongImport songImport) =>
+        string.IsNullOrWhiteSpace(songImport.GeneratedTagsJson) ? 0 : songImport.TagRevision;
+
     internal static bool ShouldRefreshInPlace(Song duplicate, string? importExternalSongId, string importFileHash, bool importExploratory)
     {
         var sameVideoNewAudio = !string.IsNullOrEmpty(importExternalSongId)
@@ -654,6 +663,7 @@ public partial class SongImportService : BackgroundService
             // Refresh the tag provenance + raw AI inputs from this re-source so a later model-upgrade re-tag
             // sees the current model/inputs (and so they don't go stale against the new audio).
             song.TagModel = songImport.TagModel;
+            song.TagRevision = ImportedTagRevision(songImport);
             song.ResetTagAttempts();
             song.MeasuredBpm = songImport.MeasuredBpm;
             song.LoudnessRangeLu = songImport.LoudnessRangeLu;

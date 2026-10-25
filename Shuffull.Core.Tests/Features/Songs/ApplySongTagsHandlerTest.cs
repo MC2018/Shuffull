@@ -4,6 +4,7 @@ using Shuffull.Core.Features.Songs.ApplySongTags;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Tests.Infrastructure;
 using Shuffull.Metadata.Models;
+using Shuffull.Metadata.Services.AI;
 using Shuffull.Metadata.Tools;
 using Shuffull.Shared.Tools;
 
@@ -35,7 +36,8 @@ public class ApplySongTagsHandlerTest : IDisposable
     private static GeneratedSongTags Tags(params string[] genres)
         => new([.. genres], [], ["English"], "2010s", ["Energetic"], 7, null);
 
-    private async Task<Song> SeedAsync(string? tagModel = null, bool locked = false, string name = "Original Name")
+    private async Task<Song> SeedAsync(string? tagModel = null, bool locked = false, string name = "Original Name",
+                                       int tagRevision = TagRevision.Current)
     {
         var song = new Song
         {
@@ -44,6 +46,7 @@ public class ApplySongTagsHandlerTest : IDisposable
             FileExtension = ".mp3",
             FileHash = IdGenerator.Generate(),
             TagModel = tagModel,
+            TagRevision = tagRevision,
             MetadataLocked = locked,
             Version = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
         };
@@ -52,9 +55,94 @@ public class ApplySongTagsHandlerTest : IDisposable
         return song;
     }
 
-    private Task<Result<ApplySongTagsResponse>> RunAsync(string songId, GeneratedSongTags tags, string model)
+    private Task<Result<ApplySongTagsResponse>> RunAsync(string songId, GeneratedSongTags tags, string model,
+                                                         int tagRevision = TagRevision.Current)
         => new ApplySongTagsHandler(_database.Context, Strengths())
-            .Handle(new ApplySongTagsCommand(songId, tags, model), CancellationToken.None);
+            .Handle(new ApplySongTagsCommand(songId, tags, model, tagRevision), CancellationToken.None);
+
+    [Fact]
+    public async Task SameModel_NewerRevision_RescoresAndStampsTheRevision()
+    {
+        var song = await SeedAsync(tagModel: "weak-model", tagRevision: TagRevision.Current - 1);
+
+        var result = await RunAsync(song.SongId, Tags("Rock"), "weak-model");
+
+        Assert.True(result.IsOk);
+        var reloaded = await ReloadAsync(song.SongId);
+        Assert.Equal(TagRevision.Current, reloaded.TagRevision);
+        Assert.Equal(7, reloaded.Energy);
+    }
+
+    [Fact]
+    public async Task NewerRevision_WithNoScore_ClearsTheOldScaleScore()
+    {
+        // The old value is on the energy scale. Keeping it while marking the song current would pass it off as
+        // a heaviness score for good.
+        var song = await SeedAsync(tagModel: "weak-model", tagRevision: TagRevision.Current - 1);
+        song.Energy = 9;
+        await _database.Context.SaveChangesAsync();
+
+        var result = await RunAsync(song.SongId, Tags("Rock") with { Energy = null }, "weak-model");
+
+        Assert.True(result.IsOk);
+        var reloaded = await ReloadAsync(song.SongId);
+        Assert.Null(reloaded.Energy);
+        Assert.Equal(TagRevision.Current, reloaded.TagRevision);
+    }
+
+    [Fact]
+    public async Task SameRevision_WithNoScore_KeepsTheScore()
+    {
+        var song = await SeedAsync(tagModel: "weak-model");
+        song.Energy = 6;
+        await _database.Context.SaveChangesAsync();
+
+        Assert.True((await RunAsync(song.SongId, Tags("Rock") with { Energy = null }, "strong-model")).IsOk);
+
+        Assert.Equal(6, (await ReloadAsync(song.SongId)).Energy);
+    }
+
+    [Fact]
+    public async Task SameModel_SameRevision_IsRefused()
+    {
+        // Otherwise every cycle would rewrite the song and bump its Version (Shuffull#40).
+        var song = await SeedAsync(tagModel: "weak-model");
+
+        Assert.True((await RunAsync(song.SongId, Tags("Rock"), "weak-model")).IsError);
+    }
+
+    [Fact]
+    public async Task WeakerModel_NewerRevision_IsRefused()
+    {
+        // A re-score must not quietly downgrade provenance; the queue sends such songs to the strong tier.
+        var song = await SeedAsync(tagModel: "strong-model", tagRevision: TagRevision.Current - 1);
+
+        var result = await RunAsync(song.SongId, Tags("Rock"), "weak-model");
+
+        Assert.True(result.IsError);
+        Assert.Equal("strong-model", (await ReloadAsync(song.SongId)).TagModel);
+    }
+
+    [Fact]
+    public async Task LockedSong_NewerRevision_IsRefused()
+    {
+        var song = await SeedAsync(tagModel: "weak-model", locked: true, tagRevision: TagRevision.Current - 1);
+
+        Assert.True((await RunAsync(song.SongId, Tags("Rock"), "weak-model")).IsError);
+    }
+
+    [Fact]
+    public async Task ModelUpgrade_FromAnOlderRevisionProducer_LeavesTheSongDueForARescore()
+    {
+        // A producer that predates revisions sends 0. Its tags came from the old prompt, so the song should
+        // still read as behind afterwards rather than be marked current.
+        var song = await SeedAsync(tagModel: "weak-model");
+
+        var result = await RunAsync(song.SongId, Tags("Rock"), "strong-model", tagRevision: 0);
+
+        Assert.True(result.IsOk);
+        Assert.Equal(0, (await ReloadAsync(song.SongId)).TagRevision);
+    }
 
     private async Task<Song> ReloadAsync(string songId)
     {

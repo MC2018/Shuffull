@@ -5,6 +5,7 @@ using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Tests.Infrastructure;
 using Shuffull.Core.Tools;
+using Shuffull.Metadata.Services.AI;
 using Shuffull.Metadata.Tools;
 using Shuffull.Shared.Tools;
 
@@ -30,6 +31,7 @@ public class GetPendingTagSongsHandlerTest : IDisposable
     {
         ["weak-model"] = 10,
         ["strong-model"] = 30,
+        ["frontier-model"] = 50, // registered, but stronger than either tier
     });
 
     /// <summary>Weak tier served by "Meta", strong by "OpenAI" — the real prod shape.</summary>
@@ -43,7 +45,8 @@ public class GetPendingTagSongsHandlerTest : IDisposable
         }).Build();
 
     private async Task<Song> SeedAsync(string? tagModel = null, bool locked = false, bool exploratory = false,
-                                       DateTime? version = null, LikeStatus? like = null, string? externalId = "yt-abc")
+                                       DateTime? version = null, LikeStatus? like = null, string? externalId = "yt-abc",
+                                       int tagRevision = TagRevision.Current)
     {
         var song = new Song
         {
@@ -53,6 +56,7 @@ public class GetPendingTagSongsHandlerTest : IDisposable
             FileHash = IdGenerator.Generate(),
             ExternalSongId = externalId,
             TagModel = tagModel,
+            TagRevision = tagRevision,
             MetadataLocked = locked,
             Exploratory = exploratory,
             Version = version ?? new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
@@ -93,6 +97,84 @@ public class GetPendingTagSongsHandlerTest : IDisposable
         var song = Assert.Single((await RunAsync()).Get().Songs);
 
         Assert.Equal(expectedTier, song.Tier);
+    }
+
+    [Fact]
+    public async Task OlderRevision_IsOfferedForOneRescore()
+    {
+        // The weak model already tagged it, so only the prompt revision makes it due (shuffull-workspace#41).
+        var behind = await SeedAsync(tagModel: "weak-model", tagRevision: TagRevision.Current - 1);
+        await SeedAsync(tagModel: "weak-model");                                // current revision: done
+
+        var songs = (await RunAsync()).Get().Songs;
+
+        var song = Assert.Single(songs);
+        Assert.Equal(behind.SongId, song.SongId);
+        Assert.Equal(TagTiers.Weak, song.Tier);
+    }
+
+    [Fact]
+    public async Task OlderRevision_TaggedAboveTheWeakTier_IsRescoredOnTheStrongTier()
+    {
+        // Unliked songs normally get the weak model, but the weak model's write would be refused as a provenance
+        // downgrade (TagUpgradeRule.WouldRescore). It has to be the strong tier, or the song loops forever.
+        await SeedAsync(tagModel: "strong-model", tagRevision: TagRevision.Current - 1);
+
+        var song = Assert.Single((await RunAsync()).Get().Songs);
+
+        Assert.Equal(TagTiers.Strong, song.Tier);
+    }
+
+    [Fact]
+    public async Task OlderRevision_TaggedAboveBothTiers_IsNotOffered()
+    {
+        // No tier could write it (the write needs a model at least as strong), so offering it would refuse it
+        // forever. The same holds for everything above the weak tier while the strong model is unregistered.
+        await SeedAsync(tagModel: "frontier-model", tagRevision: TagRevision.Current - 1);
+        var strongTagged = await SeedAsync(tagModel: "strong-model", tagRevision: TagRevision.Current - 1);
+
+        Assert.Equal([strongTagged.SongId], (await RunAsync()).Get().Songs.Select(s => s.SongId));
+        Assert.Empty((await RunAsync(config: Config(strong: null))).Get().Songs.Where(s => s.SongId == strongTagged.SongId));
+    }
+
+    [Fact]
+    public async Task RealUpgrades_ComeBeforeRevisionRescores()
+    {
+        // A library-wide re-score must not queue ahead of a Keep or a Like, even an older one behind it.
+        var oldRescore = await SeedAsync(tagModel: "weak-model", tagRevision: TagRevision.Current - 1,
+                                         version: new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+        var newKeep = await SeedAsync(version: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc)); // untagged
+
+        var songs = (await RunAsync()).Get().Songs;
+
+        Assert.Equal([newKeep.SongId, oldRescore.SongId], songs.Select(s => s.SongId));
+    }
+
+    [Fact]
+    public async Task OlderRevision_CuratorLockedSong_IsNotRescored()
+    {
+        // UpdateSong sets tags and Energy by hand but keeps the old TagModel. A re-score would overwrite them.
+        await SeedAsync(tagModel: "weak-model", locked: true, tagRevision: TagRevision.Current - 1);
+
+        Assert.Empty((await RunAsync()).Get().Songs);
+    }
+
+    [Fact]
+    public async Task OlderRevision_IsNotRescored_WhileTheWeakModelIsUnregistered()
+    {
+        // Every tag model would look stronger than an unregistered weak model, sending the library to the
+        // strong tier. Returning nothing until the config is fixed is the cheaper mistake.
+        await SeedAsync(tagModel: "strong-model", tagRevision: TagRevision.Current - 1);
+
+        Assert.Empty((await RunAsync(config: Config(weak: "not-in-the-map"))).Get().Songs);
+    }
+
+    [Fact]
+    public async Task OlderRevision_ExploratorySongIsNotRescored()
+    {
+        await SeedAsync(tagModel: "weak-model", exploratory: true, tagRevision: TagRevision.Current - 1);
+
+        Assert.Empty((await RunAsync()).Get().Songs);
     }
 
     [Fact]

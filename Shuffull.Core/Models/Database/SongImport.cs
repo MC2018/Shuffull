@@ -54,6 +54,8 @@ public class SongImport
     public int? MeasuredBpm { get; set; }
     /// <summary>AI model that produced the generated tags, for a future model-upgrade re-tag pass. Null when self-generated.</summary>
     public string? TagModel { get; set; }
+    // The prompt revision the producer's GeneratedTags came from (SongImportDetails.TagRevision). 0 when absent.
+    public int TagRevision { get; set; }
     /// <summary>Audio-shape inputs that grounded the AI energy estimate; persisted so energy can be regenerated without the audio.</summary>
     public double? LoudnessRangeLu { get; set; }
     public double? CrestFactorDb { get; set; }
