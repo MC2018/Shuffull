@@ -5,7 +5,7 @@ namespace Shuffull.Core.Services;
 /// <summary>Outcome of an enrichment attempt that didn't error.</summary>
 public enum SongEnrichmentStatus
 {
-    /// <summary>Tags/BPM/energy were regenerated and written in place.</summary>
+    /// <summary>Tags/BPM/heaviness were regenerated and written in place.</summary>
     Enriched,
     /// <summary>The song is curator-locked; nothing was touched.</summary>
     SkippedMetadataLocked,

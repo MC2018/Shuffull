@@ -12,15 +12,15 @@ public class UpdateSongValidator : AbstractValidator<UpdateSongCommand>
         RuleFor(x => x.Name)
             .NotEmpty().WithMessage("Song name is required.");
 
-        // Optional fields: only constrained when supplied. BPM is a positive tempo; Energy is the 1-10 scale.
+        // Optional fields: only constrained when supplied. BPM is a positive tempo; Heaviness is the 1-10 scale.
         RuleFor(x => x.Bpm)
             .GreaterThan(0).WithMessage("BPM must be greater than 0.")
             .LessThanOrEqualTo(1000).WithMessage("BPM is unreasonably high.")
             .When(x => x.Bpm.HasValue);
 
-        RuleFor(x => x.Energy)
-            .InclusiveBetween(1, 10).WithMessage("Energy must be between 1 and 10.")
-            .When(x => x.Energy.HasValue);
+        RuleFor(x => x.Heaviness)
+            .InclusiveBetween(1, 10).WithMessage("Heaviness must be between 1 and 10.")
+            .When(x => x.Heaviness.HasValue);
 
         RuleFor(x => x.Artists)
             .NotNull().WithMessage("Artists list is required (may be empty).");

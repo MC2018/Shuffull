@@ -56,7 +56,7 @@ public class SongImport
     public string? TagModel { get; set; }
     // The prompt revision the producer's GeneratedTags came from (SongImportDetails.TagRevision). 0 when absent.
     public int TagRevision { get; set; }
-    /// <summary>Audio-shape inputs that grounded the AI energy estimate; persisted so energy can be regenerated without the audio.</summary>
+    /// <summary>Audio-shape inputs that grounded the AI heaviness estimate; persisted so heaviness can be regenerated without the audio.</summary>
     public double? LoudnessRangeLu { get; set; }
     public double? CrestFactorDb { get; set; }
     public double? OnsetsPerSecond { get; set; }

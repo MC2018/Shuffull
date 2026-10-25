@@ -153,7 +153,7 @@ public class GetPendingTagSongsHandlerTest : IDisposable
     [Fact]
     public async Task OlderRevision_CuratorLockedSong_IsNotRescored()
     {
-        // UpdateSong sets tags and Energy by hand but keeps the old TagModel. A re-score would overwrite them.
+        // UpdateSong sets tags and Heaviness by hand but keeps the old TagModel. A re-score would overwrite them.
         await SeedAsync(tagModel: "weak-model", locked: true, tagRevision: TagRevision.Current - 1);
 
         Assert.Empty((await RunAsync()).Get().Songs);

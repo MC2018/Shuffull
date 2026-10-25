@@ -104,7 +104,7 @@ public class GetSongsChangedHandlerTest : IDisposable
         var cursor = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         var song = NewSong("enriched", cursor.AddDays(1));
         song.Bpm = 128;
-        song.Energy = 7;
+        song.Heaviness = 7;
         song.SyncedLyrics = "[00:00.00] hi";
         await _database.Context.Songs.AddAsync(song);
 
@@ -135,7 +135,7 @@ public class GetSongsChangedHandlerTest : IDisposable
         Assert.Equal(new[] { "The Band" }, dto.Artists.ToArray());
         Assert.Equal(new[] { "Rock" }, dto.Tags.ToArray());
         Assert.Equal(128, dto.Bpm);
-        Assert.Equal(7, dto.Energy);
+        Assert.Equal(7, dto.Heaviness);
         Assert.Equal("[00:00.00] hi", dto.SyncedLyrics);
     }
 

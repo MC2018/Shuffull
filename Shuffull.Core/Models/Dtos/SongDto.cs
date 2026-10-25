@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Nut.Results;
 using Shuffull.Core.Models.Database;
 
@@ -25,7 +26,7 @@ public record SongDto(
     bool LyricsInstrumental = false,
     string? LyricsSource = null,
     int? Bpm = null,
-    int? Energy = null,
+    int? Heaviness = null,
     // True for an un-vetted "audition" song imported from an exploratory source with no AI tags. The app uses
     // this to surface an audition view and to promote-on-keep (a like enqueues a re-tag, which clears this).
     bool Exploratory = false,
@@ -35,6 +36,14 @@ public record SongDto(
     // (defaults false elsewhere); never true for exploratory or curator-locked songs.
     bool TagsStale = false)
 {
+    /// <summary>
+    /// Heaviness again, under its name before shuffull-workspace#50, for app builds that still read "energy".
+    /// Sync replaces a song's whole local row, so without it those builds would blank the score of every song they
+    /// re-sync. Remove once every installed app reads "heaviness" (ShuffullApp#122).
+    /// </summary>
+    [JsonPropertyName("energy")]
+    public int? LegacyEnergy => Heaviness;
+
     public static Result<SongDto> Create(Song song, bool tagsStale = false)
     {
         if (song is null)
@@ -68,7 +77,7 @@ public record SongDto(
             LyricsInstrumental: song.LyricsInstrumental,
             LyricsSource: song.LyricsSource,
             Bpm: song.Bpm,
-            Energy: song.Energy,
+            Heaviness: song.Heaviness,
             Exploratory: song.Exploratory,
             TagsStale: tagsStale));
     }
