@@ -49,7 +49,13 @@ public record PendingTagSong(
     double? CrestFactorDb,
     double? LoudnessRangeLu,
     double? OnsetsPerSecond,
-    int? OriginalReleaseYear);
+    int? OriginalReleaseYear,
+    /// <summary>
+    /// The song's media file (<c>/music/{FileHash}{FileExtension}</c>). The producer fetches it to measure what the
+    /// site doesn't store, grit and density (shuffull-workspace#52).
+    /// </summary>
+    string FileHash,
+    string FileExtension);
 
 /// <summary><see cref="Remaining"/> is the total still outstanding, so the producer can pace itself.</summary>
 public record PendingTagSongsResponse(IReadOnlyList<PendingTagSong> Songs, int Remaining);

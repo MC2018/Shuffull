@@ -134,6 +134,8 @@ public class GetPendingTagSongsHandler(
                 s.LoudnessRangeLu,
                 s.OnsetsPerSecond,
                 s.OriginalReleaseYear,
+                s.FileHash,
+                s.FileExtension,
                 s.TagAttempts,
             })
             .ToListAsync(cancellationToken);
@@ -158,7 +160,8 @@ public class GetPendingTagSongsHandler(
                 r.SongId, r.ExternalSongId, r.Name, r.Artists,
                 r.IsLiked || r.TaggedAboveWeak ? TagTiers.Strong : TagTiers.Weak,
                 r.TagModel, r.PlainLyrics, r.SyncedLyrics, r.LyricsInstrumental,
-                r.MeasuredBpm, r.CrestFactorDb, r.LoudnessRangeLu, r.OnsetsPerSecond, r.OriginalReleaseYear))
+                r.MeasuredBpm, r.CrestFactorDb, r.LoudnessRangeLu, r.OnsetsPerSecond, r.OriginalReleaseYear,
+                r.FileHash, r.FileExtension))
             .ToList();
 
         return Result.Ok(new PendingTagSongsResponse(songs, remaining));
