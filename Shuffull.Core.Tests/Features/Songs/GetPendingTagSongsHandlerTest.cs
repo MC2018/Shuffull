@@ -100,18 +100,6 @@ public class GetPendingTagSongsHandlerTest : IDisposable
     }
 
     [Fact]
-    public async Task CarriesTheSongsMediaFile()
-    {
-        // The producer fetches /music/{FileHash}{FileExtension} to measure grit and density (shuffull-workspace#52).
-        var seeded = await SeedAsync();
-
-        var song = Assert.Single((await RunAsync()).Get().Songs);
-
-        Assert.Equal(seeded.FileHash, song.FileHash);
-        Assert.Equal(".mp3", song.FileExtension);
-    }
-
-    [Fact]
     public async Task OlderRevision_IsOfferedForOneRescore()
     {
         // The weak model already tagged it, so only the prompt revision makes it due (shuffull-workspace#41).
@@ -401,6 +389,18 @@ public class GetPendingTagSongsHandlerTest : IDisposable
         await SeedAsync(externalId: null);
 
         Assert.Null(Assert.Single((await RunAsync()).Get().Songs).ExternalSongId);
+    }
+
+    [Fact]
+    public async Task CarriesTheSongsMediaFile()
+    {
+        // The producer fetches /music/{FileHash}{FileExtension} to measure grit and density (shuffull-workspace#52).
+        var seeded = await SeedAsync();
+
+        var song = Assert.Single((await RunAsync()).Get().Songs);
+
+        Assert.Equal(seeded.FileHash, song.FileHash);
+        Assert.Equal(".mp3", song.FileExtension);
     }
 
     [Fact]
