@@ -72,15 +72,15 @@ public class ApplySongTagsHandler(ShuffullContext context, ModelStrengths modelS
             });
         }
 
-        if (request.Tags.Energy is int energy)
+        if (request.Tags.Heaviness is int heaviness)
         {
-            song.Energy = energy;
+            song.Heaviness = heaviness;
         }
         else if (request.TagRevision > song.TagRevision)
         {
             // A newer revision with no score: the old value is on a scale that no longer applies, so unknown is
             // the honest answer. Leaving the revision behind instead would hand the song straight back forever.
-            song.Energy = null;
+            song.Heaviness = null;
         }
 
         song.TagModel = request.TagModel;

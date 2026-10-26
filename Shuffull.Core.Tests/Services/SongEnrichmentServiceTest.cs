@@ -141,7 +141,7 @@ public class SongEnrichmentServiceTest : IDisposable
         Assert.Equal(Shuffull.Metadata.Services.AI.TagRevision.Current, updated.TagRevision); // scored by this prompt
         Assert.Equal(0, updated.TagAttempts);     // freshly tagged, so the producer queue's backoff starts over
         Assert.Null(updated.NextTagAttemptAt);
-        Assert.Equal(7, updated.Energy);
+        Assert.Equal(7, updated.Heaviness);
         Assert.Equal(175, updated.Bpm); // plausible TrueBpm wins over the measured 128
         Assert.True(updated.Version > DateTime.UtcNow.AddDays(-1));
 

@@ -32,14 +32,14 @@ namespace Shuffull.Core.Models.Database
         public string? LyricsSource { get; set; }
         public int? Bpm { get; set; }
         // 1-10 HEAVINESS score from the producer's AI: one absolute scale across genres (1 = ambient, 10 =
-        // punishing). Named Energy for history (shuffull-workspace#41).
-        public int? Energy { get; set; }
+        // punishing). Called Energy until shuffull-workspace#50.
+        public int? Heaviness { get; set; }
 
         // Tag provenance + the raw AI inputs, persisted so the library can be re-tagged with a better model
         // later WITHOUT re-downloading or re-analysing the audio. TagModel = which AI model produced the tags
         // (null when Shuffull self-generated them). MeasuredBpm is the raw beat-tracking hint the AI saw
         // (distinct from the resolved Bpm above); LoudnessRangeLu / CrestFactorDb / OnsetsPerSecond are the
-        // objective audio-shape features that grounded the energy estimate. All optional / producer-supplied.
+        // objective audio-shape features that grounded the heaviness estimate. All optional / producer-supplied.
         public string? TagModel { get; set; }
         // The prompt revision (Shuffull.Metadata TagRevision) the tags came from. 0 = before revisions existed.
         // A tagged song behind TagRevision.Current is re-scored once by the producer queue (GetPendingTagSongs).
@@ -60,7 +60,7 @@ namespace Shuffull.Core.Models.Database
 
         // Set true when a curator hand-edits this song's metadata. While locked, the import/replacement pipeline
         // (SongImportService.ReplaceInDbAsync) re-sources the AUDIO in place but leaves the metadata
-        // (Name/Bpm/Energy/artists/tags) alone, so a later re-source can't silently clobber a human correction.
+        // (Name/Bpm/Heaviness/artists/tags) alone, so a later re-source can't silently clobber a human correction.
         public bool MetadataLocked { get; set; }
 
         // Producer tagging queue backoff (GetPendingTagSongs). TagAttempts counts hand-outs since tags were last

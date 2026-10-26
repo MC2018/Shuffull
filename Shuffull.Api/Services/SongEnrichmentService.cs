@@ -15,7 +15,7 @@ namespace Shuffull.Api.Services;
 
 /// <summary>
 /// Re-runs the genre engine for a single song from its ALREADY-STORED inputs (name, artists, lyrics, measured
-/// BPM, audio-shape features, authoritative release year) and updates its tags/BPM/energy/TagModel in place —
+/// BPM, audio-shape features, authoritative release year) and updates its tags/BPM/heaviness/TagModel in place —
 /// no re-download and no producer round-trip. This is the primitive behind both the "upgrade to a stronger
 /// model" pass (re-tag songs whose <see cref="Song.TagModel"/> is weaker per <see cref="Core.Tools.ModelStrengths"/>)
 /// and exploratory-mode promotion (tag a kept song on first like).
@@ -170,7 +170,7 @@ public partial class SongEnrichmentService : ISongEnrichmentService
         // Prefer the model's plausible known tempo over the stored measurement (mirrors the funnel's
         // BpmResolver: beat trackers are unreliable on dense electronic music); otherwise keep what we had.
         song.Bpm = other.TrueBpm is >= 40 and <= 300 ? other.TrueBpm : (song.MeasuredBpm ?? song.Bpm);
-        song.Energy = other.Heaviness;
+        song.Heaviness = other.Heaviness;
         song.TagModel = modelName;
         song.TagRevision = TagRevision.Current;
         song.ResetTagAttempts();

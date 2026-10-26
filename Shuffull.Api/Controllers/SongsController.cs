@@ -72,7 +72,7 @@ public class SongsController : ControllerBase
     [Authorize]
     public async Task<IActionResult> UpdateSong(string songId, [FromBody] UpdateSongRequest request, CancellationToken cancellationToken)
         => this.ToActionResult(await _mediator.Send(
-            new UpdateSongCommand(songId, request.Name, request.Bpm, request.Energy, request.Artists, request.Tags),
+            new UpdateSongCommand(songId, request.Name, request.Bpm, request.Heaviness, request.Artists, request.Tags),
             cancellationToken));
 
     /// <summary>

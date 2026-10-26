@@ -9,7 +9,7 @@ public class UpdateSongValidatorTest
     private readonly UpdateSongValidator _validator = new();
 
     private static UpdateSongCommand Valid() =>
-        new("song-1", "A Name", Bpm: 128, Energy: 6,
+        new("song-1", "A Name", Bpm: 128, Heaviness: 6,
             Artists: new[] { "Artist" },
             Tags: new[] { new SongTagEdit("House", TagType.Genre) });
 
@@ -22,7 +22,7 @@ public class UpdateSongValidatorTest
     [Fact]
     public void Valid_AllowsNullOptionalsAndEmptyCollections()
     {
-        var cmd = Valid() with { Bpm = null, Energy = null, Artists = Array.Empty<string>(), Tags = Array.Empty<SongTagEdit>() };
+        var cmd = Valid() with { Bpm = null, Heaviness = null, Artists = Array.Empty<string>(), Tags = Array.Empty<SongTagEdit>() };
         Assert.Empty(_validator.TestValidate(cmd).Errors);
     }
 
@@ -51,17 +51,17 @@ public class UpdateSongValidatorTest
     [InlineData(0)]
     [InlineData(11)]
     [InlineData(-1)]
-    public void OutOfRangeEnergy_Fails(int energy)
+    public void OutOfRangeHeaviness_Fails(int heaviness)
     {
-        _validator.TestValidate(Valid() with { Energy = energy }).ShouldHaveValidationErrorFor(x => x.Energy);
+        _validator.TestValidate(Valid() with { Heaviness = heaviness }).ShouldHaveValidationErrorFor(x => x.Heaviness);
     }
 
     [Theory]
     [InlineData(1)]
     [InlineData(10)]
-    public void EnergyAtBounds_Passes(int energy)
+    public void HeavinessAtBounds_Passes(int heaviness)
     {
-        Assert.Empty(_validator.TestValidate(Valid() with { Energy = energy }).Errors);
+        Assert.Empty(_validator.TestValidate(Valid() with { Heaviness = heaviness }).Errors);
     }
 
     [Fact]

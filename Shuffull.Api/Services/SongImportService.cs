@@ -163,7 +163,7 @@ public partial class SongImportService : BackgroundService
                 ? null
                 : JsonConvert.DeserializeObject<SongLyrics>(songImport.LyricsJson);
 
-            // The producer's generated tags also carry an AI heaviness score (1-10, stored as Energy); persist it on the Song.
+            // The producer's generated tags also carry an AI heaviness score (1-10); persist it on the Song.
             // Null for manual uploads (no producer tags), mirroring how Bpm is producer-only.
             var generatedTags = string.IsNullOrWhiteSpace(songImport.GeneratedTagsJson)
                 ? null
@@ -201,7 +201,7 @@ public partial class SongImportService : BackgroundService
                     LyricsInstrumental = lyrics?.Instrumental ?? false,
                     LyricsSource = lyrics?.Source,
                     Bpm = songImport.Bpm,
-                    Energy = generatedTags?.Energy,
+                    Heaviness = generatedTags?.Heaviness,
                     // Tag provenance + raw AI inputs, persisted for a future model-upgrade re-tag (no re-download).
                     // Producer-supplied tags carry the producer's model; when WE generated them (manual uploads,
                     // incl. a file-cached response) stamp our own strong model so the song isn't forever "stale".
@@ -276,7 +276,7 @@ public partial class SongImportService : BackgroundService
     /// </summary>
     /// <summary>
     /// The prompt revision an import's tags count as: the producer's, when it sent tags. Tags generated here at
-    /// import carry no heaviness (Energy comes only from producer tags), so they count as 0 and the producer
+    /// import carry no heaviness (it comes only from producer tags), so they count as 0 and the producer
     /// queue fills them in once.
     /// </summary>
     internal static int ImportedTagRevision(SongImport songImport) =>
@@ -616,7 +616,7 @@ public partial class SongImportService : BackgroundService
 
     /// <summary>
     /// Overwrites an existing song (<see cref="SongImport.ReplacesSongId"/>) in place with the freshly-imported
-    /// content — its audio hash, name, lyrics, tempo, energy, external id and tag/artist joins are replaced — but
+    /// content — its audio hash, name, lyrics, tempo, heaviness, external id and tag/artist joins are replaced — but
     /// its SongId, and therefore every UserSong / PlaylistSong association, is preserved. Marks any open
     /// SongReplacement request for the song Completed. Returns the OLD (file hash, extension) so the caller can
     /// delete the now-orphaned files.
@@ -654,12 +654,12 @@ public partial class SongImportService : BackgroundService
         song.Version = DateTime.UtcNow;
 
         // Curator-protected metadata: once a human has hand-edited this song, a re-source must NOT clobber their
-        // correction. While locked we skip the producer/AI Name/Bpm/Energy + artist/tag overwrite entirely.
+        // correction. While locked we skip the producer/AI Name/Bpm/Heaviness + artist/tag overwrite entirely.
         if (!song.MetadataLocked)
         {
             song.Name = songImport.Name;
             song.Bpm = songImport.Bpm;
-            song.Energy = generatedTags?.Energy;
+            song.Heaviness = generatedTags?.Heaviness;
             // Refresh the tag provenance + raw AI inputs from this re-source so a later model-upgrade re-tag
             // sees the current model/inputs (and so they don't go stale against the new audio).
             song.TagModel = songImport.TagModel;

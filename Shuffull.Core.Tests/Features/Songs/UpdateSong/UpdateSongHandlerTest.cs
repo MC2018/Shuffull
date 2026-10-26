@@ -49,7 +49,7 @@ public class UpdateSongHandlerTest : IDisposable
             FileExtension = ".mp3",
             FileHash = Guid.NewGuid().ToString(),
             Bpm = 120,
-            Energy = 5,
+            Heaviness = 5,
             Version = version,
         };
         await _database.Context.Songs.AddAsync(song);
@@ -100,7 +100,7 @@ public class UpdateSongHandlerTest : IDisposable
         var song = await SeedSongAsync(version);
 
         var result = await _handler.Handle(
-            new UpdateSongCommand(song.SongId, "Corrected Name", Bpm: 140, Energy: 8, Artists: [], Tags: []),
+            new UpdateSongCommand(song.SongId, "Corrected Name", Bpm: 140, Heaviness: 8, Artists: [], Tags: []),
             CancellationToken.None);
 
         Assert.True(result.IsOk, result.IsError ? result.GetError().Message : null);
@@ -108,7 +108,7 @@ public class UpdateSongHandlerTest : IDisposable
         var saved = await _database.Context.Songs.AsNoTracking().SingleAsync(s => s.SongId == song.SongId);
         Assert.Equal("Corrected Name", saved.Name);
         Assert.Equal(140, saved.Bpm);
-        Assert.Equal(8, saved.Energy);
+        Assert.Equal(8, saved.Heaviness);
         Assert.True(saved.Version > version);
         Assert.Equal(saved.Version, result.Get().Version);
     }

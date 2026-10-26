@@ -9,6 +9,6 @@ namespace Shuffull.Core.Authentication;
 /// </summary>
 public enum Role
 {
-    /// <summary>May edit shared song metadata (name, artists, tags, BPM, energy) to fix mislabels.</summary>
+    /// <summary>May edit shared song metadata (name, artists, tags, BPM, heaviness) to fix mislabels.</summary>
     Curator = 0,
 }
