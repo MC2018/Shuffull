@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Konscious.Security.Cryptography;
 using Shuffull.Core.Models.Database;
 using Shuffull.Shared.Tools;
 
@@ -16,19 +17,29 @@ public static class ServerPasswordHash
 {
     private const int SaltBytes = 16;
 
+    // Argon2id settings for the server's hash. They start equal to the client hash's (Hasher.Argon2Hash), which is
+    // what every stored hash was made with. Unlike the client's they can change, but only for new hashes: an
+    // account's hash verifies only under the settings it was made with.
+    private const int MemorySizeKb = 16384;
+    private const int DegreeOfParallelism = 4;
+    private const int Iterations = 5;
+    private const int HashBytes = 16;
+
+    /// <summary>The salt every server hash used before per-user salts; the same one the clients use.</summary>
+    private static readonly byte[] LegacySharedSalt = Encoding.UTF8.GetBytes("ShuffullSaltingSixteenBytesLong!");
+
     /// <summary>Gives <paramref name="user"/> a fresh salt and stores the hash of <paramref name="clientHash"/> under it.</summary>
     public static void Set(User user, string clientHash)
     {
         var salt = RandomNumberGenerator.GetBytes(SaltBytes);
         user.ServerHashSalt = Convert.ToHexString(salt).ToLowerInvariant();
-        user.ServerHash = Hasher.Argon2Hash(clientHash, salt);
+        user.ServerHash = Hash(clientHash, salt);
     }
 
     public static bool Verify(User user, string clientHash)
     {
-        var expected = user.ServerHashSalt == null
-            ? Hasher.Argon2Hash(clientHash)
-            : Hasher.Argon2Hash(clientHash, Convert.FromHexString(user.ServerHashSalt));
+        var salt = user.ServerHashSalt == null ? LegacySharedSalt : Convert.FromHexString(user.ServerHashSalt);
+        var expected = Hash(clientHash, salt);
 
         return CryptographicOperations.FixedTimeEquals(
             Encoding.UTF8.GetBytes(expected),
@@ -41,6 +52,18 @@ public static class ServerPasswordHash
     /// </summary>
     public static void VerifyNobody(string clientHash)
     {
-        Hasher.Argon2Hash(clientHash, new byte[SaltBytes]);
+        Hash(clientHash, new byte[SaltBytes]);
+    }
+
+    private static string Hash(string clientHash, byte[] salt)
+    {
+        var argon2 = new Argon2id(Encoding.UTF8.GetBytes(clientHash))
+        {
+            MemorySize = MemorySizeKb,
+            DegreeOfParallelism = DegreeOfParallelism,
+            Iterations = Iterations,
+            Salt = salt,
+        };
+        return Convert.ToHexString(argon2.GetBytes(HashBytes)).ToLowerInvariant();
     }
 }

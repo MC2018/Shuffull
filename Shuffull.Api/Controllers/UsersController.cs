@@ -5,6 +5,7 @@ using Shuffull.Core.Features.Users.AuthenticateUser;
 using Shuffull.Core.Features.Users.CreateUser;
 using Shuffull.Core.Features.Users.GetCurrentUser;
 using Shuffull.Core.Models.Database;
+using Shuffull.Api.Commands.Users.Credentials;
 using Shuffull.Api.Extensions;
 using Shuffull.Api.Tools.Authorization;
 
@@ -27,7 +28,7 @@ public class UsersController : ControllerBase
 
     // Credentials travel in the JSON body. The query string is the old form: anything in a URL lands in proxy and
     // access logs, and the client hash is all it takes to log in. It stays readable only so apps installed before
-    // the change can still sign in; drop it once those have updated.
+    // the change can still sign in; removing it is shuffull-workspace#58.
     [HttpPost("authenticate")]
     public async Task<IActionResult> Authenticate(
         [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] CredentialsRequest? body,
@@ -64,6 +65,3 @@ public class UsersController : ControllerBase
         return this.ToActionResult(await _mediator.Send(new GetCurrentUserQuery(user.UserId), cancellationToken));
     }
 }
-
-/// <summary>A username and the client's hash of "username;password".</summary>
-public record CredentialsRequest(string? Username, string? UserHash);
