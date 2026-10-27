@@ -27,7 +27,8 @@ public class PurgedSongMediaSweepServiceTest : IDisposable
         _database = new DatabaseFixture();
         var services = new ServiceCollection();
         services.AddScoped(_ => _database.CreateContext());
-        _service = new PurgedSongMediaSweepService(services.BuildServiceProvider(), _mediaStore, NullLogger<PurgedSongMediaSweepService>.Instance);
+        _service = new PurgedSongMediaSweepService(services.BuildServiceProvider(), _mediaStore, new RecordingHealthSignals(),
+            NullLogger<PurgedSongMediaSweepService>.Instance);
     }
 
     public void Dispose()

@@ -4,6 +4,7 @@ using Shuffull.Core.Models.Database;
 using Shuffull.Core.Persistence.Repositories;
 using Shuffull.Core.Persistence.Specifications.UserSongs;
 using Shuffull.Core.Services;
+using Shuffull.Core.Services.Alerts;
 
 namespace Shuffull.Core.Features.Songs.KeepSongs;
 
@@ -11,8 +12,11 @@ namespace Shuffull.Core.Features.Songs.KeepSongs;
 /// Promotes the caller's kept songs out of audition via <see cref="IAuditionPromotionService"/> — the same durable
 /// write RetagSongs makes before enriching, without the enrichment or the curator gate. Ownership-scoped: only
 /// songs the user has a <c>UserSong</c> for are promoted.
+///
+/// <para>A refusal is also recorded as the <c>keep-refused</c> health signal, which emails the owner (Shuffull#75):
+/// the app holds the playlist's delete while that Keep is outstanding, and shows nothing.</para>
 /// </summary>
-public class KeepSongsHandler(IUnitOfWork unitOfWork, IAuditionPromotionService promotion)
+public class KeepSongsHandler(IUnitOfWork unitOfWork, IAuditionPromotionService promotion, IHealthSignals signals)
     : IRequestHandler<KeepSongsCommand, Result<KeepSongsResponse>>
 {
     // Matches RetagSongsHandler.MaxBatch, which is what the app's outbox chunks to.
@@ -58,6 +62,16 @@ public class KeepSongsHandler(IUnitOfWork unitOfWork, IAuditionPromotionService 
                 ? new SongKeepResult(songId, KeepOutcomes.Kept)
                 : new SongKeepResult(songId, KeepOutcomes.Failed, "Song is not in your library."))
             .ToList();
+
+        var refused = results.Where(r => r.Outcome == KeepOutcomes.Failed).ToList();
+        if (refused.Count > 0)
+        {
+            // Its own write in its own scope, after the Keep is recorded; a failure to record is logged, never returned.
+            await signals.FailureAsync(ShuffullSignalRules.KeepRefused,
+                $"User {request.UserId}: {refused.Count} of {order.Count} song(s) refused: {refused[0].Error} " +
+                $"Songs: {string.Join(", ", refused.Take(10).Select(r => r.SongId))}{(refused.Count > 10 ? ", …" : string.Empty)}",
+                cancellationToken);
+        }
 
         return Result.Ok(new KeepSongsResponse(results));
     }

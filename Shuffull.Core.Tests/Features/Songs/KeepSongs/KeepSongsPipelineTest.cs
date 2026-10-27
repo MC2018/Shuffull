@@ -13,6 +13,7 @@ using Shuffull.Core.Models.Database;
 using Shuffull.Core.Persistence;
 using Shuffull.Core.Persistence.Repositories;
 using Shuffull.Core.Services;
+using Shuffull.Core.Services.Alerts;
 using Shuffull.Core.Tests.Infrastructure;
 
 namespace Shuffull.Core.Tests.Features.Songs.KeepSongs;
@@ -75,6 +76,9 @@ public class KeepSongsPipelineTest : IDisposable
         services.AddSingleton<IAuditionPromotionService, AuditionPromotionService>();
         services.AddSingleton<ISongEnrichmentService, DisabledEnrichment>();
         services.AddSingleton<ISongMediaStore, NoOpMediaStore>();
+        // The real recorder, as in the API: a refused Keep writes its signal from its own scope.
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<IHealthSignals, HealthSignals>();
         services.AddValidatorsFromAssemblies([coreAssembly]);
         services.AddMediatR(cfg =>
         {

@@ -21,6 +21,9 @@ public class SongTombstone
     /// <summary>How long a purged song's media is kept before the sweep may delete it.</summary>
     public static readonly TimeSpan MediaGracePeriod = TimeSpan.FromDays(7);
 
+    /// <summary>After this many failed deletes the sweep abandons the media, leaving the file on disk.</summary>
+    public const int MaxMediaDeleteAttempts = 10;
+
     [Key]
     public string SongId { get; set; }
     [Required]
@@ -46,7 +49,7 @@ public class SongTombstone
     public bool MediaDeleted { get; set; }
     /// <summary>
     /// How many sweep passes failed to delete the media. Failed rows are retried behind fresh ones, and abandoned
-    /// once this reaches the sweep's attempt cap.
+    /// once this reaches <see cref="MaxMediaDeleteAttempts"/>.
     /// </summary>
     public int MediaSweepFailures { get; set; }
 }

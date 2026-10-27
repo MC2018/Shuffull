@@ -3,6 +3,7 @@ using Nut.Results;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Persistence;
 using Shuffull.Core.Services;
+using Shuffull.Core.Services.Alerts;
 
 namespace Shuffull.Api.Services;
 
@@ -24,12 +25,13 @@ namespace Shuffull.Api.Services;
 /// wastes space but loses nothing.
 /// </para>
 /// </summary>
-public class PurgedSongMediaSweepService(IServiceProvider services, ISongMediaStore mediaStore, ILogger<PurgedSongMediaSweepService> logger)
+public class PurgedSongMediaSweepService(IServiceProvider services, ISongMediaStore mediaStore, IHealthSignals signals,
+    ILogger<PurgedSongMediaSweepService> logger)
     : BackgroundService
 {
     private static readonly TimeSpan Interval = TimeSpan.FromHours(1);
     private const int BatchSize = 100;
-    internal const int MaxDeleteAttempts = 10;
+    internal const int MaxDeleteAttempts = SongTombstone.MaxMediaDeleteAttempts;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -38,10 +40,12 @@ public class PurgedSongMediaSweepService(IServiceProvider services, ISongMediaSt
             try
             {
                 await SweepAsync(DateTime.UtcNow, stoppingToken);
+                await signals.SuccessAsync(ShuffullSignalRules.MediaSweep, stoppingToken);
             }
             catch (Exception e) when (e is not OperationCanceledException)
             {
                 logger.LogError(e, "Purged-song media sweep failed; retrying next pass.");
+                await signals.FailureAsync(ShuffullSignalRules.MediaSweep, e.Message, stoppingToken);
             }
 
             await Task.Delay(Interval, stoppingToken);

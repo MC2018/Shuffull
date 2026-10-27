@@ -5,6 +5,7 @@ using Microsoft.Extensions.FileProviders;
 using NLog.Web;
 using Shuffull.Api.Configuration;
 using Shuffull.Api.Services;
+using Shuffull.Api.Services.Alerts;
 using Shuffull.Api.Services.FileStorage;
 using Shuffull.Api.Tools.Authorization;
 using Shuffull.Core.Authentication;
@@ -83,6 +84,11 @@ builder.Services.AddSingleton<ISongMediaStore, SongMediaStore>();
 builder.Services.AddHostedService<PurgedSongMediaSweepService>();
 builder.Services.AddHostedService<SongImportService>();
 builder.Services.AddHostedService<ExternalSongImporterService>();
+
+// --- Alerts -------------------------------------------------------------------------------------
+// Email the owner when the funnel goes quiet, a Keep is refused, kept songs never get tagged or the media sweep
+// fails (Shuffull#75). Without Alerts:ResendApiKey + Alerts:To (env only; this repo is public) alerts are logged.
+builder.Services.AddAlerts(builder.Configuration);
 
 // --- CORS ---------------------------------------------------------------------------------------
 // The mobile app is React Native, which does not enforce the same-origin policy, so this API never needed

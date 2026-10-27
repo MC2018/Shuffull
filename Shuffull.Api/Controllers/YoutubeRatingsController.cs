@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Persistence;
+using Shuffull.Core.Services.Alerts;
 
 namespace Shuffull.Api.Controllers;
 
@@ -17,11 +18,13 @@ public class YoutubeRatingsController : ControllerBase
 {
     private readonly ShuffullContext _context;
     private readonly IConfiguration _configuration;
+    private readonly IHealthSignals _signals;
 
-    public YoutubeRatingsController(ShuffullContext context, IConfiguration configuration)
+    public YoutubeRatingsController(ShuffullContext context, IConfiguration configuration, IHealthSignals signals)
     {
         _context = context;
         _configuration = configuration;
+        _signals = signals;
     }
 
     private bool IsAuthorized(string? importKey)
@@ -40,6 +43,12 @@ public class YoutubeRatingsController : ControllerBase
         if (!IsAuthorized(importKey))
         {
             return Unauthorized();
+        }
+
+        // The funnel's like-sync asks for Pending every 10 minutes; an hour without it alerts (Shuffull#75).
+        if (status == YoutubeRatingStatus.Pending)
+        {
+            await _signals.SuccessAsync(ShuffullSignalRules.YoutubeRatingsPoll, cancellationToken);
         }
 
         var rows = await _context.YoutubeRatingRequests

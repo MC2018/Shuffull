@@ -22,6 +22,37 @@ namespace Shuffull.Api.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Shuffull.Core.Models.Database.AlertState", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<DateTime?>("ClearSinceUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("FiringSinceUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("LastNotifiedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Level")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("ResolvedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("AlertStates");
+                });
+
             modelBuilder.Entity("Shuffull.Core.Models.Database.Artist", b =>
                 {
                     b.Property<string>("ArtistId")
@@ -58,6 +89,36 @@ namespace Shuffull.Api.Migrations
                     b.HasIndex("SubGenreId");
 
                     b.ToTable("GenreRelations");
+                });
+
+            modelBuilder.Entity("Shuffull.Core.Models.Database.HealthSignal", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<int>("ConsecutiveFailures")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("FailingSinceUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("LastFailureUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("LastSeenUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("LastSuccessUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("HealthSignals");
                 });
 
             modelBuilder.Entity("Shuffull.Core.Models.Database.Playlist", b =>
