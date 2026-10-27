@@ -17,6 +17,8 @@ using Shuffull.Core.Features.Songs.RetagStaleSongs;
 using Shuffull.Core.Features.Songs.UpdateSong;
 using Shuffull.Api.Tools.Authorization;
 using Shuffull.Core.Models.Database;
+using Shuffull.Core.Alerts;
+using Shuffull.Core.Services.Alerts;
 
 namespace Shuffull.Api.Controllers;
 
@@ -31,11 +33,13 @@ public class SongsController : ControllerBase
 {
     private readonly IMediator _mediator;
     private readonly IConfiguration _configuration;
+    private readonly IHealthSignals _signals;
 
-    public SongsController(IMediator mediator, IConfiguration configuration)
+    public SongsController(IMediator mediator, IConfiguration configuration, IHealthSignals signals)
     {
         _mediator = mediator;
         _configuration = configuration;
+        _signals = signals;
     }
 
     [HttpGet]
@@ -120,6 +124,8 @@ public class SongsController : ControllerBase
             return Unauthorized();
         }
 
+        // Proves the funnel is still asking for work; an hour without it alerts (Shuffull#75). Throttled to a write a minute.
+        await _signals.SuccessAsync(ShuffullSignalRules.PendingTagsPoll, cancellationToken);
         return this.ToActionResult(await _mediator.Send(new GetPendingTagSongsQuery(limit), cancellationToken));
     }
 

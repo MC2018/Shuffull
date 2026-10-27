@@ -28,6 +28,8 @@ public class ShuffullContext : DbContext
     public DbSet<TimePeriod> TimePeriods { get; set; }
     public DbSet<User> Users { get; set; }
     public DbSet<UserSong> UserSongs { get; set; }
+    public DbSet<HealthSignal> HealthSignals { get; set; }
+    public DbSet<AlertState> AlertStates { get; set; }
 
     public ShuffullContext(DbContextOptions options) : base(options) { }
 

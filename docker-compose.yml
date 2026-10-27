@@ -103,6 +103,11 @@ services:
       # browser engine and do. Comma-free list: index each origin. app://local is the Electron shell.
       - Cors__AllowedOrigins__0=${CORS_ORIGIN_0:-app://local}
       - Cors__AllowedOrigins__1=${CORS_ORIGIN_1:-}
+      # ── Alert email through Resend (Shuffull#75). Both the key and the recipient must be set to send;
+      # without them the API logs each alert instead. Real values only in the gitignored .env.
+      - Alerts__ResendApiKey=${RESEND_API_KEY:-}
+      - Alerts__To=${ALERT_EMAIL_TO:-}
+      - Alerts__From=${ALERT_EMAIL_FROM:-Shuffull Alerts <alerts@clausius.app>}
     volumes:
       # Each generated folder is its own bind mount. Point SHUFFULL_*_DIR at dedicated
       # TrueNAS folders in .env, or leave unset to use local ./data/* directories.

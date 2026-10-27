@@ -4,6 +4,7 @@ using Nut.Results;
 using Shuffull.Api.Services;
 using Shuffull.Core.Features.Songs.KeepSongs;
 using Shuffull.Core.Models.Database;
+using Shuffull.Core.Alerts;
 using Shuffull.Core.Services;
 using Shuffull.Core.Tests.Infrastructure;
 
@@ -19,6 +20,7 @@ public class KeepSongsHandlerTest : IDisposable
 
     private readonly DatabaseFixture _database;
     private readonly AuditionPromotionService _promotion;
+    private readonly RecordingHealthSignals _signals = new();
 
     public KeepSongsHandlerTest()
     {
@@ -49,7 +51,7 @@ public class KeepSongsHandlerTest : IDisposable
     }
 
     private Task<Result<KeepSongsResponse>> RunAsync(string userId, params string[] songIds)
-        => new KeepSongsHandler(_database.UnitOfWork, _promotion)
+        => new KeepSongsHandler(_database.UnitOfWork, _promotion, _signals)
             .Handle(new KeepSongsCommand(userId, songIds), CancellationToken.None);
 
     private async Task<User> SeedUserAsync()
@@ -142,6 +144,38 @@ public class KeepSongsHandlerTest : IDisposable
     }
 
     [Fact]
+    public async Task RefusedKeeps_AreRecordedOnePerSong_ForTheOwnersAlert()
+    {
+        var caller = await SeedUserAsync();
+        var other = await SeedUserAsync();
+        var first = await SeedSongAsync(exploratory: true, owner: other);
+        var second = await SeedSongAsync(exploratory: true, owner: other);
+        var mine = await SeedSongAsync(exploratory: true, owner: caller);
+
+        await RunAsync(caller.UserId, first.SongId, mine.SongId, second.SongId);
+
+        Assert.Equal(
+            [ShuffullSignalRules.KeepRefusedKey(caller.UserId, first.SongId), ShuffullSignalRules.KeepRefusedKey(caller.UserId, second.SongId)],
+            _signals.Failures.Select(f => f.Key).ToList());
+        var (_, error) = _signals.Failures[0];
+        Assert.Contains(caller.UserId, error);
+        Assert.Contains(first.SongId, error);
+        Assert.Contains("Song is not in your library.", error);
+        Assert.Empty(_signals.Successes); // an event signal: nothing ever clears it early
+    }
+
+    [Fact]
+    public async Task KeptSongs_RecordNoRefusal()
+    {
+        var user = await SeedUserAsync();
+        var song = await SeedSongAsync(exploratory: true, owner: user);
+
+        await RunAsync(user.UserId, song.SongId);
+
+        Assert.Empty(_signals.Failures);
+    }
+
+    [Fact]
     public async Task UnknownSongId_FailsThatItem()
     {
         var user = await SeedUserAsync();
@@ -184,7 +218,7 @@ public class KeepSongsHandlerTest : IDisposable
     {
         var spy = new SpyPromotion();
 
-        var result = await new KeepSongsHandler(_database.UnitOfWork, spy)
+        var result = await new KeepSongsHandler(_database.UnitOfWork, spy, _signals)
             .Handle(new KeepSongsCommand("u", []), CancellationToken.None);
 
         Assert.True(result.IsOk);
@@ -198,7 +232,7 @@ public class KeepSongsHandlerTest : IDisposable
         var spy = new SpyPromotion();
         var ids = Enumerable.Range(0, KeepSongsHandler.MaxBatch + 1).Select(i => $"s{i}").ToArray();
 
-        var result = await new KeepSongsHandler(_database.UnitOfWork, spy)
+        var result = await new KeepSongsHandler(_database.UnitOfWork, spy, _signals)
             .Handle(new KeepSongsCommand("u", ids), CancellationToken.None);
 
         Assert.True(result.IsError);
@@ -213,7 +247,7 @@ public class KeepSongsHandlerTest : IDisposable
         var song = await SeedSongAsync(exploratory: true, owner: user);
         var spy = new SpyPromotion(Result.Error<int>("database is locked"));
 
-        var result = await new KeepSongsHandler(_database.UnitOfWork, spy)
+        var result = await new KeepSongsHandler(_database.UnitOfWork, spy, _signals)
             .Handle(new KeepSongsCommand(user.UserId, [song.SongId]), CancellationToken.None);
 
         Assert.True(result.IsError);
@@ -229,7 +263,7 @@ public class KeepSongsHandlerTest : IDisposable
         var theirs = await SeedSongAsync(exploratory: true, owner: other);
         var spy = new SpyPromotion();
 
-        await new KeepSongsHandler(_database.UnitOfWork, spy)
+        await new KeepSongsHandler(_database.UnitOfWork, spy, _signals)
             .Handle(new KeepSongsCommand(caller.UserId, [theirs.SongId, mine.SongId]), CancellationToken.None);
 
         Assert.Equal([mine.SongId], Assert.Single(spy.Calls));
