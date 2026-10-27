@@ -24,6 +24,14 @@ namespace Shuffull.Core.Models.Database
         public string ServerHash { get; set; }
 
         /// <summary>
+        /// Hex of the random per-user salt <see cref="ServerHash"/> was made with. Null on accounts that predate
+        /// per-user salts, whose hash used the shared salt; the next successful login re-hashes them
+        /// (see <see cref="Authentication.ServerPasswordHash"/>).
+        /// </summary>
+        [JsonIgnore]
+        public string? ServerHashSalt { get; set; }
+
+        /// <summary>
         /// Grants the <see cref="Authentication.Role.Curator"/> role: may edit shared song metadata to fix
         /// mislabels. Toggled manually in the database; read live on every request (no token reissue), so
         /// granting/revoking takes effect on the user's next call. Defaults to false for all existing rows.

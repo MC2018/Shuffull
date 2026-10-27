@@ -32,9 +32,9 @@ public class CreateUserHandler(IUnitOfWork unitOfWork, IAuthTokenGenerator token
         {
             UserId = IdGenerator.Generate(),
             Username = request.Username,
-            ServerHash = Hasher.Argon2Hash(request.UserHash),
             Version = DateTime.UtcNow,
         };
+        ServerPasswordHash.Set(user, request.UserHash);
 
         var addResult = await userRepository.AddAsync(user, cancellationToken);
         if (addResult.IsError)

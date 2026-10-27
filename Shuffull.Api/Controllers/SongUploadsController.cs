@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Shuffull.Api.Commands.Songs.UploadSongs;
 using Shuffull.Api.Extensions;
+using Shuffull.Api.Tools.Authorization;
+using Shuffull.Core.Models.Database;
 
 namespace Shuffull.Api.Controllers;
 
@@ -20,13 +22,20 @@ public class SongUploadsController : ControllerBase
         _services = services;
     }
 
-    // TODO: When the dedicated website is built, authenticate this endpoint and derive the user from
-    // the bearer token instead of accepting a username in the form body.
+    // The uploader is whoever the token says, never a name in the form: the tunnel exposes this path. The
+    // limit bounds what one request can write to the box's disk (Cloudflare stops a single request at 100 MB
+    // anyway; the headroom is for uploads made on the local network).
     [HttpPost]
-    [RequestSizeLimit(100_000_000_000)]
-    public async Task<IActionResult> Upload([FromForm] string username, [FromForm] string? playlistName, [FromForm] IEnumerable<IFormFile> files)
+    [Authorize]
+    [RequestSizeLimit(1_000_000_000)]
+    public async Task<IActionResult> Upload([FromForm] string? playlistName, [FromForm] IEnumerable<IFormFile> files)
     {
-        var result = await new UploadSongHandler(_services).Handle(new UploadSongRequest(username, playlistName, files));
+        if (HttpContext.Items["User"] is not User user)
+        {
+            return Unauthorized();
+        }
+
+        var result = await new UploadSongHandler(_services).Handle(new UploadSongRequest(user.UserId, playlistName, files));
         return this.ToActionResult(result);
     }
 }
