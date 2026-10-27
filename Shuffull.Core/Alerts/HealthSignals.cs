@@ -2,30 +2,20 @@ using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Shuffull.Core.Persistence;
 using Shuffull.Core.Models.Database;
+using Shuffull.Core.Persistence;
+using Shuffull.Core.Services.Alerts;
 
-namespace Shuffull.Core.Services.Alerts;
-
-/// <summary>
-/// Records the outcome of recurring work into <see cref="HealthSignal"/> rows for the alert monitor to read.
-/// Callers fire and forget: a failure to record is logged and swallowed, because a broken health table must never
-/// break the work it watches.
-/// </summary>
-public interface IHealthSignals
-{
-    Task SuccessAsync(string key, CancellationToken cancellationToken = default);
-
-    Task FailureAsync(string key, string error, CancellationToken cancellationToken = default);
-}
+namespace Shuffull.Core.Alerts;
 
 /// <summary>
 /// Writes each signal from its own short-lived <see cref="ShuffullContext"/>, so a caller's half-finished unit of work
 /// is never saved by accident, and a caller whose context just failed can still record that.
 ///
-/// <para>Repeated successes are throttled to one write per key per <see cref="SuccessWriteInterval"/>: a poll that
-/// arrives every 5 s would otherwise write every 5 s. A success after a failure is always written, since it is the
-/// one that clears the failure. Failures are always written; they are rarer, and each one carries its error.</para>
+/// <para>Repeated successes are throttled to one write per key per <see cref="SuccessWriteInterval"/>. The funnel's
+/// polls arrive every 10 minutes, but a caller retrying in a tight loop (a misbehaving client, a hand-run script)
+/// shouldn't turn into a write per request. A success after a failure is always written, since it is the one that
+/// clears the failure. Failures are always written; they are rarer, and each one carries its error.</para>
 /// </summary>
 public sealed class HealthSignals(IServiceScopeFactory scopeFactory, TimeProvider timeProvider, ILogger<HealthSignals> logger)
     : IHealthSignals
@@ -37,6 +27,7 @@ public sealed class HealthSignals(IServiceScopeFactory scopeFactory, TimeProvide
 
     public Task SuccessAsync(string key, CancellationToken cancellationToken = default)
     {
+        key = HealthSignal.NormalizeKey(key);
         var now = timeProvider.GetUtcNow().UtcDateTime;
         if (_lastSuccessWrite.TryGetValue(key, out var last) && last is { } at && now - at < SuccessWriteInterval)
         {
@@ -49,6 +40,7 @@ public sealed class HealthSignals(IServiceScopeFactory scopeFactory, TimeProvide
 
     public Task FailureAsync(string key, string error, CancellationToken cancellationToken = default)
     {
+        key = HealthSignal.NormalizeKey(key);
         var now = timeProvider.GetUtcNow().UtcDateTime;
         _lastSuccessWrite[key] = null;
         return WriteAsync(key, signal => signal.RecordFailure(error, now), cancellationToken);

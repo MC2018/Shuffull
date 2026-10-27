@@ -1,3 +1,5 @@
+using Shuffull.Api.Configuration;
+using Shuffull.Core.Alerts;
 using Shuffull.Core.Services.Alerts;
 
 namespace Shuffull.Api.Services.Alerts;

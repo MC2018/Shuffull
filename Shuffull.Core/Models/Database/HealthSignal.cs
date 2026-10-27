@@ -9,7 +9,8 @@ namespace Shuffull.Core.Models.Database;
 ///
 /// <para>The API logs only to files inside its container, so nobody sees them, and several of the failures watched
 /// here don't log at all (a refused Keep is only returned to the app). This row is the durable fact the monitor can
-/// query instead. Derived state: losing it costs at most one missed alert, so it is always safe to wipe.</para>
+/// query instead. Derived state, safe to wipe: a signal that should keep arriving (a funnel poll) is treated as last
+/// seen when the API started, so a wiped or never-written row still goes stale and alerts.</para>
 /// </summary>
 public class HealthSignal
 {
@@ -40,14 +41,17 @@ public class HealthSignal
     {
     }
 
-    public static HealthSignal Create(string key)
+    /// <summary>The stored form of a key: trimmed and cut to <see cref="MaxKeyLength"/>. Look keys up by this too.</summary>
+    public static string NormalizeKey(string key)
     {
         if (string.IsNullOrWhiteSpace(key))
             throw new ArgumentException("A health signal needs a key.", nameof(key));
 
         var trimmed = key.Trim();
-        return new HealthSignal { Key = trimmed.Length <= MaxKeyLength ? trimmed : trimmed[..MaxKeyLength] };
+        return trimmed.Length <= MaxKeyLength ? trimmed : trimmed[..MaxKeyLength];
     }
+
+    public static HealthSignal Create(string key) => new() { Key = NormalizeKey(key) };
 
     public void RecordSuccess(DateTime nowUtc)
     {

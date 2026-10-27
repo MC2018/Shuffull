@@ -1,6 +1,6 @@
 using Shuffull.Core.Models.Database;
 
-namespace Shuffull.Core.Services.Alerts;
+namespace Shuffull.Core.Alerts;
 
 /// <summary>
 /// When a <see cref="HealthSignal"/> is worth an email. A rule matches a signal key exactly, or every key under it
@@ -23,7 +23,7 @@ public sealed record SignalRule(
     int Level = 2,
     TimeSpan? RemindEvery = null,
     TimeSpan? StaleAfter = null,
-    Func<HealthSignal, string>? StaleSubject = null,
+    Func<string, string>? StaleSubject = null,
     TimeSpan? RecentWithin = null)
 {
     public bool Matches(string signalKey) =>
@@ -46,10 +46,18 @@ public sealed record SignalRule(
             && nowUtc - since >= (FailingFor ?? TimeSpan.Zero);
     }
 
-    public bool IsStale(HealthSignal signal, DateTime nowUtc) =>
-        StaleAfter is { } after && nowUtc - signal.LastSeenUtc >= after;
+    /// <summary>
+    /// Silent for <see cref="StaleAfter"/>, counting from <paramref name="trackingSinceUtc"/> when that is later than
+    /// the signal's last record. The monitor passes the API's start time: while the API was down nothing could
+    /// record, so a poll's silence during an API outage says nothing about the poller.
+    /// </summary>
+    public bool IsStale(DateTime lastSeenUtc, DateTime nowUtc, DateTime trackingSinceUtc) =>
+        StaleAfter is { } after && nowUtc - (lastSeenUtc > trackingSinceUtc ? lastSeenUtc : trackingSinceUtc) >= after;
 
-    /// <summary>The part of the key after the rule's prefix: the probe or poll name.</summary>
+    /// <summary>A rule for one exact key that watches for silence: its signal is expected even before it is first written.</summary>
+    public bool ExpectsExactKey => StaleAfter != null && !Key.EndsWith(':');
+
+    /// <summary>The part of the key after its first colon: the probe or poll name, or a refused Keep's user and song.</summary>
     public static string Suffix(HealthSignal signal) =>
         signal.Key.Contains(':') ? signal.Key[(signal.Key.IndexOf(':') + 1)..] : signal.Key;
 }

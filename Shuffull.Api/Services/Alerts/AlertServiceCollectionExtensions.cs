@@ -1,7 +1,9 @@
 using Resend;
+using Shuffull.Api.Configuration;
+using Shuffull.Core.Alerts;
+using Shuffull.Core.Alerts.Checks;
 using Shuffull.Core.Persistence;
 using Shuffull.Core.Services.Alerts;
-using Shuffull.Core.Services.Alerts.Checks;
 
 namespace Shuffull.Api.Services.Alerts;
 
@@ -16,23 +18,28 @@ public static class AlertServiceCollectionExtensions
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<IHealthSignals, HealthSignals>();
 
-        if (config.CanSendEmail)
+        // When this API started: the monitor counts a funnel poll's silence from no earlier than this (see SignalAlertCheck).
+        var startedUtc = DateTime.UtcNow;
+
+        // Scoped, and resolved per monitor run, so the Resend client comes from IHttpClientFactory each run rather
+        // than one HttpClient living as long as the process.
+        if (config is { CanSendEmail: true, ResendApiKey: { } apiKey })
         {
             services.AddOptions();
             services.AddHttpClient<ResendClient>();
-            services.Configure<ResendClientOptions>(o => o.ApiToken = config.ResendApiKey!);
+            services.Configure<ResendClientOptions>(o => o.ApiToken = apiKey);
             services.AddTransient<IResend, ResendClient>();
-            services.AddSingleton<IAlertMailer, ResendAlertMailer>();
+            services.AddScoped<IAlertMailer, ResendAlertMailer>();
         }
         else
         {
-            services.AddSingleton<IAlertMailer, LogOnlyAlertMailer>();
+            services.AddScoped<IAlertMailer, LogOnlyAlertMailer>();
         }
 
         services.AddHttpClient<FunnelProbe>(client => client.Timeout = TimeSpan.FromSeconds(10));
         services.AddScoped<IAlertProbe>(sp => sp.GetRequiredService<FunnelProbe>());
 
-        services.AddScoped<IAlertCheck, SignalAlertCheck>(sp => new SignalAlertCheck(sp.GetRequiredService<ShuffullContext>()));
+        services.AddScoped<IAlertCheck, SignalAlertCheck>(sp => new SignalAlertCheck(sp.GetRequiredService<ShuffullContext>(), startedUtc));
         services.AddScoped<IAlertCheck, LikeSyncBacklogCheck>();
         services.AddScoped<IAlertCheck, UntaggedKeptSongsCheck>();
         services.AddScoped<IAlertCheck, AbandonedMediaCheck>();

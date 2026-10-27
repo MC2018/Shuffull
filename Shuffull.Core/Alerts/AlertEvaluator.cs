@@ -1,6 +1,7 @@
 using Shuffull.Core.Models.Database;
+using Shuffull.Core.Services.Alerts;
 
-namespace Shuffull.Core.Services.Alerts;
+namespace Shuffull.Core.Alerts;
 
 public enum AlertDecisionKind
 {
@@ -28,36 +29,29 @@ public static class AlertEvaluator
 {
     public static AlertDecisionKind Decide(AlertState? state, AlertFinding? finding, DateTime nowUtc, TimeSpan resolveAfter)
     {
-        var firing = state is { IsFiring: true };
+        if (state is not { IsFiring: true } open)
+        {
+            return finding != null ? AlertDecisionKind.Fire : AlertDecisionKind.None;
+        }
 
         if (finding != null)
         {
-            if (!firing)
-            {
-                return AlertDecisionKind.Fire;
-            }
-
-            if (finding.Level > state!.Level)
+            if (finding.Level > open.Level)
             {
                 return AlertDecisionKind.Escalate;
             }
 
-            if (finding.RemindEvery is { } every && state.LastNotifiedUtc is { } sent && nowUtc - sent >= every)
+            if (finding.RemindEvery is { } every && open.LastNotifiedUtc is { } sent && nowUtc - sent >= every)
             {
                 return AlertDecisionKind.Remind;
             }
 
-            return finding.Level != state.Level || finding.Subject != state.Subject || state.ClearSinceUtc != null
+            return finding.Level != open.Level || finding.Subject != open.Subject || open.ClearSinceUtc != null
                 ? AlertDecisionKind.Update
                 : AlertDecisionKind.None;
         }
 
-        if (!firing)
-        {
-            return AlertDecisionKind.None;
-        }
-
-        if (state!.ClearSinceUtc is not { } clearSince)
+        if (open.ClearSinceUtc is not { } clearSince)
         {
             return AlertDecisionKind.StartClearing;
         }

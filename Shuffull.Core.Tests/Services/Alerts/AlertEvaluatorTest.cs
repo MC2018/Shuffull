@@ -1,4 +1,5 @@
 using Shuffull.Core.Models.Database;
+using Shuffull.Core.Alerts;
 using Shuffull.Core.Services.Alerts;
 
 namespace Shuffull.Core.Tests.Services.Alerts;

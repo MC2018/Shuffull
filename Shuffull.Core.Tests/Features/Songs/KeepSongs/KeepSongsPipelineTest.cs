@@ -13,6 +13,7 @@ using Shuffull.Core.Models.Database;
 using Shuffull.Core.Persistence;
 using Shuffull.Core.Persistence.Repositories;
 using Shuffull.Core.Services;
+using Shuffull.Core.Alerts;
 using Shuffull.Core.Services.Alerts;
 using Shuffull.Core.Tests.Infrastructure;
 

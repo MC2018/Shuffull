@@ -1,4 +1,4 @@
-namespace Shuffull.Core.Services.Alerts;
+namespace Shuffull.Core.Alerts;
 
 /// <summary>
 /// The signal keys the site records and when each one alerts. A key recorded somewhere but missing here never
@@ -11,8 +11,15 @@ public static class ShuffullSignalRules
     public const string FunnelProbe = "probe:funnel";
     public const string PendingTagsPoll = "funnel-poll:pending-tags";
     public const string YoutubeRatingsPoll = "funnel-poll:youtube-ratings";
-    public const string KeepRefused = "keep-refused";
+    /// <summary>Prefix of the per-song keys <see cref="KeepRefusedKey"/> makes.</summary>
+    public const string KeepRefusedPrefix = "keep-refused:";
     public const string MediaSweep = "media-sweep";
+
+    /// <summary>
+    /// One key per refused song, so each newly refused song is its own alert and email. The app re-sends a
+    /// dead-lettered Keep about hourly, which keeps that song's alert open without hiding the next one.
+    /// </summary>
+    public static string KeepRefusedKey(string userId, string songId) => $"{KeepRefusedPrefix}{userId}:{songId}";
 
     public static readonly IReadOnlyList<SignalRule> All =
     [
@@ -23,7 +30,7 @@ public static class ShuffullSignalRules
 
         // Only a success is ever recorded for the two polls (each time the funnel calls), so these watch for silence.
         new(PendingTagsPoll, null,
-            "The funnel calls GET songs/pending-tags every few seconds to fetch kept songs to tag; it hasn't for an hour. " +
+            "The funnel calls GET songs/pending-tags every 10 minutes to fetch kept songs to tag; it hasn't for an hour. " +
             "Kept songs stay untagged meanwhile. Is the funnel's downloader running, and is its ImportKey still right?",
             RemindEvery: Daily, StaleAfter: TimeSpan.FromHours(1),
             StaleSubject: _ => "The funnel stopped picking up songs to tag"),
@@ -34,10 +41,11 @@ public static class ShuffullSignalRules
             RemindEvery: Daily, StaleAfter: TimeSpan.FromHours(1),
             StaleSubject: _ => "The funnel stopped syncing likes to YouTube"),
 
-        new(KeepRefused, _ => "A Keep was refused",
-            "The server refused to record a Keep, usually because the song isn't in that user's library. The app holds " +
-            "the playlist's delete while the Keep is outstanding (ShuffullApp#109 is the open question of what to do " +
-            "then), and nothing in the app shows it.",
+        new(KeepRefusedPrefix, s => $"A Keep was refused (song {SongIdOf(s)})",
+            "The server refused to record this Keep, usually because the song isn't in that user's library. The app " +
+            "holds the playlist's delete while the Keep is outstanding and re-sends it about hourly, and nothing in the " +
+            "app shows it (ShuffullApp#109 is the open question of what to do then). This alert stays open while the " +
+            "re-sends keep arriving.",
             Level: 1, RecentWithin: Daily),
 
         new(MediaSweep, _ => "The purged-song media sweep keeps failing",
@@ -50,4 +58,10 @@ public static class ShuffullSignalRules
             "API's log files.",
             MinFailures: 3, FailingFor: TimeSpan.FromHours(1), Level: 1, RemindEvery: Daily),
     ];
+
+    private static string SongIdOf(Models.Database.HealthSignal signal)
+    {
+        var rest = SignalRule.Suffix(signal);
+        return rest.Contains(':') ? rest[(rest.IndexOf(':') + 1)..] : rest;
+    }
 }

@@ -2,8 +2,9 @@ using Microsoft.EntityFrameworkCore;
 using Nut.Results;
 using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Persistence;
+using Shuffull.Core.Services.Alerts;
 
-namespace Shuffull.Core.Services.Alerts.Checks;
+namespace Shuffull.Core.Alerts.Checks;
 
 /// <summary>
 /// Likes waiting more than a day to reach YouTube. The funnel polls every 10 minutes and a failed apply stays
@@ -25,19 +26,20 @@ public sealed class LikeSyncBacklogCheck(ShuffullContext db) : IAlertCheck
         var before = nowUtc - PendingTooLong;
         var query = db.YoutubeRatingRequests.AsNoTracking()
             .Where(r => r.Status == YoutubeRatingStatus.Pending && r.UpdatedAt < before);
-        var count = await query.CountAsync(cancellationToken);
-        if (count == 0)
+        // Nullable, so an empty set (the funnel acked the last old row a moment ago) is null, not an exception.
+        var oldest = await query.MinAsync(r => (DateTime?)r.UpdatedAt, cancellationToken);
+        if (oldest == null)
         {
             return Result.Ok<IReadOnlyList<AlertFinding>>([]);
         }
 
-        var oldest = await query.MinAsync(r => r.UpdatedAt, cancellationToken);
+        var count = await query.CountAsync(cancellationToken);
 
         return Result.Ok<IReadOnlyList<AlertFinding>>(
         [
             new AlertFinding("like-sync:backlog", 2, $"{count} like(s) haven't reached YouTube in a day",
                 $"{count} YouTube rating request(s) have been Pending for over {PendingTooLong.TotalHours:0} h; the " +
-                $"oldest since {oldest:yyyy-MM-dd HH:mm} UTC. The funnel's youtube worker either isn't polling " +
+                $"oldest since {oldest.Value:yyyy-MM-dd HH:mm} UTC. The funnel's youtube worker either isn't polling " +
                 "(check the youtube-ratings poll alert), can't reach YouTube (quota or an expired sign-in), or can't " +
                 "ack. Nothing is lost: they stay Pending and apply once it works.",
                 ShuffullSignalRules.Daily),

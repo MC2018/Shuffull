@@ -1,4 +1,4 @@
-namespace Shuffull.Api.Services.Alerts;
+namespace Shuffull.Api.Configuration;
 
 /// <summary>
 /// The <c>Alerts</c> section. Email goes out only with a Resend key and a recipient; without them every alert is

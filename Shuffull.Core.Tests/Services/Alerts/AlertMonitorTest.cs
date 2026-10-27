@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Nut.Results;
+using Shuffull.Api.Configuration;
 using Shuffull.Api.Services.Alerts;
 using Shuffull.Core.Services.Alerts;
 using Shuffull.Core.Tests.Infrastructure;
@@ -28,7 +29,8 @@ public class AlertMonitorTest : IDisposable
         var services = new ServiceCollection();
         services.AddScoped(_ => _database.CreateContext());
         services.AddScoped<IAlertCheck>(_ => _check);
-        _monitor = new AlertMonitor(services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(), _mailer,
+        services.AddScoped<IAlertMailer>(_ => _mailer);
+        _monitor = new AlertMonitor(services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(),
             _signals, new AlertsConfiguration { SubjectPrefix = "[Shuffull]" }, _clock, NullLogger<AlertMonitor>.Instance);
     }
 

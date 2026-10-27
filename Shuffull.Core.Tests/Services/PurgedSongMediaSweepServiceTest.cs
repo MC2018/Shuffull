@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nut.Results;
 using Shuffull.Api.Services;
 using Shuffull.Core.Models.Database;
+using Shuffull.Core.Alerts;
 using Shuffull.Core.Services;
 using Shuffull.Core.Tests.Infrastructure;
 
@@ -20,6 +21,7 @@ public class PurgedSongMediaSweepServiceTest : IDisposable
 
     private readonly DatabaseFixture _database;
     private readonly RecordingMediaStore _mediaStore = new();
+    private readonly RecordingHealthSignals _signals = new();
     private readonly PurgedSongMediaSweepService _service;
 
     public PurgedSongMediaSweepServiceTest()
@@ -27,7 +29,7 @@ public class PurgedSongMediaSweepServiceTest : IDisposable
         _database = new DatabaseFixture();
         var services = new ServiceCollection();
         services.AddScoped(_ => _database.CreateContext());
-        _service = new PurgedSongMediaSweepService(services.BuildServiceProvider(), _mediaStore, new RecordingHealthSignals(),
+        _service = new PurgedSongMediaSweepService(services.BuildServiceProvider(), _mediaStore, _signals,
             NullLogger<PurgedSongMediaSweepService>.Instance);
     }
 
@@ -210,5 +212,27 @@ public class PurgedSongMediaSweepServiceTest : IDisposable
         Assert.Equal(Now, abandoned.MediaSweptAt);
         Assert.False(abandoned.MediaDeleted);
         Assert.Equal(0, await _service.SweepAsync(Now, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Pass_RecordsSuccess_ForTheMediaSweepSignal()
+    {
+        await _service.RunPassAsync(Now, CancellationToken.None);
+
+        Assert.Equal(["media-sweep"], _signals.Successes);
+        Assert.Empty(_signals.Failures);
+    }
+
+    [Fact]
+    public async Task PassThatThrows_RecordsTheFailure_AndDoesNotThrow()
+    {
+        // A disposed database makes the pass's first query throw, as a dropped connection would.
+        _database.Dispose();
+
+        await _service.RunPassAsync(Now, CancellationToken.None);
+
+        var (key, _) = Assert.Single(_signals.Failures);
+        Assert.Equal("media-sweep", key);
+        Assert.Empty(_signals.Successes);
     }
 }

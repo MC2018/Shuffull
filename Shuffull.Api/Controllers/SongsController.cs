@@ -17,6 +17,7 @@ using Shuffull.Core.Features.Songs.RetagStaleSongs;
 using Shuffull.Core.Features.Songs.UpdateSong;
 using Shuffull.Api.Tools.Authorization;
 using Shuffull.Core.Models.Database;
+using Shuffull.Core.Alerts;
 using Shuffull.Core.Services.Alerts;
 
 namespace Shuffull.Api.Controllers;

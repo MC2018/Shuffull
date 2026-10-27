@@ -1,8 +1,9 @@
 using Nut.Results;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Enums;
+using Shuffull.Core.Alerts;
+using Shuffull.Core.Alerts.Checks;
 using Shuffull.Core.Services.Alerts;
-using Shuffull.Core.Services.Alerts.Checks;
 using Shuffull.Core.Tests.Infrastructure;
 
 namespace Shuffull.Core.Tests.Services.Alerts;
@@ -57,21 +58,34 @@ public class AlertChecksTest : IDisposable
 
     // ── Signal rules ─────────────────────────────────────────────────────────────────────────────────────
 
+    /// <summary>The API has been up long enough that the startup grace plays no part.</summary>
+    private static readonly DateTime LongAgo = Now.AddDays(-30);
+
+    private SignalAlertCheck Signals(DateTime? startedUtc = null) => new(_database.CreateContext(), startedUtc ?? LongAgo);
+
+    /// <summary>Both polls seen just now, so tests about other signals aren't joined by "never polled" findings.</summary>
+    private async Task SeedFreshPollsAsync(DateTime? at = null)
+    {
+        await SeedSignalAsync(ShuffullSignalRules.PendingTagsPoll, s => s.RecordSuccess(at ?? Now));
+        await SeedSignalAsync(ShuffullSignalRules.YoutubeRatingsPoll, s => s.RecordSuccess(at ?? Now));
+    }
+
     [Fact]
     public async Task FunnelProbe_AlertsOnTheThirdMissInARow()
     {
+        await SeedFreshPollsAsync();
         await SeedSignalAsync(ShuffullSignalRules.FunnelProbe, s =>
         {
             s.RecordFailure("connection refused", Now.AddMinutes(-10));
             s.RecordFailure("connection refused", Now.AddMinutes(-5));
         });
-        Assert.Empty(await EvaluateAsync(new SignalAlertCheck(_database.CreateContext())));
+        Assert.Empty(await EvaluateAsync(Signals()));
 
         var context = _database.CreateContext();
-        context.HealthSignals.Single().RecordFailure("connection refused", Now);
+        context.HealthSignals.Single(s => s.Key == ShuffullSignalRules.FunnelProbe).RecordFailure("connection refused", Now);
         await context.SaveChangesAsync();
 
-        var finding = Assert.Single(await EvaluateAsync(new SignalAlertCheck(_database.CreateContext())));
+        var finding = Assert.Single(await EvaluateAsync(Signals()));
         Assert.Equal("signal:failing:probe:funnel", finding.Key);
         Assert.Equal("The funnel is down", finding.Subject);
         Assert.Contains("connection refused", finding.Body);
@@ -83,50 +97,96 @@ public class AlertChecksTest : IDisposable
         await SeedSignalAsync(ShuffullSignalRules.PendingTagsPoll, s => s.RecordSuccess(Now.AddMinutes(-59)));
         await SeedSignalAsync(ShuffullSignalRules.YoutubeRatingsPoll, s => s.RecordSuccess(Now.AddMinutes(-61)));
 
-        var finding = Assert.Single(await EvaluateAsync(new SignalAlertCheck(_database.CreateContext())));
+        var finding = Assert.Single(await EvaluateAsync(Signals()));
         Assert.Equal("signal:stale:funnel-poll:youtube-ratings", finding.Key);
         Assert.Equal("The funnel stopped syncing likes to YouTube", finding.Subject);
     }
 
     [Fact]
-    public async Task KeepRefused_FiresForADay_ThenClears()
+    public async Task FunnelPoll_SilenceDuringAnApiOutage_DoesNotCount()
     {
-        await SeedSignalAsync(ShuffullSignalRules.KeepRefused, s =>
+        // The polls last arrived 5 h ago because the API itself was down; it came back 10 minutes ago.
+        await SeedSignalAsync(ShuffullSignalRules.PendingTagsPoll, s => s.RecordSuccess(Now.AddHours(-5)));
+        await SeedSignalAsync(ShuffullSignalRules.YoutubeRatingsPoll, s => s.RecordSuccess(Now.AddHours(-5)));
+
+        Assert.Empty(await EvaluateAsync(Signals(startedUtc: Now.AddMinutes(-10))));
+
+        // An hour after the restart with still no poll, the funnel really is quiet.
+        var later = await Signals(startedUtc: Now.AddMinutes(-10)).EvaluateAsync(Now.AddMinutes(51), CancellationToken.None);
+        Assert.Equal(2, later.Get().Count);
+    }
+
+    [Fact]
+    public async Task FunnelPoll_NeverRecorded_AlertsAnHourAfterStart()
+    {
+        Assert.Empty(await EvaluateAsync(Signals(startedUtc: Now.AddMinutes(-59))));
+
+        var findings = await EvaluateAsync(Signals(startedUtc: Now.AddMinutes(-60)));
+        Assert.Equal(
+            ["signal:stale:funnel-poll:pending-tags", "signal:stale:funnel-poll:youtube-ratings"],
+            findings.Select(f => f.Key).Order().ToList());
+        Assert.Contains("never before that either", findings[0].Body);
+    }
+
+    [Fact]
+    public async Task KeepRefused_EachSongIsItsOwnAlert_ForADay()
+    {
+        await SeedFreshPollsAsync();
+        await SeedSignalAsync(ShuffullSignalRules.KeepRefusedKey("u1", "song-a"), s =>
         {
-            s.RecordFailure("User u1: 1 of 1 song(s) refused", Now.AddDays(-3));
-            s.RecordFailure("User u2: 2 of 5 song(s) refused", Now.AddHours(-23));
+            s.RecordFailure("User u1, song song-a: Song is not in your library.", Now.AddHours(-5));
+            s.RecordFailure("User u1, song song-a: Song is not in your library.", Now.AddHours(-1));
+        });
+        await SeedSignalAsync(ShuffullSignalRules.KeepRefusedKey("u2", "song-b"),
+            s => s.RecordFailure("User u2, song song-b: Song is not in your library.", Now.AddHours(-23)));
+        await SeedSignalAsync(ShuffullSignalRules.KeepRefusedKey("u2", "song-c"),
+            s => s.RecordFailure("User u2, song song-c: Song is not in your library.", Now.AddDays(-2)));
+
+        var findings = (await EvaluateAsync(Signals())).OrderBy(f => f.Key).ToList();
+        Assert.Equal(["signal:failing:keep-refused:u1:song-a", "signal:failing:keep-refused:u2:song-b"],
+            findings.Select(f => f.Key).ToList());
+        Assert.Equal("A Keep was refused (song song-a)", findings[0].Subject);
+        Assert.Equal(1, findings[0].Level);
+        Assert.Contains("2 time(s) in total", findings[0].Body);
+    }
+
+    [Fact]
+    public async Task FailingSignal_NothingRecordsForAWeek_Retires()
+    {
+        await SeedFreshPollsAsync();
+        await SeedSignalAsync(ShuffullSignalRules.FunnelProbe, s =>
+        {
+            for (var i = 0; i < 3; i++)
+            {
+                s.RecordFailure("connection refused", Now.AddDays(-8));
+            }
         });
 
-        var finding = Assert.Single(await EvaluateAsync(new SignalAlertCheck(_database.CreateContext())));
-        Assert.Equal("signal:failing:keep-refused", finding.Key);
-        Assert.Equal(1, finding.Level);
-        Assert.Contains("User u2: 2 of 5", finding.Body);
-        Assert.Contains("2 in total", finding.Body);
-
-        var later = await new SignalAlertCheck(_database.CreateContext()).EvaluateAsync(Now.AddHours(2), CancellationToken.None);
-        Assert.Empty(later.Get());
+        Assert.Empty(await EvaluateAsync(Signals()));
     }
 
     [Fact]
     public async Task MediaSweep_AlertsAfterThreeHoursOfFailedPasses()
     {
+        await SeedFreshPollsAsync(at: Now.AddHours(1));
         await SeedSignalAsync(ShuffullSignalRules.MediaSweep, s =>
         {
             s.RecordFailure("disk", Now.AddHours(-2));
             s.RecordFailure("disk", Now.AddHours(-1));
             s.RecordFailure("disk", Now);
         });
-        Assert.Empty(await EvaluateAsync(new SignalAlertCheck(_database.CreateContext())));
+        Assert.Empty(await EvaluateAsync(Signals()));
 
-        var later = await new SignalAlertCheck(_database.CreateContext()).EvaluateAsync(Now.AddHours(1), CancellationToken.None);
+        var later = await Signals().EvaluateAsync(Now.AddHours(1), CancellationToken.None);
         Assert.Equal("signal:failing:media-sweep", Assert.Single(later.Get()).Key);
     }
 
     [Fact]
     public async Task UnknownSignal_NeverAlerts()
     {
+        await SeedFreshPollsAsync();
         await SeedSignalAsync("something-new", s => s.RecordFailure("boom", Now.AddDays(-5)));
-        Assert.Empty(await EvaluateAsync(new SignalAlertCheck(_database.CreateContext())));
+        Assert.Empty(await EvaluateAsync(Signals()));
     }
 
     // ── Like-sync backlog ────────────────────────────────────────────────────────────────────────────────
@@ -171,13 +231,24 @@ public class AlertChecksTest : IDisposable
     // ── Untagged kept songs ──────────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task UntaggedKeptSongs_OnlyCountsKeptUnlockedSongsOfferedOften()
+    public void UntaggedKeptSongs_Threshold_SpansTwoDaysOfHandOuts()
     {
-        var stuck = await SeedSongAsync(tagAttempts: 6, name: "Stuck");
-        await SeedSongAsync(tagAttempts: 5);                            // not offered often enough yet
-        await SeedSongAsync(tagAttempts: 9, tagModel: "gpt-5.4-nano"); // tagged
-        await SeedSongAsync(tagAttempts: 9, exploratory: true);        // still an audition
-        await SeedSongAsync(tagAttempts: 9, locked: true);             // curator-locked
+        // 5 + 10 + 20 + 40 min, then an hour per hand-out: the 52nd comes at least 48 h after the first.
+        Assert.Equal(52, UntaggedKeptSongsCheck.MinAttempts);
+        var elapsed = Enumerable.Range(1, UntaggedKeptSongsCheck.MinAttempts - 1)
+            .Aggregate(TimeSpan.Zero, (sum, n) => sum + Shuffull.Core.Features.Songs.GetPendingTagSongs.GetPendingTagSongsHandler.RetryDelay(n));
+        Assert.True(elapsed >= UntaggedKeptSongsCheck.MinTimeOffered);
+    }
+
+    [Fact]
+    public async Task UntaggedKeptSongs_OnlyCountsKeptUnlockedSongsOfferedForDays()
+    {
+        var many = UntaggedKeptSongsCheck.MinAttempts;
+        var stuck = await SeedSongAsync(tagAttempts: many, name: "Stuck");
+        await SeedSongAsync(tagAttempts: many - 1);                       // a day and a half: maybe still in a batch
+        await SeedSongAsync(tagAttempts: many, tagModel: "gpt-5.4-nano"); // tagged
+        await SeedSongAsync(tagAttempts: many, exploratory: true);        // still an audition
+        await SeedSongAsync(tagAttempts: many, locked: true);             // curator-locked
 
         var finding = Assert.Single(await EvaluateAsync(new UntaggedKeptSongsCheck(_database.CreateContext())));
         Assert.Equal("untagged:kept-songs", finding.Key);
@@ -188,7 +259,7 @@ public class AlertChecksTest : IDisposable
     [Fact]
     public async Task UntaggedKeptSongs_NoneLeft_NoFinding()
     {
-        await SeedSongAsync(tagAttempts: 2);
+        await SeedSongAsync(tagAttempts: 6);
         Assert.Empty(await EvaluateAsync(new UntaggedKeptSongsCheck(_database.CreateContext())));
     }
 

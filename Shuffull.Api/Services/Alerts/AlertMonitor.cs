@@ -3,6 +3,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Nut.Results;
+using Shuffull.Api.Configuration;
+using Shuffull.Core.Alerts;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Persistence;
 using Shuffull.Core.Services.Alerts;
@@ -16,10 +18,12 @@ namespace Shuffull.Api.Services.Alerts;
 /// <para>The <see cref="AlertState"/> row is updated only after its email went out, so a failed send is simply
 /// retried next run, and a restart never re-sends what was already sent. A check that can't run leaves its open
 /// alerts alone and records a <c>monitor:</c> health signal, which alerts if it keeps failing.</para>
+///
+/// <para>The mailer is resolved per run from the run's scope, so the Resend client behind it comes fresh from
+/// IHttpClientFactory each time instead of one client being pinned for the life of the process.</para>
 /// </summary>
 public sealed class AlertMonitor(
     IServiceScopeFactory scopeFactory,
-    IAlertMailer mailer,
     IHealthSignals signals,
     AlertsConfiguration config,
     TimeProvider timeProvider,
@@ -73,6 +77,7 @@ public sealed class AlertMonitor(
         }
 
         var db = services.GetRequiredService<ShuffullContext>();
+        var mailer = services.GetRequiredService<IAlertMailer>();
         var states = await db.AlertStates.ToDictionaryAsync(s => s.Key, cancellationToken);
 
         foreach (var check in services.GetServices<IAlertCheck>())
@@ -96,11 +101,11 @@ public sealed class AlertMonitor(
             }
 
             await signals.SuccessAsync($"monitor:{check.KeyPrefix}", cancellationToken);
-            await ApplyAsync(db, states, check, result.Get(), now, cancellationToken);
+            await ApplyAsync(db, mailer, states, check, result.Get(), now, cancellationToken);
         }
     }
 
-    private async Task ApplyAsync(ShuffullContext db, Dictionary<string, AlertState> states, IAlertCheck check,
+    private async Task ApplyAsync(ShuffullContext db, IAlertMailer mailer, Dictionary<string, AlertState> states, IAlertCheck check,
         IReadOnlyList<AlertFinding> findings, DateTime now, CancellationToken cancellationToken)
     {
         var prefix = check.KeyPrefix + ":";
@@ -141,26 +146,31 @@ public sealed class AlertMonitor(
 
             switch (decision)
             {
-                case AlertDecisionKind.Fire or AlertDecisionKind.Escalate or AlertDecisionKind.Remind:
-                    var subject = decision == AlertDecisionKind.Remind ? $"Still happening: {finding!.Subject}" : finding!.Subject;
+                case AlertDecisionKind.Fire or AlertDecisionKind.Escalate or AlertDecisionKind.Remind when finding != null:
+                    var subject = decision == AlertDecisionKind.Remind ? $"Still happening: {finding.Subject}" : finding.Subject;
                     var firstSeen = state.FiringSinceUtc ?? now;
+                    var reminders = finding.RemindEvery is { } every
+                        ? $", a reminder every {Describe(every)} while it lasts,"
+                        : string.Empty;
                     var body = $"{finding.Body}\n\n---\nFirst seen: {firstSeen:yyyy-MM-dd HH:mm} UTC\nAlert: {key}\n" +
-                               "You get one email when this starts, one if it gets worse, and one when it clears.";
-                    if (await SendAsync(subject, body, cancellationToken))
+                               $"You get one email when this starts, one if it gets worse{reminders} and one when it clears.";
+                    if (await SendAsync(mailer, subject, body, cancellationToken))
                     {
                         state.Notified(finding.Level, finding.Subject, now);
                     }
                     break;
-                case AlertDecisionKind.Update:
-                    state.StillFiring(finding!.Level, finding.Subject);
+                case AlertDecisionKind.Update when finding != null:
+                    state.StillFiring(finding.Level, finding.Subject);
                     break;
                 case AlertDecisionKind.StartClearing:
                     state.StartedClearing(now);
                     break;
                 case AlertDecisionKind.Resolve:
                     var since = state.FiringSinceUtc is { } f ? $" It started {f:yyyy-MM-dd HH:mm} UTC." : string.Empty;
-                    if (await SendAsync($"Resolved: {state.Subject}",
-                            $"This is no longer happening.{since}\n\n---\nAlert: {key}", cancellationToken))
+                    if (await SendAsync(mailer, $"Resolved: {state.Subject}",
+                            $"The check no longer reports this.{since} Usually that means it was fixed; a failing health " +
+                            $"signal that nothing has recorded for a week also stops alerting.\n\n---\nAlert: {key}",
+                            cancellationToken))
                     {
                         state.Resolved(now);
                     }
@@ -172,7 +182,17 @@ public sealed class AlertMonitor(
         }
     }
 
-    private async Task<bool> SendAsync(string subject, string body, CancellationToken cancellationToken)
+    private static string Describe(TimeSpan span)
+    {
+        if (span.TotalDays >= 1)
+        {
+            return span.TotalDays == 1 ? "day" : $"{span.TotalDays:0} days";
+        }
+
+        return $"{span.TotalHours:0} hours";
+    }
+
+    private async Task<bool> SendAsync(IAlertMailer mailer, string subject, string body, CancellationToken cancellationToken)
     {
         var prefixed = string.IsNullOrWhiteSpace(config.SubjectPrefix) ? subject : $"{config.SubjectPrefix} {subject}";
         var result = await mailer.SendAsync(prefixed, body, cancellationToken);

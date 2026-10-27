@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Persistence;
+using Shuffull.Core.Alerts;
 using Shuffull.Core.Services.Alerts;
 
 namespace Shuffull.Api.Controllers;

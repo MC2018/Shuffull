@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shuffull.Core.Models.Database;
-using Shuffull.Core.Services.Alerts;
+using Shuffull.Core.Alerts;
 using Shuffull.Core.Tests.Infrastructure;
 
 namespace Shuffull.Core.Tests.Services.Alerts;

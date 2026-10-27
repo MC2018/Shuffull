@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Nut.Results;
 using Resend;
+using Shuffull.Api.Configuration;
 
 namespace Shuffull.Api.Services.Alerts;
 
@@ -13,6 +14,9 @@ public interface IAlertMailer
 /// leaves the alert unsent and tries again next run.</summary>
 public sealed class ResendAlertMailer(IResend resend, AlertsConfiguration config, ILogger<ResendAlertMailer> logger) : IAlertMailer
 {
+    private readonly string _to = config.To
+        ?? throw new InvalidOperationException("ResendAlertMailer needs Alerts:To; AddAlerts registers it only then.");
+
     public async Task<Result> SendAsync(string subject, string textBody, CancellationToken cancellationToken)
     {
         try
@@ -23,7 +27,7 @@ public sealed class ResendAlertMailer(IResend resend, AlertsConfiguration config
                 Subject = subject,
                 TextBody = textBody,
             };
-            message.To.Add(config.To!);
+            message.To.Add(_to);
 
             await resend.EmailSendAsync(message, cancellationToken);
             logger.LogInformation("Sent alert email: {Subject}", subject);

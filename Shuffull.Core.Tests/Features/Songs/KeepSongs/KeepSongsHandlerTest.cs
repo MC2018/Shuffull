@@ -4,6 +4,7 @@ using Nut.Results;
 using Shuffull.Api.Services;
 using Shuffull.Core.Features.Songs.KeepSongs;
 using Shuffull.Core.Models.Database;
+using Shuffull.Core.Alerts;
 using Shuffull.Core.Services;
 using Shuffull.Core.Tests.Infrastructure;
 
@@ -143,18 +144,22 @@ public class KeepSongsHandlerTest : IDisposable
     }
 
     [Fact]
-    public async Task RefusedKeep_IsRecordedForTheOwnersAlert()
+    public async Task RefusedKeeps_AreRecordedOnePerSong_ForTheOwnersAlert()
     {
         var caller = await SeedUserAsync();
         var other = await SeedUserAsync();
-        var theirs = await SeedSongAsync(exploratory: true, owner: other);
+        var first = await SeedSongAsync(exploratory: true, owner: other);
+        var second = await SeedSongAsync(exploratory: true, owner: other);
+        var mine = await SeedSongAsync(exploratory: true, owner: caller);
 
-        await RunAsync(caller.UserId, theirs.SongId);
+        await RunAsync(caller.UserId, first.SongId, mine.SongId, second.SongId);
 
-        var (key, error) = Assert.Single(_signals.Failures);
-        Assert.Equal("keep-refused", key);
+        Assert.Equal(
+            [ShuffullSignalRules.KeepRefusedKey(caller.UserId, first.SongId), ShuffullSignalRules.KeepRefusedKey(caller.UserId, second.SongId)],
+            _signals.Failures.Select(f => f.Key).ToList());
+        var (_, error) = _signals.Failures[0];
         Assert.Contains(caller.UserId, error);
-        Assert.Contains(theirs.SongId, error);
+        Assert.Contains(first.SongId, error);
         Assert.Contains("Song is not in your library.", error);
         Assert.Empty(_signals.Successes); // an event signal: nothing ever clears it early
     }

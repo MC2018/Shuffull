@@ -3,6 +3,7 @@ using Nut.Results;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Persistence;
 using Shuffull.Core.Services;
+using Shuffull.Core.Alerts;
 using Shuffull.Core.Services.Alerts;
 
 namespace Shuffull.Api.Services;
@@ -37,18 +38,23 @@ public class PurgedSongMediaSweepService(IServiceProvider services, ISongMediaSt
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            try
-            {
-                await SweepAsync(DateTime.UtcNow, stoppingToken);
-                await signals.SuccessAsync(ShuffullSignalRules.MediaSweep, stoppingToken);
-            }
-            catch (Exception e) when (e is not OperationCanceledException)
-            {
-                logger.LogError(e, "Purged-song media sweep failed; retrying next pass.");
-                await signals.FailureAsync(ShuffullSignalRules.MediaSweep, e.Message, stoppingToken);
-            }
-
+            await RunPassAsync(DateTime.UtcNow, stoppingToken);
             await Task.Delay(Interval, stoppingToken);
+        }
+    }
+
+    /// <summary>One pass, recorded as the <c>media-sweep</c> health signal, which alerts after 3 h of failed passes.</summary>
+    internal async Task RunPassAsync(DateTime now, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await SweepAsync(now, cancellationToken);
+            await signals.SuccessAsync(ShuffullSignalRules.MediaSweep, cancellationToken);
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            logger.LogError(e, "Purged-song media sweep failed; retrying next pass.");
+            await signals.FailureAsync(ShuffullSignalRules.MediaSweep, e.Message, cancellationToken);
         }
     }
 
