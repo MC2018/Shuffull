@@ -23,21 +23,21 @@ public sealed class LikeSyncBacklogCheck(ShuffullContext db) : IAlertCheck
     public async Task<Result<IReadOnlyList<AlertFinding>>> EvaluateAsync(DateTime nowUtc, CancellationToken cancellationToken)
     {
         var before = nowUtc - PendingTooLong;
-        var stuck = await db.YoutubeRatingRequests.AsNoTracking()
-            .Where(r => r.Status == YoutubeRatingStatus.Pending && r.UpdatedAt < before)
-            .GroupBy(_ => 1)
-            .Select(g => new { Count = g.Count(), Oldest = g.Min(r => r.UpdatedAt) })
-            .FirstOrDefaultAsync(cancellationToken);
-        if (stuck == null)
+        var query = db.YoutubeRatingRequests.AsNoTracking()
+            .Where(r => r.Status == YoutubeRatingStatus.Pending && r.UpdatedAt < before);
+        var count = await query.CountAsync(cancellationToken);
+        if (count == 0)
         {
             return Result.Ok<IReadOnlyList<AlertFinding>>([]);
         }
 
+        var oldest = await query.MinAsync(r => r.UpdatedAt, cancellationToken);
+
         return Result.Ok<IReadOnlyList<AlertFinding>>(
         [
-            new AlertFinding("like-sync:backlog", 2, $"{stuck.Count} like(s) haven't reached YouTube in a day",
-                $"{stuck.Count} YouTube rating request(s) have been Pending for over {PendingTooLong.TotalHours:0} h; the " +
-                $"oldest since {stuck.Oldest:yyyy-MM-dd HH:mm} UTC. The funnel's youtube worker either isn't polling " +
+            new AlertFinding("like-sync:backlog", 2, $"{count} like(s) haven't reached YouTube in a day",
+                $"{count} YouTube rating request(s) have been Pending for over {PendingTooLong.TotalHours:0} h; the " +
+                $"oldest since {oldest:yyyy-MM-dd HH:mm} UTC. The funnel's youtube worker either isn't polling " +
                 "(check the youtube-ratings poll alert), can't reach YouTube (quota or an expired sign-in), or can't " +
                 "ack. Nothing is lost: they stay Pending and apply once it works.",
                 ShuffullSignalRules.Daily),
