@@ -1,9 +1,11 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Shuffull.Core.Features.Users.AuthenticateUser;
 using Shuffull.Core.Features.Users.CreateUser;
 using Shuffull.Core.Features.Users.GetCurrentUser;
 using Shuffull.Core.Models.Database;
+using Shuffull.Api.Commands.Users.Credentials;
 using Shuffull.Api.Extensions;
 using Shuffull.Api.Tools.Authorization;
 
@@ -24,16 +26,31 @@ public class UsersController : ControllerBase
         _mediator = mediator;
     }
 
+    // Credentials travel in the JSON body. The query string is the old form: anything in a URL lands in proxy and
+    // access logs, and the client hash is all it takes to log in. It stays readable only so apps installed before
+    // the change can still sign in; removing it is shuffull-workspace#58.
     [HttpPost("authenticate")]
-    public async Task<IActionResult> Authenticate(string username, string userHash, CancellationToken cancellationToken)
+    public async Task<IActionResult> Authenticate(
+        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] CredentialsRequest? body,
+        [FromQuery] string? username,
+        [FromQuery] string? userHash,
+        CancellationToken cancellationToken)
     {
-        return this.ToActionResult(await _mediator.Send(new AuthenticateUserCommand(username, userHash), cancellationToken));
+        var credentials = body ?? new CredentialsRequest(username, userHash);
+        return this.ToActionResult(await _mediator.Send(
+            new AuthenticateUserCommand(credentials.Username ?? "", credentials.UserHash ?? ""), cancellationToken));
     }
 
     [HttpPost]
-    public async Task<IActionResult> Create(string username, string userHash, CancellationToken cancellationToken)
+    public async Task<IActionResult> Create(
+        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] CredentialsRequest? body,
+        [FromQuery] string? username,
+        [FromQuery] string? userHash,
+        CancellationToken cancellationToken)
     {
-        return this.ToActionResult(await _mediator.Send(new CreateUserCommand(username, userHash), cancellationToken));
+        var credentials = body ?? new CredentialsRequest(username, userHash);
+        return this.ToActionResult(await _mediator.Send(
+            new CreateUserCommand(credentials.Username ?? "", credentials.UserHash ?? ""), cancellationToken));
     }
 
     [HttpGet("me")]

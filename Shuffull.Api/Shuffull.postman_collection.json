@@ -46,9 +46,14 @@
 					],
 					"request": {
 						"method": "POST",
-						"header": [],
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
 						"url": {
-							"raw": "{{url}}/api/v1/users?username={{$randomNoun}}{{$randomInt}}&userHash={{userHash}}",
+							"raw": "{{url}}/api/v1/users",
 							"host": [
 								"{{url}}"
 							],
@@ -56,17 +61,11 @@
 								"api",
 								"v1",
 								"users"
-							],
-							"query": [
-								{
-									"key": "username",
-									"value": "{{$randomNoun}}{{$randomInt}}"
-								},
-								{
-									"key": "userHash",
-									"value": "{{userHash}}"
-								}
 							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\"username\": \"{{$randomNoun}}{{$randomInt}}\", \"userHash\": \"{{userHash}}\"}"
 						}
 					},
 					"response": []
@@ -103,9 +102,14 @@
 					],
 					"request": {
 						"method": "POST",
-						"header": [],
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
 						"url": {
-							"raw": "{{url}}/api/v1/users/authenticate?username={{username}}&userHash={{userHash}}",
+							"raw": "{{url}}/api/v1/users/authenticate",
 							"host": [
 								"{{url}}"
 							],
@@ -114,17 +118,11 @@
 								"v1",
 								"users",
 								"authenticate"
-							],
-							"query": [
-								{
-									"key": "username",
-									"value": "{{username}}"
-								},
-								{
-									"key": "userHash",
-									"value": "{{userHash}}"
-								}
 							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\"username\": \"{{username}}\", \"userHash\": \"{{userHash}}\"}"
 						}
 					},
 					"response": []

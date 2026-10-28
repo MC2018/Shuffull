@@ -24,7 +24,7 @@ public partial class UploadSongHandler(IServiceProvider services)
         var fileConfig = configuration.GetSection(ShuffullFilesConfiguration.FilesConfigurationSection).Get<ShuffullFilesConfiguration>()
             ?? throw new InvalidOperationException("Files configuration is not set.");
 
-        var user = context.Users.Where(x => x.Username == request.Username).FirstOrDefault();
+        var user = context.Users.Where(x => x.UserId == request.UserId).FirstOrDefault();
         if (user == null)
         {
             return Result.Error("User not found.");
@@ -35,11 +35,12 @@ public partial class UploadSongHandler(IServiceProvider services)
             return Result.Error(new NotSupportedException("Only mp3 and wav files are allowed."));
         }
 
-        // Create the target playlist by name if one was provided and doesn't already exist.
+        // Create the target playlist by name if one was provided and the uploader doesn't already have it. Only
+        // the uploader's own playlists match: another user's playlist of the same name is not a target.
         Playlist? playlist = null;
         if (!string.IsNullOrEmpty(request.PlaylistName))
         {
-            playlist = context.Playlists.Where(x => x.Name == request.PlaylistName).FirstOrDefault();
+            playlist = context.Playlists.Where(x => x.UserId == user.UserId && x.Name == request.PlaylistName).FirstOrDefault();
             if (playlist == null)
             {
                 playlist = new Playlist
