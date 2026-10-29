@@ -85,6 +85,44 @@ public class SongImportServiceLoopTest : IDisposable
     }
 
     [Fact]
+    public void OnTagFailure_RetriesUntilTheLastAttempt()
+    {
+        var import = NewSongImport("import", Now);
+        for (var i = 0; i < SongImport.MaxTagAttempts - 1; i++)
+        {
+            Assert.Equal(SongImportService.TagFailureOutcome.Retry, SongImportService.OnTagFailure(import));
+            import.RecordTagFailure(Now);
+        }
+    }
+
+    [Fact]
+    public void OnTagFailure_OnTheLastAttempt_ImportsANewSongUntagged()
+    {
+        var import = FailedUntilLastAttempt(NewSongImport("import", Now));
+
+        Assert.Equal(SongImportService.TagFailureOutcome.ImportUntagged, SongImportService.OnTagFailure(import));
+    }
+
+    [Fact]
+    public void OnTagFailure_OnTheLastAttempt_FailsAReplacementRatherThanWipeTheSongsTags()
+    {
+        var import = NewSongImport("import", Now);
+        import.ReplacesSongId = "song-1";
+        FailedUntilLastAttempt(import);
+
+        Assert.Equal(SongImportService.TagFailureOutcome.FailImport, SongImportService.OnTagFailure(import));
+    }
+
+    private static SongImport FailedUntilLastAttempt(SongImport import)
+    {
+        while (!import.IsLastTagAttempt)
+        {
+            import.RecordTagFailure(Now);
+        }
+        return import;
+    }
+
+    [Fact]
     public async Task ExecuteAsync_ADatabaseErrorPausesTheLoopInsteadOfEndingIt()
     {
         // The first poll query throws, as a Postgres blip would. Before the fix that faulted ExecuteAsync, which

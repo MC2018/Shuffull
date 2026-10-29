@@ -1,6 +1,7 @@
 ﻿using Nut.Results;
 using Shuffull.Metadata.Enums;
 using Shuffull.Core.Models.Enums;
+using Shuffull.Core.Tools;
 using System.ComponentModel.DataAnnotations;
 
 namespace Shuffull.Core.Models.Database;
@@ -75,7 +76,10 @@ public class SongImport
     /// <summary>Earliest time the importer may pick this row up again; null when it is due now.</summary>
     public DateTime? NextAttemptAt { get; private set; }
 
-    /// <summary>Tag-generation attempts before the import goes ahead without tags.</summary>
+    /// <summary>
+    /// Tag-generation attempts before the import goes ahead without tags. With 6, the waits between them are 1, 2, 4,
+    /// 8 and 16 minutes, about half an hour in all; <see cref="MaxRetryDelay"/> only matters if this is raised.
+    /// </summary>
     public const int MaxTagAttempts = 6;
     private static readonly TimeSpan FirstRetryDelay = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan MaxRetryDelay = TimeSpan.FromHours(1);
@@ -102,8 +106,8 @@ public class SongImport
     }
 
     /// <summary>
-    /// Records a failed tag generation and puts the import back in the queue after a backoff: 1, 2, 4… minutes,
-    /// capped at an hour. Callers stop retrying once <see cref="IsLastTagAttempt"/> is true.
+    /// Records a failed tag generation and puts the import back in the queue after a backoff that doubles from a
+    /// minute, capped at an hour. Callers stop retrying once <see cref="IsLastTagAttempt"/> is true.
     /// </summary>
     public Result RecordTagFailure(DateTime now)
     {
@@ -114,8 +118,7 @@ public class SongImport
 
         FailedTagAttempts++;
         LastUpdatedAt = now;
-        var delay = TimeSpan.FromTicks(Math.Min(FirstRetryDelay.Ticks << Math.Min(FailedTagAttempts - 1, 16), MaxRetryDelay.Ticks));
-        NextAttemptAt = now + delay;
+        NextAttemptAt = now + Backoff.Doubling(FirstRetryDelay, FailedTagAttempts, MaxRetryDelay);
         return Result.Ok();
     }
 }

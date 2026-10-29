@@ -11,6 +11,7 @@ using Shuffull.Api.Configuration;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Persistence;
+using Shuffull.Core.Tools;
 using Shuffull.Core.Models.Files;
 using Shuffull.Api.Services.FileStorage;
 using Shuffull.Api.Tools;
@@ -128,7 +129,24 @@ public partial class SongImportService : BackgroundService
 
     /// <summary>The loop's pause after its Nth consecutive error: the poll interval, doubling, capped at 5 minutes.</summary>
     internal static TimeSpan LoopErrorDelay(int consecutiveErrors, TimeSpan interval) =>
-        TimeSpan.FromTicks(Math.Min(interval.Ticks << Math.Min(consecutiveErrors - 1, 16), MaxLoopErrorDelay.Ticks));
+        Backoff.Doubling(interval, consecutiveErrors, MaxLoopErrorDelay);
+
+    internal enum TagFailureOutcome
+    {
+        /// <summary>Back off and try again later; the rest of the queue goes first.</summary>
+        Retry,
+        /// <summary>A replacement without tags would wipe the song it replaces, so fail it; that song stays as it is.</summary>
+        FailImport,
+        /// <summary>Tags are an enhancement: import the song untagged rather than lose it. Its TagModel stays null,
+        /// so the re-tag sweep (RetagStaleSongs) still finds it.</summary>
+        ImportUntagged,
+    }
+
+    /// <summary>What a failed tag generation does to <paramref name="songImport"/>.</summary>
+    internal static TagFailureOutcome OnTagFailure(SongImport songImport) =>
+        !songImport.IsLastTagAttempt ? TagFailureOutcome.Retry
+        : !string.IsNullOrEmpty(songImport.ReplacesSongId) ? TagFailureOutcome.FailImport
+        : TagFailureOutcome.ImportUntagged;
 
     [GeneratedRegex("\\.(mp3|wav)$")]
     internal static partial Regex SupportedFileTypes(); // TODO: use
@@ -136,7 +154,7 @@ public partial class SongImportService : BackgroundService
     private async Task<Result> ImportSongAsync(SongImport songImport, CancellationToken cancellationToken = default!)
     {
         var songImportState = SongImportState.Failed;
-        var retryTags = false;
+        var shouldRetryTags = false;
 
         try
         {
@@ -199,23 +217,21 @@ public partial class SongImportService : BackgroundService
             {
                 (existingTags, newTags) = generateTagsResult.Get();
             }
-            else if (!songImport.IsLastTagAttempt)
-            {
-                // Back off and try again later; the rest of the queue goes first.
-                retryTags = true;
-                return generateTagsResult.PreserveErrorAs();
-            }
-            else if (!string.IsNullOrEmpty(songImport.ReplacesSongId))
-            {
-                // A replacement without tags would wipe the song it replaces. Fail it; that song stays as it is.
-                return generateTagsResult.PreserveErrorAs();
-            }
             else
             {
-                // Tags are an enhancement: after the last attempt, import the song untagged rather than lose it.
-                // Its TagModel stays null, so the re-tag sweep (RetagStaleSongs) still finds it.
-                Console.WriteLine($"Importing SongImport {songImport.SongImportId} without tags after {SongImport.MaxTagAttempts} failed attempts: {generateTagsResult.GetError()}");
-                (existingTags, newTags) = (new List<Tag>(), new List<Tag>());
+                switch (OnTagFailure(songImport))
+                {
+                    case TagFailureOutcome.Retry:
+                        shouldRetryTags = true;
+                        return generateTagsResult.PreserveErrorAs();
+                    case TagFailureOutcome.FailImport:
+                        return generateTagsResult.PreserveErrorAs();
+                    default:
+                        _logger.LogWarning("Importing SongImport {SongImportId} without tags after {Attempts} failed attempts: {Error}",
+                            songImport.SongImportId, SongImport.MaxTagAttempts, generateTagsResult.GetError().Message);
+                        (existingTags, newTags) = (new List<Tag>(), new List<Tag>());
+                        break;
+                }
             }
 
             // Delete the old file if it exists
@@ -311,7 +327,7 @@ public partial class SongImportService : BackgroundService
             var songImportDb = context.SongImports.Find(songImport.SongImportId);
             if (songImportDb != null)
             {
-                var setStateResult = retryTags
+                var setStateResult = shouldRetryTags
                     ? songImportDb.RecordTagFailure(DateTime.UtcNow)
                     : songImportDb.SetState(songImportState);
                 if (setStateResult.IsError)

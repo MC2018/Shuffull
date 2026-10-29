@@ -1,4 +1,4 @@
-﻿using Nut.Results;
+using Nut.Results;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Enums;
 
@@ -62,11 +62,12 @@ public class SongImportTest
     }
 
     [Fact]
-    public void RecordTagFailure_BacksOffExponentiallyCappedAtAnHour()
+    public void RecordTagFailure_DoublesTheWaitFromAMinute()
     {
         var import = NewSongImport();
         var now = new DateTime(2026, 10, 29, 12, 0, 0, DateTimeKind.Utc);
-        var expectedMinutes = new[] { 1, 2, 4, 8, 16, 32, 60, 60 };
+        // Every retry that can happen before the last attempt imports untagged (MaxTagAttempts = 6).
+        var expectedMinutes = new[] { 1, 2, 4, 8, 16 };
 
         foreach (var minutes in expectedMinutes)
         {
