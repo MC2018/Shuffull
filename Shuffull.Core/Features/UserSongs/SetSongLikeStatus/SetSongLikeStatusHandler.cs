@@ -80,9 +80,10 @@ public class SetSongLikeStatusHandler(IUnitOfWork unitOfWork)
         var saveResult = await unitOfWork.SaveChangesAsync(cancellationToken);
         if (saveResult.IsError && queuedRating is not null)
         {
-            // The unique VideoId index refused our new row, because a request for the same video (the app can send
-            // one like several times at once) committed its row after our lookup. The like must not fail over its
-            // mirror: drop our row, re-queue theirs, and save the like again.
+            // Usually the unique VideoId index refusing our new row, because a request for the same video (the app
+            // can send one like several times at once) committed its row after our lookup. The like must not fail
+            // over its mirror: drop our row, re-queue theirs, and save the like again. Any other error finds no
+            // existing row here and is returned unchanged.
             unitOfWork.Repository<YoutubeRatingRequest>().Delete(queuedRating);
             if (await RequeueExistingRatingAsync(queuedRating.VideoId, queuedRating.Rating, now, cancellationToken))
             {
