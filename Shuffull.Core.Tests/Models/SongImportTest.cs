@@ -60,4 +60,48 @@ public class SongImportTest
         Assert.Equal(Path.Combine("root", "folder-1"), import.GetImportFolderPath("root"));
         Assert.Equal(Path.Combine("root", "folder-1", "import-1.mp3"), import.GetFilePath("root"));
     }
+
+    [Fact]
+    public void RecordTagFailure_DoublesTheWaitFromAMinute()
+    {
+        var import = NewSongImport();
+        var now = new DateTime(2026, 10, 29, 12, 0, 0, DateTimeKind.Utc);
+        // Every retry that can happen before the last attempt imports untagged (MaxTagAttempts = 6).
+        var expectedMinutes = new[] { 1, 2, 4, 8, 16 };
+
+        foreach (var minutes in expectedMinutes)
+        {
+            Assert.True(import.RecordTagFailure(now).IsOk);
+            Assert.Equal(now.AddMinutes(minutes), import.NextAttemptAt);
+            Assert.Equal(now, import.LastUpdatedAt);
+        }
+
+        // A tag failure is a retry, not a terminal state: the row stays in the queue.
+        Assert.Equal(SongImportState.ReadyForImporting, import.State);
+        Assert.Equal(expectedMinutes.Length, import.FailedTagAttempts);
+    }
+
+    [Fact]
+    public void IsLastTagAttempt_TurnsTrueOnTheFinalAllowedAttempt()
+    {
+        var import = NewSongImport();
+        for (var i = 0; i < SongImport.MaxTagAttempts - 1; i++)
+        {
+            Assert.False(import.IsLastTagAttempt);
+            import.RecordTagFailure(DateTime.UtcNow);
+        }
+
+        Assert.True(import.IsLastTagAttempt);
+    }
+
+    [Fact]
+    public void RecordTagFailure_WhenAlreadyTransitioned_ReturnsError()
+    {
+        var import = NewSongImport();
+        Assert.True(import.SetState(SongImportState.Completed).IsOk);
+
+        Assert.True(import.RecordTagFailure(DateTime.UtcNow).IsError);
+        Assert.Equal(0, import.FailedTagAttempts);
+        Assert.Null(import.NextAttemptAt);
+    }
 }

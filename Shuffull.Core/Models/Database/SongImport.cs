@@ -1,6 +1,7 @@
 ﻿using Nut.Results;
 using Shuffull.Metadata.Enums;
 using Shuffull.Core.Models.Enums;
+using Shuffull.Core.Tools;
 using System.ComponentModel.DataAnnotations;
 
 namespace Shuffull.Core.Models.Database;
@@ -70,6 +71,21 @@ public class SongImport
     public string? TargetPlaylistName { get; set; }
     [Required]
     public DateTime LastUpdatedAt { get; set; }
+    /// <summary>How many times tag generation has failed for this import.</summary>
+    public int FailedTagAttempts { get; private set; }
+    /// <summary>Earliest time the importer may pick this row up again; null when it is due now.</summary>
+    public DateTime? NextAttemptAt { get; private set; }
+
+    /// <summary>
+    /// Tag-generation attempts before the import goes ahead without tags. With 6, the waits between them are 1, 2, 4,
+    /// 8 and 16 minutes, about half an hour in all; <see cref="MaxRetryDelay"/> only matters if this is raised.
+    /// </summary>
+    public const int MaxTagAttempts = 6;
+    private static readonly TimeSpan FirstRetryDelay = TimeSpan.FromMinutes(1);
+    private static readonly TimeSpan MaxRetryDelay = TimeSpan.FromHours(1);
+
+    /// <summary>Whether this attempt is the last one allowed to fail on tags; after it the song imports untagged.</summary>
+    public bool IsLastTagAttempt => FailedTagAttempts + 1 >= MaxTagAttempts;
 
     public Song? Song { get; set; }
 
@@ -86,6 +102,23 @@ public class SongImport
 
         State = state;
         LastUpdatedAt = DateTime.UtcNow;
+        return Result.Ok();
+    }
+
+    /// <summary>
+    /// Records a failed tag generation and puts the import back in the queue after a backoff that doubles from a
+    /// minute, capped at an hour. Callers stop retrying once <see cref="IsLastTagAttempt"/> is true.
+    /// </summary>
+    public Result RecordTagFailure(DateTime now)
+    {
+        if (State != SongImportState.ReadyForImporting)
+        {
+            return Result.Error("Cannot retry an import that is no longer ready for importing.");
+        }
+
+        FailedTagAttempts++;
+        LastUpdatedAt = now;
+        NextAttemptAt = now + Backoff.Doubling(FirstRetryDelay, FailedTagAttempts, MaxRetryDelay);
         return Result.Ok();
     }
 }

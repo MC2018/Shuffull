@@ -308,6 +308,9 @@ namespace Shuffull.Api.Migrations
                     b.Property<int>("ExternalSource")
                         .HasColumnType("integer");
 
+                    b.Property<int>("FailedTagAttempts")
+                        .HasColumnType("integer");
+
                     b.Property<string>("FileType")
                         .IsRequired()
                         .HasColumnType("text");
@@ -337,6 +340,9 @@ namespace Shuffull.Api.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<DateTime?>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<double?>("OnsetsPerSecond")
                         .HasColumnType("double precision");
