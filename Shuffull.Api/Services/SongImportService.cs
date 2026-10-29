@@ -31,8 +31,11 @@ public partial class SongImportService : BackgroundService
     private readonly IServiceProvider _services;
     private readonly ShuffullFilesConfiguration _fileConfig;
     private readonly IFileStorageService _fileStorageService;
+    private readonly ILogger<SongImportService> _logger;
     private readonly string[] _mimeImageExtensions = { "image/jpeg", "image/png", "image/gif", "image/bmp" };
-    private readonly TimeSpan _interval = TimeSpan.FromSeconds(5);
+    /// <summary>How long the loop waits when nothing is due. Settable for tests.</summary>
+    internal TimeSpan PollInterval { get; init; } = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan MaxLoopErrorDelay = TimeSpan.FromMinutes(5);
 
     /// <summary>
     /// Constructor
@@ -44,6 +47,7 @@ public partial class SongImportService : BackgroundService
         _services = services;
         _fileConfig = configuration.GetSection(ShuffullFilesConfiguration.FilesConfigurationSection).Get<ShuffullFilesConfiguration>() ?? throw new ArgumentNullException(nameof(_fileConfig));
         _fileStorageService = fileStorageService ?? throw new ArgumentNullException(nameof(fileStorageService));
+        _logger = logger;
         // The strong model this service would SELF-generate tags with (manual uploads / producer omitted tags),
         // stamped as Song.TagModel so self-tagged songs aren't permanently "stale" to the upgrade pass.
         _selfTagModelName = configuration[$"{Shuffull.Metadata.Configuration.OpenAIConfiguration.OpenAIConfigurationSection}:StrongModelName"];
@@ -57,28 +61,74 @@ public partial class SongImportService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken cancellationToken)
     {
+        // An exception escaping ExecuteAsync stops the whole API (the host's default BackgroundServiceExceptionBehavior),
+        // so a database blip here must only pause the loop, backing off while it lasts.
+        var consecutiveErrors = 0;
         while (!cancellationToken.IsCancellationRequested)
         {
-            using var scope = _services.CreateScope();
-            using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
-            var songImport = await context.SongImports
-                .Where(x => x.State == SongImportState.ReadyForImporting)
-                .FirstOrDefaultAsync(cancellationToken: cancellationToken);
-
-            if (songImport != null)
+            try
             {
-                var result = await ImportSongAsync(songImport, cancellationToken);
-                if (result.IsError)
+                var imported = await ImportNextAsync(cancellationToken);
+                consecutiveErrors = 0;
+                if (!imported)
                 {
-                    Console.WriteLine($"Error importing song from SongImport {songImport.SongImportId}: {result.GetError()}");
+                    await Task.Delay(PollInterval, cancellationToken);
                 }
             }
-            else
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                await Task.Delay(_interval, cancellationToken);
+                return;
+            }
+            catch (Exception ex)
+            {
+                consecutiveErrors++;
+                var delay = LoopErrorDelay(consecutiveErrors, PollInterval);
+                _logger.LogError(ex, "Song import loop failed ({Count} in a row); retrying in {Delay}", consecutiveErrors, delay);
+                try
+                {
+                    await Task.Delay(delay, cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
             }
         }
     }
+
+    /// <summary>Imports the oldest due <see cref="SongImport"/>, if any. Returns whether there was one.</summary>
+    private async Task<bool> ImportNextAsync(CancellationToken cancellationToken)
+    {
+        using var scope = _services.CreateScope();
+        using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
+        var songImport = await NextDueImport(context.SongImports, DateTime.UtcNow)
+            .FirstOrDefaultAsync(cancellationToken: cancellationToken);
+        if (songImport == null)
+        {
+            return false;
+        }
+
+        var result = await ImportSongAsync(songImport, cancellationToken);
+        if (result.IsError)
+        {
+            Console.WriteLine($"Error importing song from SongImport {songImport.SongImportId}: {result.GetError()}");
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Imports ready to run now, oldest first. A row waiting out a tag-generation backoff is skipped, and one that
+    /// was just retried has a fresh <see cref="SongImport.LastUpdatedAt"/>, so it goes to the back of the queue.
+    /// </summary>
+    internal static IQueryable<SongImport> NextDueImport(IQueryable<SongImport> songImports, DateTime now) =>
+        songImports
+            .Where(x => x.State == SongImportState.ReadyForImporting && (x.NextAttemptAt == null || x.NextAttemptAt <= now))
+            .OrderBy(x => x.LastUpdatedAt)
+            .ThenBy(x => x.SongImportId);
+
+    /// <summary>The loop's pause after its Nth consecutive error: the poll interval, doubling, capped at 5 minutes.</summary>
+    internal static TimeSpan LoopErrorDelay(int consecutiveErrors, TimeSpan interval) =>
+        TimeSpan.FromTicks(Math.Min(interval.Ticks << Math.Min(consecutiveErrors - 1, 16), MaxLoopErrorDelay.Ticks));
 
     [GeneratedRegex("\\.(mp3|wav)$")]
     internal static partial Regex SupportedFileTypes(); // TODO: use
@@ -86,6 +136,7 @@ public partial class SongImportService : BackgroundService
     private async Task<Result> ImportSongAsync(SongImport songImport, CancellationToken cancellationToken = default!)
     {
         var songImportState = SongImportState.Failed;
+        var retryTags = false;
 
         try
         {
@@ -143,12 +194,29 @@ public partial class SongImportService : BackgroundService
             //Generate tags for the song
             var artistNames = existingArtists.Select(x => x.Name).Concat(newArtists.Select(x => x.Name)).ToList();
             var generateTagsResult = await GetGeneratedSongTagsAsync(songImport, artistNames, fileHash, cancellationToken);
-            if (generateTagsResult.IsError)
+            List<Tag> existingTags, newTags;
+            if (!generateTagsResult.IsError)
             {
-                songImportState = SongImportState.ReadyForImporting;
+                (existingTags, newTags) = generateTagsResult.Get();
+            }
+            else if (!songImport.IsLastTagAttempt)
+            {
+                // Back off and try again later; the rest of the queue goes first.
+                retryTags = true;
                 return generateTagsResult.PreserveErrorAs();
             }
-            var (existingTags, newTags) = generateTagsResult.Get();
+            else if (!string.IsNullOrEmpty(songImport.ReplacesSongId))
+            {
+                // A replacement without tags would wipe the song it replaces. Fail it; that song stays as it is.
+                return generateTagsResult.PreserveErrorAs();
+            }
+            else
+            {
+                // Tags are an enhancement: after the last attempt, import the song untagged rather than lose it.
+                // Its TagModel stays null, so the re-tag sweep (RetagStaleSongs) still finds it.
+                Console.WriteLine($"Importing SongImport {songImport.SongImportId} without tags after {SongImport.MaxTagAttempts} failed attempts: {generateTagsResult.GetError()}");
+                (existingTags, newTags) = (new List<Tag>(), new List<Tag>());
+            }
 
             // Delete the old file if it exists
             var newPath = Path.Combine(_fileConfig.MusicRootDirectory, $"{fileHash}{Path.GetExtension(songImport.FileName)}");
@@ -243,7 +311,9 @@ public partial class SongImportService : BackgroundService
             var songImportDb = context.SongImports.Find(songImport.SongImportId);
             if (songImportDb != null)
             {
-                var setStateResult = songImportDb.SetState(songImportState);
+                var setStateResult = retryTags
+                    ? songImportDb.RecordTagFailure(DateTime.UtcNow)
+                    : songImportDb.SetState(songImportState);
                 if (setStateResult.IsError)
                 {
                     Console.WriteLine($"(Should never happen) Failed to set state for SongImport {songImport.SongImportId}: {setStateResult.GetError()}");
