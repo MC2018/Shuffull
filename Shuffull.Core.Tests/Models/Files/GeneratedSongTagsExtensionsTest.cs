@@ -51,4 +51,21 @@ public class GeneratedSongTagsExtensionsTest
             new[] { "2010s", "Energetic", "House", "Japanese", "Video Game" },
             tags.Select(t => t.Name).OrderBy(n => n).ToArray());
     }
+
+    [Fact]
+    public void ToTagList_GivesEachNameOneTag()
+    {
+        // Tag names are unique (Shuffull#43): a name the engine repeats must not become two new tags in one write.
+        var tags = new GeneratedSongTags(
+            MainGenres: ["Jazz"],
+            SubGenres: ["Jazz", "Big Band"],
+            Languages: ["English"],
+            TimePeriod: "1960s",
+            Moods: ["Calm"],
+            Themes: ["Calm"]).ToTagList();
+
+        Assert.Equal(
+            new[] { "1960s", "Big Band", "Calm", "English", "Jazz" },
+            tags.Select(t => t.Name).OrderBy(n => n).ToArray());
+    }
 }

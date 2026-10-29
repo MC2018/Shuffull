@@ -1,8 +1,12 @@
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Logging.Abstractions;
 using Nut.Results;
 using Shuffull.Core.Features.UserSongs.SetSongLikeStatus;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Enums;
+using Shuffull.Core.Persistence.Repositories;
 using Shuffull.Core.Tests.Infrastructure;
 
 namespace Shuffull.Core.Tests.Features.UserSongs.SetSongLikeStatus;
@@ -305,5 +309,60 @@ public class SetSongLikeStatusHandlerTest : IDisposable
         var song = await _database.Context.Songs.AsNoTracking().SingleAsync(s => s.SongId == userSong.SongId);
         Assert.False(song.Exploratory);
         Assert.Equal(old, song.Version);
+    }
+
+    /// <summary>
+    /// Stands in for a duplicate like request for the same video. Just before the handler's save opens its
+    /// transaction (after its lookup found no rating row), it commits a rating row for <paramref name="videoId"/>.
+    /// </summary>
+    private sealed class CommitRatingRowBeforeSave(string songId, string videoId) : DbTransactionInterceptor
+    {
+        public bool Fired { get; private set; }
+
+        public override async ValueTask<InterceptionResult<DbTransaction>> TransactionStartingAsync(DbConnection connection, TransactionStartingEventData eventData, InterceptionResult<DbTransaction> result, CancellationToken cancellationToken = default)
+        {
+            if (!Fired)
+            {
+                Fired = true;
+                await using var insert = connection.CreateCommand();
+                insert.CommandText =
+                    "INSERT INTO \"YoutubeRatingRequests\" (\"YoutubeRatingRequestId\", \"SongId\", \"VideoId\", \"Rating\", \"Status\", \"CreatedAt\", \"UpdatedAt\") " +
+                    $"VALUES ('competing-row', $song, $video, {(int)YoutubeRating.Dislike}, {(int)YoutubeRatingStatus.Completed}, '2026-01-01 00:00:00', '2026-01-01 00:00:00')";
+                var song = insert.CreateParameter();
+                song.ParameterName = "$song";
+                song.Value = songId;
+                insert.Parameters.Add(song);
+                var video = insert.CreateParameter();
+                video.ParameterName = "$video";
+                video.Value = videoId;
+                insert.Parameters.Add(video);
+                await insert.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            return await base.TransactionStartingAsync(connection, eventData, result, cancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task Handle_WhenADuplicateRequestCommitsTheRatingRowFirst_StillSavesTheLike()
+    {
+        // The app can send one like several times at once; prod had 4 rating rows for one video, 20ms apart.
+        // VideoId is unique now, so the loser's insert is refused. That must not fail the like itself (Shuffull#43).
+        var user = await SeedUserAsync(DateTime.UtcNow.AddDays(-1));
+        var userSong = await SeedUserSongAsync(user.UserId, LikeStatus.Neutral, DateTime.UtcNow.AddDays(-1), externalSongId: "video-1");
+        var competing = new CommitRatingRowBeforeSave(userSong.SongId, "video-1");
+        using var unitOfWork = new UnitOfWork(_database.CreateContext(competing), NullLogger<UnitOfWork>.Instance);
+
+        var result = await new SetSongLikeStatusHandler(unitOfWork).Handle(
+            new SetSongLikeStatusCommand(user.UserId, userSong.SongId, LikeStatus.Like), CancellationToken.None);
+
+        Assert.True(competing.Fired);
+        Assert.True(result.IsOk, result.IsError ? result.GetError().Message : null);
+        var check = _database.CreateContext();
+        Assert.Equal(LikeStatus.Like, (await check.UserSongs.AsNoTracking().SingleAsync(us => us.SongId == userSong.SongId)).LikeStatus);
+        var row = Assert.Single(await check.YoutubeRatingRequests.AsNoTracking().ToListAsync());
+        Assert.Equal("competing-row", row.YoutubeRatingRequestId);
+        Assert.Equal(YoutubeRating.Like, row.Rating);
+        Assert.Equal(YoutubeRatingStatus.Pending, row.Status);
     }
 }

@@ -10,10 +10,10 @@ namespace Shuffull.Core.Models.Database;
 /// carries the video id in <see cref="Song.ExternalSongId"/>). The producer (funnel) polls the Pending rows with
 /// its shared secret, calls the YouTube Data API <c>videos.rate</c>, then acks them Completed.
 ///
-/// <para>At most one open (Pending) row per <see cref="VideoId"/>: a later rating change updates the open row in
-/// place (latest-wins), so a rapid like → un-like → like collapses to a single call.</para>
+/// <para>One row per <see cref="VideoId"/>, enforced by a unique index: a later rating change updates the row in
+/// place and re-queues it (latest-wins), so a rapid like → un-like → like collapses to a single call.</para>
 /// </summary>
-[Index(nameof(VideoId)), Index(nameof(Status))]
+[Index(nameof(VideoId), IsUnique = true), Index(nameof(Status))]
 public class YoutubeRatingRequest
 {
     [Key]
