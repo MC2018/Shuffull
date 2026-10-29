@@ -32,11 +32,10 @@ namespace Shuffull.Api.Services
             using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
             var fileStorageService = scope.ServiceProvider.GetRequiredService<IFileStorageService>();
             var dbGenreRelations = await dbContext.GenreRelations.Include(x => x.MainGenre).Include(x => x.SubGenre).ToListAsync(cancellationToken);
-            var dbGenres = dbGenreRelations
-                .Select(x => x.MainGenre)
-                .Concat(dbGenreRelations.Select(x => x.SubGenre))
-                .DistinctBy(x => x.TagId)
-                .ToList();
+            // Every tag, not just the genres already in a relation: the tagging paths create genres with no relation,
+            // and treating those as missing created a second tag of the same name (Shuffull#43). Tag names are unique
+            // across types, so a name already used by any tag is never created again.
+            var dbTagNames = (await dbContext.Tags.Select(x => x.Name).ToListAsync(cancellationToken)).ToHashSet();
             var downloadResult = await fileStorageService.DownloadSerializableObjectAsync<GenresFile>(_fileConfig.GenresFile, cancellationToken);
             if (downloadResult.IsError)
             {
@@ -47,8 +46,8 @@ namespace Shuffull.Api.Services
             // Add new genres
             var genresFileGenres = genresFile.MainGenres.Select(x => x.Name).Concat(genresFile.MainGenres.SelectMany(x => x.SubGenreNames));
             var newGenreNames = genresFileGenres
-                .Except(dbGenreRelations.Select(x => x.MainGenre).Select(x => x.Name))
-                .Where(x => !string.IsNullOrEmpty(x) && !dbGenres.Select(y => y.Name).Contains(x))
+                .Where(x => !string.IsNullOrEmpty(x) && !dbTagNames.Contains(x))
+                .Distinct()
                 .ToList();
 
             foreach (var newGenreName in newGenreNames)
@@ -73,11 +72,13 @@ namespace Shuffull.Api.Services
 
             foreach (var genresFileNamePair in genresFileNamePairs)
             {
-                var mainGenre = allGenres.Where(x => x.Name == genresFileNamePair.MainGenreName).First();
-                var subGenre = allGenres.Where(x => x.Name == genresFileNamePair.SubGenreName).First();
+                var mainGenre = allGenres.FirstOrDefault(x => x.Name == genresFileNamePair.MainGenreName);
+                var subGenre = allGenres.FirstOrDefault(x => x.Name == genresFileNamePair.SubGenreName);
 
-                // Skip relations that already exist
-                if (dbGenreRelations.Where(x => x.MainGenre.TagId == mainGenre.TagId && x.SubGenre.TagId == subGenre.TagId).Any())
+                // Skip relations that already exist, and names held by a tag of another type (a mood called the same
+                // as a genre): there is no genre to relate.
+                if (mainGenre is null || subGenre is null
+                    || dbGenreRelations.Where(x => x.MainGenre.TagId == mainGenre.TagId && x.SubGenre.TagId == subGenre.TagId).Any())
                 {
                     continue;
                 }

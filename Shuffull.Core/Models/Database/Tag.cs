@@ -12,7 +12,8 @@ using System.Threading.Tasks;
 
 namespace Shuffull.Core.Models.Database
 {
-    [Index(nameof(Type))]
+    // Name is unique across every tag type: the tagging paths look tags up by name alone (Shuffull#43).
+    [Index(nameof(Type)), Index(nameof(Name), IsUnique = true)]
     public abstract class Tag
     {
         [Key]

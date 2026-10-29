@@ -44,6 +44,7 @@ public class SetSongLikeStatusHandler(IUnitOfWork unitOfWork)
         }
 
         var now = DateTime.UtcNow;
+        YoutubeRatingRequest? queuedRating = null;
         if (statusChanged)
         {
             userSong.LikeStatus = request.LikeStatus;
@@ -61,7 +62,7 @@ public class SetSongLikeStatusHandler(IUnitOfWork unitOfWork)
             // the same unit of work so it commits atomically with the like below.
             if (song is not null)
             {
-                await EnqueueYoutubeRatingAsync(song, request.LikeStatus, now, cancellationToken);
+                queuedRating = await EnqueueYoutubeRatingAsync(song, request.LikeStatus, now, cancellationToken);
             }
         }
 
@@ -77,6 +78,18 @@ public class SetSongLikeStatusHandler(IUnitOfWork unitOfWork)
         }
 
         var saveResult = await unitOfWork.SaveChangesAsync(cancellationToken);
+        if (saveResult.IsError && queuedRating is not null)
+        {
+            // The unique VideoId index refused our new row, because a request for the same video (the app can send
+            // one like several times at once) committed its row after our lookup. The like must not fail over its
+            // mirror: drop our row, re-queue theirs, and save the like again.
+            unitOfWork.Repository<YoutubeRatingRequest>().Delete(queuedRating);
+            if (await RequeueExistingRatingAsync(queuedRating.VideoId, queuedRating.Rating, now, cancellationToken))
+            {
+                saveResult = await unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+        }
+
         if (saveResult.IsError)
         {
             return Result.Error<SetSongLikeStatusResponse>(saveResult.GetError().Message);
@@ -96,40 +109,51 @@ public class SetSongLikeStatusHandler(IUnitOfWork unitOfWork)
     /// <summary>
     /// Upserts the like-parity queue row for the song's YouTube video. Only YouTube-sourced songs carry an
     /// <see cref="Song.ExternalSongId"/> (the video id) — manual uploads are skipped. Keeps a single row per
-    /// video, re-queued Pending with the latest rating, so the producer applies only the newest value.
+    /// video, re-queued Pending with the latest rating, so the producer applies only the newest value. Returns the
+    /// row it added, or null when it updated an existing one (or the song has no video).
     /// </summary>
-    private async Task EnqueueYoutubeRatingAsync(Song song, LikeStatus likeStatus, DateTime now, CancellationToken cancellationToken)
+    private async Task<YoutubeRatingRequest?> EnqueueYoutubeRatingAsync(Song song, LikeStatus likeStatus, DateTime now, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(song.ExternalSongId))
         {
-            return;
+            return null;
         }
 
-        var songId = song.SongId;
         var videoId = song.ExternalSongId;
         var rating = MapToYoutubeRating(likeStatus);
-        var repo = unitOfWork.Repository<YoutubeRatingRequest>();
+        if (await RequeueExistingRatingAsync(videoId, rating, now, cancellationToken))
+        {
+            return null;
+        }
 
-        var existingResult = await repo.GetAsync(new YoutubeRatingRequestByVideoIdSpec(videoId), cancellationToken);
-        if (existingResult.IsOk)
+        var added = new YoutubeRatingRequest
         {
-            var existing = existingResult.Get();
-            existing.Rating = rating;
-            existing.Status = YoutubeRatingStatus.Pending;
-            existing.UpdatedAt = now;
-        }
-        else
+            YoutubeRatingRequestId = IdGenerator.Generate(),
+            SongId = song.SongId,
+            VideoId = videoId,
+            Rating = rating,
+            Status = YoutubeRatingStatus.Pending,
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+        await unitOfWork.Repository<YoutubeRatingRequest>().AddAsync(added, cancellationToken);
+        return added;
+    }
+
+    /// <summary>Re-queues the video's row with <paramref name="rating"/>. False if the video has no row yet.</summary>
+    private async Task<bool> RequeueExistingRatingAsync(string videoId, YoutubeRating rating, DateTime now, CancellationToken cancellationToken)
+    {
+        var existingResult = await unitOfWork.Repository<YoutubeRatingRequest>()
+            .GetAsync(new YoutubeRatingRequestByVideoIdSpec(videoId), cancellationToken);
+        if (existingResult.IsError)
         {
-            await repo.AddAsync(new YoutubeRatingRequest
-            {
-                YoutubeRatingRequestId = IdGenerator.Generate(),
-                SongId = songId,
-                VideoId = videoId,
-                Rating = rating,
-                Status = YoutubeRatingStatus.Pending,
-                CreatedAt = now,
-                UpdatedAt = now,
-            }, cancellationToken);
+            return false;
         }
+
+        var existing = existingResult.Get();
+        existing.Rating = rating;
+        existing.Status = YoutubeRatingStatus.Pending;
+        existing.UpdatedAt = now;
+        return true;
     }
 }

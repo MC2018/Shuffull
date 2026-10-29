@@ -38,7 +38,8 @@ public static class GeneratedSongTagsExtensions
 
         // Final guard: never emit an empty/whitespace-named tag of ANY type. The producer's sanitizers should
         // already prevent it, but this makes it impossible for a blank name (from a legacy/cached response or a
-        // future field) to become a junk tag.
-        return result.Where(t => !string.IsNullOrWhiteSpace(t.Name)).ToList();
+        // future field) to become a junk tag. One tag per name, too: tag names are unique (Shuffull#43), so a name
+        // the engine returned twice (a main genre repeated as a sub-genre) must not become two new tags.
+        return result.Where(t => !string.IsNullOrWhiteSpace(t.Name)).DistinctBy(t => t.Name).ToList();
     }
 }

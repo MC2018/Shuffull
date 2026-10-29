@@ -493,6 +493,9 @@ namespace Shuffull.Api.Migrations
 
                     b.HasKey("TagId");
 
+                    b.HasIndex("Name")
+                        .IsUnique();
+
                     b.HasIndex("Type");
 
                     b.ToTable("Tags");
@@ -592,7 +595,8 @@ namespace Shuffull.Api.Migrations
 
                     b.HasIndex("Status");
 
-                    b.HasIndex("VideoId");
+                    b.HasIndex("VideoId")
+                        .IsUnique();
 
                     b.ToTable("YoutubeRatingRequests");
                 });

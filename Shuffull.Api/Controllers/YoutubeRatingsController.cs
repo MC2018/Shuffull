@@ -93,43 +93,39 @@ public class YoutubeRatingsController : ControllerBase
             return Ok();
         }
 
-        var ids = items.Select(i => i.RatingRequestId).ToList();
-        var rows = await _context.YoutubeRatingRequests
-            .Where(r => ids.Contains(r.YoutubeRatingRequestId) && r.Status == YoutubeRatingStatus.Pending)
-            .ToListAsync(cancellationToken);
-
-        var ackById = items
-            .GroupBy(i => i.RatingRequestId)
-            .ToDictionary(g => g.Key, g => g.Last());
-
         var now = DateTime.UtcNow;
         var completed = 0;
         var skipped = 0;
-        foreach (var row in rows)
+        foreach (var ack in items.GroupBy(i => i.RatingRequestId).Select(g => g.Last()))
         {
-            if (!ackById.TryGetValue(row.YoutubeRatingRequestId, out var ack) || FromApiRating(ack.Rating) != row.Rating)
-            {
-                continue;
-            }
-
             // Unknown outcome strings deliberately fall through to Completed rather than erroring: an older
             // producer sends no outcome at all, and treating that as "applied" preserves the original contract.
             // Only the explicit unratable marker is terminal-without-success.
-            if (string.Equals(ack.Outcome, Outcomes.Unratable, StringComparison.OrdinalIgnoreCase))
+            var unratable = string.Equals(ack.Outcome, Outcomes.Unratable, StringComparison.OrdinalIgnoreCase);
+            var status = unratable ? YoutubeRatingStatus.Skipped : YoutubeRatingStatus.Completed;
+            var applied = FromApiRating(ack.Rating);
+
+            // One conditional UPDATE, so the Pending-with-this-rating check and the write are a single statement.
+            // Checking a loaded row and saving it later let a re-rate that committed in between be marked done
+            // with a rating YouTube never got (Shuffull#43).
+            var updated = await _context.YoutubeRatingRequests
+                .Where(r => r.YoutubeRatingRequestId == ack.RatingRequestId
+                            && r.Status == YoutubeRatingStatus.Pending
+                            && r.Rating == applied)
+                .ExecuteUpdateAsync(set => set
+                    .SetProperty(r => r.Status, status)
+                    .SetProperty(r => r.UpdatedAt, now), cancellationToken);
+
+            if (unratable)
             {
-                row.Status = YoutubeRatingStatus.Skipped;
-                skipped++;
+                skipped += updated;
             }
             else
             {
-                row.Status = YoutubeRatingStatus.Completed;
-                completed++;
+                completed += updated;
             }
-
-            row.UpdatedAt = now;
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
         return Ok(new YoutubeRatingAckResponse(completed, skipped));
     }
 

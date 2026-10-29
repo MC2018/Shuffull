@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
 using Shuffull.Core.Persistence;
 
@@ -25,11 +27,12 @@ public sealed class PostgresDatabase : IAsyncDisposable
         ConnectionString = new NpgsqlConnectionStringBuilder(baseConnectionString) { Database = _name }.ConnectionString;
     }
 
-    public static async Task<PostgresDatabase> CreateAsync(string baseConnectionString)
+    /// <param name="targetMigration">Stop at this migration instead of the latest, to test a later one's data step.</param>
+    public static async Task<PostgresDatabase> CreateAsync(string baseConnectionString, string? targetMigration = null)
     {
         var database = new PostgresDatabase(baseConnectionString);
         await using var context = database.CreateContext();
-        await context.Database.MigrateAsync();
+        await context.GetService<IMigrator>().MigrateAsync(targetMigration);
         return database;
     }
 
