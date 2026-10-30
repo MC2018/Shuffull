@@ -1,0 +1,45 @@
+using Microsoft.EntityFrameworkCore;
+using Shuffull.Core.Models.Database;
+
+namespace Shuffull.Core.Persistence;
+
+/// <summary>
+/// Gets or creates tags by name, safe against another writer creating the same name at the same time (Shuffull#82).
+/// </summary>
+public static class TagStore
+{
+    /// <summary>
+    /// Returns the stored tag for each of <paramref name="wanted"/>'s names, inserting any that don't exist yet. Call it
+    /// inside the write transaction: each name is inserted with <c>ON CONFLICT ("Name") DO NOTHING</c>, then every id is
+    /// read back by name. A name another writer committed first is reused, whatever its id or type, instead of failing
+    /// the unique index on <c>Tags.Name</c>. One still being written by an open transaction makes the insert wait for
+    /// it. Names are inserted in a fixed order, so two writers creating the same new names can't each hold one the
+    /// other is waiting on.
+    /// </summary>
+    /// <param name="wanted">Untracked tags. Only their id (used if the name is new), name and type are read.</param>
+    public static async Task<List<Tag>> GetOrCreateAsync(ShuffullContext context, IEnumerable<Tag> wanted, CancellationToken cancellationToken)
+    {
+        var tags = wanted.DistinctBy(t => t.Name).OrderBy(t => t.Name, StringComparer.Ordinal).ToList();
+        if (tags.Count == 0)
+        {
+            return [];
+        }
+
+        foreach (var tag in tags)
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"""INSERT INTO "Tags" ("TagId", "Name", "Type") VALUES ({tag.TagId}, {tag.Name}, {(int)tag.Type}) ON CONFLICT ("Name") DO NOTHING""",
+                cancellationToken);
+        }
+
+        var names = tags.Select(t => t.Name).ToList();
+        var stored = await context.Tags.Where(t => names.Contains(t.Name)).ToListAsync(cancellationToken);
+        if (stored.Count != names.Count)
+        {
+            var missing = names.Except(stored.Select(t => t.Name), StringComparer.Ordinal);
+            throw new InvalidOperationException($"Tags were neither found nor created: {string.Join(", ", missing)}.");
+        }
+
+        return stored;
+    }
+}
