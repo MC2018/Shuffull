@@ -69,7 +69,8 @@ public class ApiContractGoldenFilesTest
         Bpm: 128,
         Heaviness: 6,
         Exploratory: false,
-        TagsStale: true);
+        TagsStale: true,
+        HookStartPercent: 37.5);
 
     // No enrichment and every nullable field null: an audition import as it first lands (Exploratory set, so the
     // flag's true value is pinned too).
