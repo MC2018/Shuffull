@@ -15,7 +15,8 @@ namespace Shuffull.Core.Features.Listens.GetRecap;
 ///
 /// <para>Cost: measured on Postgres 16 with a year of heavy listening (21,900 listens, one every 24 minutes, over
 /// 2,500 songs, in a table of 362,000 rows): about 150 ms warm, nearly all of it the five reads (the listens index scan
-/// itself is under 4 ms). A recap is asked for rarely, so it is computed on every request, with no cache.</para>
+/// itself is under 4 ms). A recap is asked for rarely, so it is computed on every request, with no cache. The
+/// first-listen read came later and wasn't measured: it takes the top row off the same index.</para>
 /// </summary>
 public class GetRecapHandler(ShuffullContext context) : IRequestHandler<GetRecapQuery, Result<GetRecapResponse>>
 {
@@ -59,6 +60,13 @@ public class GetRecapHandler(ShuffullContext context) : IRequestHandler<GetRecap
             .OrderBy(l => l.StartedAt)
             .ToList();
 
+        // The caller's first listen in any year, read off the same index: it tells the app where stats start.
+        var firstListen = await context.Listens.AsNoTracking()
+            .Where(l => l.UserId == request.UserId)
+            .OrderBy(l => l.StartedAt)
+            .Select(l => (DateTime?)l.StartedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
         var catalog = await SongCatalog.LoadAsync(context, request.UserId,
             listens.Select(l => l.SongId).Distinct().ToList(), cancellationToken);
 
@@ -98,6 +106,7 @@ public class GetRecapHandler(ShuffullContext context) : IRequestHandler<GetRecap
             TimeZone: zone.Id,
             From: from,
             To: to,
+            FirstListen: firstListen is { } first ? DateTime.SpecifyKind(first, DateTimeKind.Utc) : null,
             TotalMinutes: minutesByMonth.Sum(),
             Plays: listens.Count,
             MinutesByMonth: minutesByMonth[1..],

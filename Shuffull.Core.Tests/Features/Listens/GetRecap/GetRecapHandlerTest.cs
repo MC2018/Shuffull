@@ -75,6 +75,22 @@ public class GetRecapHandlerTest : IDisposable
         Assert.Equal(["winter", "spring", "summer", "autumn"], recap.SongOfEachSeason.Select(s => s.Season));
         Assert.All(recap.SongOfEachSeason, s => Assert.Null(s.Song));
         Assert.Null(recap.MostSkipped);
+        Assert.Null(recap.FirstListen);
+    }
+
+    [Fact]
+    public async Task FirstListen_IsTheCallersEarliest_FromAnyYear()
+    {
+        _fx.Listen("a", Utc(2026, 10, 30, 9), minutes: 2);
+        _fx.Listen("a", Utc(2025, 11, 3, 20), minutes: 2); // last year: still where the caller's stats start
+        _fx.Listen("a", Utc(2027, 1, 2), minutes: 2);
+        new RecapFixture(_database.Context, _other.UserId).Listen("theirs", Utc(2024, 1, 1), minutes: 2);
+
+        Assert.Equal(Utc(2025, 11, 3, 20), (await RecapAsync()).FirstListen);
+        // The same for any year asked, even one with no listens of its own.
+        Assert.Equal(Utc(2025, 11, 3, 20), (await RecapAsync(year: 2030, timeZone: NewYork)).FirstListen);
+        Assert.Equal(DateTimeKind.Utc, (await RecapAsync()).FirstListen!.Value.Kind);
+        Assert.Equal(Utc(2024, 1, 1), (await RecapAsync(userId: _other.UserId)).FirstListen);
     }
 
     [Fact]

@@ -198,6 +198,7 @@ public class ApiContractGoldenFilesTest
             TimeZone: "America/New_York",
             From: new DateTime(2026, 1, 1, 5, 0, 0, DateTimeKind.Utc),
             To: new DateTime(2027, 1, 1, 5, 0, 0, DateTimeKind.Utc),
+            FirstListen: V1,
             TotalMinutes: 125.5,
             Plays: 40,
             MinutesByMonth: [10, 20.5, 0, 0, 0, 0, 0, 0, 0, 0, 45, 50],

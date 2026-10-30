@@ -14,6 +14,8 @@ namespace Shuffull.Core.Features.Listens.GetRecap;
 /// <param name="TimeZone">The zone the recap was computed in: the IANA id, or the offset as "+02:00", or "UTC".</param>
 /// <param name="From">The year's first instant, UTC (local midnight on 1 January).</param>
 /// <param name="To">The next year's first instant, UTC. The recap covers <paramref name="From"/> up to but not including this.</param>
+/// <param name="FirstListen">When the caller's first listen ever started, UTC, in any year; null if they have none. Stats
+/// start there, so a recap whose <paramref name="From"/> is before it covers only part of the year.</param>
 /// <param name="Plays">How many listens the year had.</param>
 /// <param name="MinutesByMonth">12 entries, January first.</param>
 /// <param name="Heatmap">Minutes by local day of week and hour: 7 rows, Sunday first, of 24 hours each, midnight
@@ -38,6 +40,7 @@ public record GetRecapResponse(
     string TimeZone,
     DateTime From,
     DateTime To,
+    DateTime? FirstListen,
     double TotalMinutes,
     int Plays,
     IReadOnlyList<double> MinutesByMonth,
