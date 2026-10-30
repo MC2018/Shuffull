@@ -43,6 +43,8 @@ namespace Shuffull.Core.Models.Database
         public string? TagModel { get; set; }
         // The prompt revision (Shuffull.Metadata TagRevision) the tags came from. 0 = before revisions existed.
         // A tagged song behind TagRevision.Current is re-scored once by the producer queue (GetPendingTagSongs).
+        // The site's own enrichment stamps one behind on purpose (SongEnrichmentService.SiteTagRevision): it has no
+        // audio grit or density, so the producer re-scores what it tags (Shuffull#73).
         public int TagRevision { get; set; }
         public int? MeasuredBpm { get; set; }
         public double? LoudnessRangeLu { get; set; }
