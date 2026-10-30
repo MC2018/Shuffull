@@ -133,14 +133,14 @@ public class SongImportHookStartTest : IDisposable
         await _database.Context.SaveChangesAsync();
     }
 
-    private static SongImport NewImport(double? hookStartPercent, string? replacesSongId = null) => new()
+    private static SongImport NewImport(double? hookStartPercent, string? replacesSongId = null, string externalSongId = "yt-1") => new()
     {
         SongImportId = Guid.NewGuid().ToString(),
         Name = "Everybody Wants You",
         ImportFolder = "folder",
         FileType = ".mp3",
         UserId = "user-1",
-        ExternalSongId = "yt-1",
+        ExternalSongId = externalSongId,
         HookStartPercent = hookStartPercent,
         ReplacesSongId = replacesSongId,
         LastUpdatedAt = DateTime.UtcNow,
@@ -212,6 +212,30 @@ public class SongImportHookStartTest : IDisposable
 
         Assert.Equal(45, song.HookStartPercent);
         Assert.Equal("Everybody Wants You", song.Name);
+    }
+
+    [Fact]
+    public async Task Replacement_FromADifferentVideoWithoutAHookStart_DropsTheOldOne()
+    {
+        // The old percent was measured on audio the song no longer has.
+        await SeedUserAsync();
+        await SeedSongAsync(hookStartPercent: 20);
+
+        var song = await RunImportAsync(NewImport(null, replacesSongId: "song-1", externalSongId: "yt-2"), Mp3Frames(fill: 7));
+
+        Assert.Equal("yt-2", song.ExternalSongId);
+        Assert.Null(song.HookStartPercent);
+    }
+
+    [Fact]
+    public async Task Replacement_FromADifferentVideoWithAHookStart_TakesIt()
+    {
+        await SeedUserAsync();
+        await SeedSongAsync(hookStartPercent: 20);
+
+        var song = await RunImportAsync(NewImport(70, replacesSongId: "song-1", externalSongId: "yt-2"), Mp3Frames(fill: 7));
+
+        Assert.Equal(70, song.HookStartPercent);
     }
 
     // --- Sync payload ---
