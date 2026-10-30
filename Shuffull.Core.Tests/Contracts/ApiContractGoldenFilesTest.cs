@@ -5,12 +5,17 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Shuffull.Api.Controllers;
 using Shuffull.Api.Extensions;
+using Shuffull.Core.Features.Playlists.CreatePlaylist;
+using Shuffull.Core.Features.Playlists.GetPlaylists;
+using Shuffull.Core.Features.Playlists.GetUserPlaylists;
 using Shuffull.Core.Features.Songs.GetLibrarySongs;
 using Shuffull.Core.Features.Songs.GetPendingTagSongs;
 using Shuffull.Core.Features.Songs.GetSongList;
 using Shuffull.Core.Features.Songs.GetSongsChanged;
 using Shuffull.Core.Features.Songs.KeepSongs;
 using Shuffull.Core.Features.Songs.RetagSongs;
+using Shuffull.Core.Features.Users;
+using Shuffull.Core.Features.Users.GetCurrentUser;
 using Shuffull.Core.Features.UserSongs.GetUserSongs;
 using Shuffull.Core.Models.Dtos;
 using Shuffull.Core.Models.Enums;
@@ -22,8 +27,9 @@ using RetagOutcomes = Shuffull.Core.Features.Songs.RetagSongs.Outcomes;
 namespace Shuffull.Core.Tests.Contracts;
 
 /// <summary>
-/// The wire shapes other repos read, written with the API's real JSON options into checked-in files under
-/// <c>Contracts/Golden</c>. The app (vitest, through its zod schemas) and the funnel (xunit, through its real HTTP
+/// The wire shapes the app and the funnel depend on (listed in <c>Contracts/Golden/README.md</c>), written with the
+/// API's real JSON options into checked-in files under <c>Contracts/Golden</c>. For the two request bodies the funnel
+/// sends, the API must also bind the file, in camelCase and in the PascalCase the funnel writes. The app (vitest, through its zod schemas) and the funnel (xunit, through its real HTTP
 /// clients) parse copies of the same files, so a field renamed or retyped here fails a test on the consuming side
 /// instead of surfacing in prod as a silently-null column. Same idea as ShuffullApp's hashParity.test.ts.
 ///
@@ -74,6 +80,17 @@ public class ApiContractGoldenFilesTest
         Version: version,
         Exploratory: true);
 
+    private static readonly PlaylistDto[] Playlists =
+    [
+        new("playlist-full", "user-1", "Road trip", CurrentSongId: "song-full", PercentUntilReplayable: 0.75m, Version: V1,
+            SongIds: ["song-full", "song-sparse"]),
+        // An audition mix as it lands: nothing played yet.
+        new("playlist-audition", "user-1", "Audition 2026-10-01", CurrentSongId: null, PercentUntilReplayable: 0.5m, Version: V2,
+            SongIds: [], IsExploratory: true),
+    ];
+
+    private static readonly UserDto Curator = new("user-1", "listener", V1, IsCurator: true);
+
     /// <summary>File name (without .json) → the value the endpoint returns (or, for a request, accepts).</summary>
     private static readonly Dictionary<string, object> Cases = new()
     {
@@ -88,6 +105,16 @@ public class ApiContractGoldenFilesTest
                 new UserSongDto("user-1", "song-sparse", LastPlayed: V2, Version: V2, LikeStatus.Neutral),
             ],
             EndOfList: true),
+        // GET /api/v1/playlists. The app builds its playlist_song rows from songIds, so a rename empties every playlist.
+        ["playlists"] = new GetUserPlaylistsResponse(Playlists),
+        // POST /api/v1/playlists/list. A different response type with, today, the same shape.
+        ["playlists-list"] = new GetPlaylistsResponse(Playlists),
+        // PUT /api/v1/playlists?name=. The new playlist, synced into the app straight from this response.
+        ["playlists-create"] = new CreatePlaylistResponse(Playlists[1] with { Name = "New playlist", IsExploratory = false }),
+        // GET /api/v1/users/me. isCurator gates the app's curator screens.
+        ["users-me"] = new GetCurrentUserResponse(Curator),
+        // POST /api/v1/users/authenticate, and POST /api/v1/users (sign-up) returns the same envelope.
+        ["users-authenticate"] = new AuthSessionResponse(Curator, "token-abc", new DateTime(2026, 11, 30, 0, 0, 0, DateTimeKind.Utc)),
         // POST /api/v1/songs/keep. The app dead-letters anything whose outcome isn't "kept".
         ["songs-keep"] = new KeepSongsResponse(
         [
@@ -140,8 +167,7 @@ public class ApiContractGoldenFilesTest
                     FileExtension: ".m4a"),
             ],
             Remaining: 42),
-        // POST /api/v1/songs/{id}/tags — a REQUEST body: the funnel's tag write-back. GeneratedSongTags has no
-        // naming policy on the funnel side, so this is the one shape that crosses PascalCase in practice.
+        // POST /api/v1/songs/{id}/tags — a REQUEST body: the funnel's tag write-back.
         ["songs-tags"] = new ApplySongTagsRequest(
             new GeneratedSongTags(
                 MainGenres: ["Rock"],
@@ -180,7 +206,28 @@ public class ApiContractGoldenFilesTest
         },
     };
 
+    /// <summary>
+    /// The request bodies among <see cref="Cases"/>. The funnel writes them with no naming policy, so they arrive
+    /// PascalCase and rely on the API binding case-insensitively.
+    /// </summary>
+    private static readonly string[] RequestCases = ["songs-tags", "youtube-ratings-ack"];
+
     public static TheoryData<string> CaseNames => new(Cases.Keys);
+
+    public static TheoryData<string, bool> RequestBodies
+    {
+        get
+        {
+            var data = new TheoryData<string, bool>();
+            foreach (var name in RequestCases)
+            {
+                data.Add(name, false);
+                data.Add(name, true);
+            }
+
+            return data;
+        }
+    }
 
     [Theory]
     [MemberData(nameof(CaseNames))]
@@ -203,6 +250,21 @@ public class ApiContractGoldenFilesTest
             + $"If the change is intended, regenerate with {UpdateVariable}=1 and re-sync the consumers' copies.");
     }
 
+    [Theory]
+    [MemberData(nameof(RequestBodies))]
+    public void ApiBinds_GoldenRequestBody(string name, bool pascalCase)
+    {
+        // A request is the API reading, not writing: what it binds is what matters. Bind the golden body (and the
+        // PascalCase copy the funnel actually sends), write it back out, and it must come out as the golden file.
+        var golden = JsonNode.Parse(File.ReadAllText(Path.Combine(GoldenDirectory(), name + ".json")))!;
+        var sent = pascalCase ? PascalCaseNames(golden)! : golden;
+
+        var bound = JsonSerializer.Deserialize(sent.ToJsonString(), Cases[name].GetType(), ApiJsonOptions());
+        var roundTripped = JsonNode.Parse(JsonSerializer.Serialize(bound, Cases[name].GetType(), ApiJsonOptions()));
+
+        Assert.True(JsonNode.DeepEquals(golden, roundTripped), $"The API bound {sent.ToJsonString()} as {roundTripped}");
+    }
+
     [Fact]
     public void EveryGoldenFile_HasACase()
     {
@@ -212,8 +274,16 @@ public class ApiContractGoldenFilesTest
         Assert.Empty(files.Except(Cases.Keys));
     }
 
+    private static JsonNode? PascalCaseNames(JsonNode? node) => node switch
+    {
+        JsonObject o => new JsonObject(o.Select(p =>
+            KeyValuePair.Create(char.ToUpperInvariant(p.Key[0]) + p.Key[1..], PascalCaseNames(p.Value?.DeepClone())))),
+        JsonArray a => new JsonArray(a.Select(i => PascalCaseNames(i?.DeepClone())).ToArray()),
+        _ => node?.DeepClone(),
+    };
+
     /// <summary>
-    /// The options MVC serializes action results with, from the same <see cref="MvcRegistration"/> Program.cs calls.
+    /// The options MVC serializes action results and binds request bodies with, from the same <see cref="MvcRegistration"/> Program.cs calls.
     /// Today those are the framework defaults (camelCase, enums as ints, nulls written).
     /// </summary>
     private static JsonSerializerOptions ApiJsonOptions()
