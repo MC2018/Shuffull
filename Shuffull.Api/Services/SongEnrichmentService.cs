@@ -16,7 +16,8 @@ namespace Shuffull.Api.Services;
 /// <summary>
 /// Re-runs the genre engine for a single song from its ALREADY-STORED inputs (name, artists, lyrics, measured
 /// BPM, audio-shape features, authoritative release year) and updates its tags/BPM/heaviness/TagModel in place —
-/// no re-download and no producer round-trip. This is the primitive behind both the "upgrade to a stronger
+/// no re-download and no producer round-trip to score it. Without grit and density the producer re-scores it later
+/// (see <see cref="SiteTagRevision"/>). This is the primitive behind both the "upgrade to a stronger
 /// model" pass (re-tag songs whose <see cref="Song.TagModel"/> is weaker per <see cref="Core.Tools.ModelStrengths"/>)
 /// and exploratory-mode promotion (tag a kept song on first like).
 ///
@@ -25,6 +26,17 @@ namespace Shuffull.Api.Services;
 /// </summary>
 public partial class SongEnrichmentService : ISongEnrichmentService
 {
+    /// <summary>
+    /// The revision stamped on a song this service scores: one behind <see cref="TagRevision.Current"/>, so the
+    /// producer queue (GetPendingTagSongs) offers it for one re-score. The site has no audio analysis, so its
+    /// heaviness prompt never carries the grit and density the producer measures (Shuffull.Metadata#8); stamping
+    /// Current would mark a weaker prompt as current and the producer would never re-score it (Shuffull#73).
+    /// Always one behind rather than a fixed number, so it stays behind across bumps; at worst a revision the
+    /// site could fully produce costs one extra producer call. The site's own stale sweep ignores revisions, so
+    /// this can't loop.
+    /// </summary>
+    internal const int SiteTagRevision = TagRevision.Current - 1;
+
     private readonly IServiceProvider _services;
 
     public SongEnrichmentService(IServiceProvider services)
@@ -169,7 +181,7 @@ public partial class SongEnrichmentService : ISongEnrichmentService
         song.Bpm = other.TrueBpm is >= 40 and <= 300 ? other.TrueBpm : (song.MeasuredBpm ?? song.Bpm);
         song.Heaviness = other.Heaviness;
         song.TagModel = modelName;
-        song.TagRevision = TagRevision.Current;
+        song.TagRevision = SiteTagRevision;
         song.ResetTagAttempts();
         // Enriching an exploratory song promotes it: it now has real tags, so it's no longer provisional (and
         // won't be purged if its audition playlist is later deleted).

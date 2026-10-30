@@ -1,11 +1,14 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Nut.Results;
 using Shuffull.Metadata.Models.AI;
 using Shuffull.Metadata.Services.AI;
 using Shuffull.Api.Services;
+using Shuffull.Core.Features.Songs.GetPendingTagSongs;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Services;
 using Shuffull.Core.Tests.Infrastructure;
+using Shuffull.Metadata.Tools;
 using Shuffull.Shared.Tools;
 
 namespace Shuffull.Core.Tests.Services;
@@ -138,7 +141,7 @@ public class SongEnrichmentServiceTest : IDisposable
 
         var updated = await _database.Context.Songs.AsNoTracking().SingleAsync(s => s.SongId == song.SongId);
         Assert.Equal("strong-model-x", updated.TagModel);
-        Assert.Equal(Shuffull.Metadata.Services.AI.TagRevision.Current, updated.TagRevision); // scored by this prompt
+        Assert.Equal(TagRevision.Current - 1, updated.TagRevision); // no grit or density: left for the producer (Shuffull#73)
         Assert.Equal(0, updated.TagAttempts);     // freshly tagged, so the producer queue's backoff starts over
         Assert.Null(updated.NextTagAttemptAt);
         Assert.Equal(7, updated.Heaviness);
@@ -149,6 +152,31 @@ public class SongEnrichmentServiceTest : IDisposable
         Assert.Equal(128, ai.SeenOtherRequest!.MeasuredBpm);
         Assert.Equal(["House", "Techno"], ai.SeenSubRequest!.SubGenres.Order().ToList());
         Assert.Equal(["Energetic", "Chill"], ai.SeenOtherRequest!.CandidateMoods);
+    }
+
+    [Fact]
+    public async Task Enrich_LeavesSongForTheProducerToRescore()
+    {
+        // The site's heaviness prompt has no grit or density, so a song it scores must come back to the producer
+        // once, on a tier no weaker than the model that tagged it (Shuffull#73).
+        await SeedGenresAsync();
+        var song = await SeedSongAsync();
+        Assert.True((await EnrichAsync(new FakeAiService(), song.SongId)).IsOk);
+
+        var strengths = new ModelStrengths(new Dictionary<string, int> { ["weak-model"] = 10, ["strong-model-x"] = 30 });
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["AI:Tiers:Weak"] = "OpenAI",
+            ["AI:Tiers:Strong"] = "OpenAI",
+            ["AI:OpenAI:WeakModelName"] = "weak-model",
+            ["AI:OpenAI:StrongModelName"] = "strong-model-x",
+        }).Build();
+        var pending = (await new GetPendingTagSongsHandler(_database.Context, strengths, config)
+            .Handle(new GetPendingTagSongsQuery(25), CancellationToken.None)).Get();
+
+        var offered = Assert.Single(pending.Songs);
+        Assert.Equal(song.SongId, offered.SongId);
+        Assert.Equal(TagTiers.Strong, offered.Tier);
     }
 
     [Fact]

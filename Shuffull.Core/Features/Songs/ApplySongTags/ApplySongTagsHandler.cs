@@ -77,6 +77,9 @@ public class ApplySongTagsHandler(ShuffullContext context, ModelStrengths modelS
         {
             // A newer revision with no score: the old value is on a scale that no longer applies, so unknown is
             // the honest answer. Leaving the revision behind instead would hand the song straight back forever.
+            // A song the site enriched (stamped one behind, SongEnrichmentService.SiteTagRevision) loses a score on
+            // the current scale this way, just without grit and density. Accepted: it only happens when the
+            // producer's heaviness call fails, and it costs machine data, not a user decision.
             song.Heaviness = null;
         }
 
