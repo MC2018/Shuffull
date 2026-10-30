@@ -8,6 +8,7 @@ using Shuffull.Core.Models.Files;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Persistence;
 using Shuffull.Core.Services;
+using Shuffull.Core.Tools;
 using Shuffull.Shared.Tools;
 using System.Text.RegularExpressions;
 
@@ -149,15 +150,12 @@ public partial class SongEnrichmentService : ISongEnrichmentService
 
         // Rewrite the tag joins wholesale (unlocked songs carry only machine tags, same as the replacement path).
         var produced = generatedTags.ToTagList();
-        var knownTags = await dbContext.Tags.ToListAsync(cancellationToken);
-        var existingTags = knownTags.Where(x => produced.Any(y => y.Name == x.Name)).ToList();
-        var newTags = produced.Where(x => knownTags.All(y => y.Name != x.Name)).ToList();
+        var tags = await TagStore.GetOrCreateAsync(dbContext, produced, cancellationToken);
 
         dbContext.SongTags.RemoveRange(song.SongTags);
-        dbContext.Tags.AddRange(newTags);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        foreach (var tag in existingTags.Concat(newTags))
+        foreach (var tag in tags)
         {
             dbContext.SongTags.Add(new SongTag
             {

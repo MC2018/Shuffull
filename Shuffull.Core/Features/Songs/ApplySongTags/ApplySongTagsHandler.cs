@@ -54,15 +54,12 @@ public class ApplySongTagsHandler(ShuffullContext context, ModelStrengths modelS
         // Rewrite the joins wholesale, matching the enrichment path: a song carries one coherent set of
         // machine tags rather than an accumulation across models.
         var produced = request.Tags.ToTagList();
-        var knownTags = await context.Tags.ToListAsync(cancellationToken);
-        var existingTags = knownTags.Where(x => produced.Any(y => y.Name == x.Name)).ToList();
-        var newTags = produced.Where(x => knownTags.All(y => y.Name != x.Name)).ToList();
+        var tags = await TagStore.GetOrCreateAsync(context, produced, cancellationToken);
 
         context.SongTags.RemoveRange(song.SongTags);
-        context.Tags.AddRange(newTags);
         await context.SaveChangesAsync(cancellationToken);
 
-        foreach (var tag in existingTags.Concat(newTags))
+        foreach (var tag in tags)
         {
             context.SongTags.Add(new SongTag
             {

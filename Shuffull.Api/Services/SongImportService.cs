@@ -608,10 +608,11 @@ public partial class SongImportService : BackgroundService
             song.Exploratory = false;
         }
 
-        // Add newly generated items to the db
+        // Add newly generated items to the db. Tags were split into existing and new before the file moved, so a
+        // name another writer has created since is reused here rather than failing the import (Shuffull#82).
         dbContext.Songs.Add(song);
         dbContext.Artists.AddRange(newArtists);
-        dbContext.Tags.AddRange(newTags);
+        var tags = await TagStore.GetOrCreateAsync(dbContext, existingTags.Concat(newTags), cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         // Add relationships to the db
@@ -627,7 +628,6 @@ public partial class SongImportService : BackgroundService
             dbContext.SongArtists.Add(songArtist);
         }
 
-        var tags = existingTags.Concat(newTags).ToList();
         foreach (var tag in tags)
         {
             var songTag = new SongTag
@@ -822,11 +822,12 @@ public partial class SongImportService : BackgroundService
             song.OriginalReleaseYear = songImport.OriginalReleaseYear;
 
             // Swap the tag/artist joins; add any new master Artist/Tag rows. Remove first (+ save) so the new
-            // master rows exist before their joins reference them and the deleted joins can't collide.
+            // master rows exist before their joins reference them and the deleted joins can't collide. Tags are got
+            // or created by name, as in ImportToDbCoreAsync, so a name created since the split is reused.
+            var tags = await TagStore.GetOrCreateAsync(dbContext, existingTags.Concat(newTags), cancellationToken);
             dbContext.SongTags.RemoveRange(song.SongTags);
             dbContext.SongArtists.RemoveRange(song.SongArtists);
             dbContext.Artists.AddRange(newArtists);
-            dbContext.Tags.AddRange(newTags);
             await dbContext.SaveChangesAsync(cancellationToken);
 
             foreach (var artist in existingArtists.Concat(newArtists))
@@ -838,7 +839,7 @@ public partial class SongImportService : BackgroundService
                     ArtistId = artist.ArtistId
                 });
             }
-            foreach (var tag in existingTags.Concat(newTags))
+            foreach (var tag in tags)
             {
                 dbContext.SongTags.Add(new SongTag
                 {

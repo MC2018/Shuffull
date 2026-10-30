@@ -136,6 +136,30 @@ public class SongImportServiceImportToDbTest : IDisposable
     }
 
     [Fact]
+    public async Task ImportToDbCoreAsync_NewTagCreatedByAnotherWriterSinceTheSplit_LinksToThatTag()
+    {
+        // The import split its tags before moving the file, and "Klingon" was new then. A curator re-tag committed
+        // the same name before the import's write: Tags.Name is unique, so inserting it again used to fail the
+        // import with the file already moved (Shuffull#82).
+        var user = await SeedUserAsync();
+        await using (var competitor = _database.CreateContext())
+        {
+            competitor.Tags.Add(new Language { TagId = "competitor-tag", Name = "Klingon" });
+            await competitor.SaveChangesAsync();
+        }
+
+        var song = NewSong();
+        var result = await ImportAsync(song, user.UserId,
+            newTags: new List<Tag> { new Language { TagId = "import-tag", Name = "Klingon" } });
+
+        Assert.True(result.IsOk);
+        var tag = await _database.Context.Tags.AsNoTracking().SingleAsync(t => t.Name == "Klingon");
+        Assert.Equal("competitor-tag", tag.TagId);
+        var songTag = await _database.Context.SongTags.AsNoTracking().SingleAsync(st => st.SongId == song.SongId);
+        Assert.Equal("competitor-tag", songTag.TagId);
+    }
+
+    [Fact]
     public async Task ImportToDbCoreAsync_WithoutPlaylist_AddsNoPlaylistSong()
     {
         // Arrange
