@@ -16,7 +16,8 @@ namespace Shuffull.Api.Services;
 /// <summary>
 /// Re-runs the genre engine for a single song from its ALREADY-STORED inputs (name, artists, lyrics, measured
 /// BPM, audio-shape features, authoritative release year) and updates its tags/BPM/heaviness/TagModel in place —
-/// no re-download and no producer round-trip. This is the primitive behind both the "upgrade to a stronger
+/// no re-download and no producer round-trip to score it. Without grit and density the producer re-scores it later
+/// (see <see cref="SiteTagRevision"/>). This is the primitive behind both the "upgrade to a stronger
 /// model" pass (re-tag songs whose <see cref="Song.TagModel"/> is weaker per <see cref="Core.Tools.ModelStrengths"/>)
 /// and exploratory-mode promotion (tag a kept song on first like).
 ///
