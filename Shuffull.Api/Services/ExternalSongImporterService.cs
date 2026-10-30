@@ -6,6 +6,7 @@ using Shuffull.Shared.Tools;
 using Shuffull.Api.Configuration;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Persistence;
+using Shuffull.Core.Tools;
 using Shuffull.Metadata.Contracts;
 using Shuffull.Metadata.Enums;
 using Shuffull.Api.Services.FileStorage;
@@ -18,25 +19,57 @@ namespace Shuffull.Api.Services
     public class ExternalSongImporterService : BackgroundService
     {
         private readonly IServiceProvider _services;
-        private readonly SongImportService _songImporter;
-        public static ShuffullFilesConfiguration _fileConfig { get; private set; } // TODO: bad
-        private readonly TimeSpan _interval = TimeSpan.FromSeconds(20); // TODO: change to 5 minutes
+        private readonly ILogger<ExternalSongImporterService> _logger;
+        private readonly ShuffullFilesConfiguration _fileConfig;
+        /// <summary>How long the loop waits between scans of the drop folder. Settable for tests.</summary>
+        internal TimeSpan PollInterval { get; init; } = TimeSpan.FromSeconds(20); // TODO: change to 5 minutes
+        private static readonly TimeSpan MaxLoopErrorDelay = TimeSpan.FromMinutes(5);
 
-        public ExternalSongImporterService(IServiceProvider services, IConfiguration configuration)
+        public ExternalSongImporterService(IServiceProvider services, IConfiguration configuration, ILogger<ExternalSongImporterService> logger)
         {
             _services = services;
+            _logger = logger;
             _fileConfig = configuration.GetSection(ShuffullFilesConfiguration.FilesConfigurationSection).Get<ShuffullFilesConfiguration>() ?? throw new Exception("ShuffullFilesConfiguration not configured.");
-            // _songImporter = _services.GetRequiredService<SongImportService>();
         }
 
         protected override async Task ExecuteAsync(CancellationToken cancellationToken)
         {
+            // An exception escaping ExecuteAsync stops the whole API (the host's default BackgroundServiceExceptionBehavior),
+            // so a failed scan (a database or storage blip) must only pause the loop, backing off while it lasts.
+            var consecutiveErrors = 0;
             while (!cancellationToken.IsCancellationRequested)
             {
-                await ImportSongsAsync(cancellationToken);
-                await Task.Delay(_interval, cancellationToken);
+                var delay = PollInterval;
+                try
+                {
+                    await ImportSongsAsync(cancellationToken);
+                    consecutiveErrors = 0;
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    consecutiveErrors++;
+                    delay = LoopErrorDelay(consecutiveErrors, PollInterval);
+                    _logger.LogError(ex, "External song import scan failed ({Count} in a row); retrying in {Delay}", consecutiveErrors, delay);
+                }
+
+                try
+                {
+                    await Task.Delay(delay, cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
             }
         }
+
+        /// <summary>The loop's pause after its Nth consecutive error: the poll interval, doubling, capped at 5 minutes.</summary>
+        internal static TimeSpan LoopErrorDelay(int consecutiveErrors, TimeSpan interval) =>
+            Backoff.Doubling(interval, consecutiveErrors, MaxLoopErrorDelay);
 
         private async Task ImportSongsAsync(CancellationToken cancellationToken)
         {
@@ -46,7 +79,7 @@ namespace Shuffull.Api.Services
             var getFilesResult = await fileStorageService.GetFilesAsync(_fileConfig.ExternalSongImportDirectory, cancellationToken: cancellationToken);
             if (getFilesResult.IsError)
             {
-                Console.WriteLine($"Error getting files for external song import: {getFilesResult.GetError()}");
+                _logger.LogError("Error getting files for external song import: {Error}", getFilesResult.GetError());
                 return;
             }
             var filePaths = getFilesResult.Get();
@@ -56,7 +89,7 @@ namespace Shuffull.Api.Services
                 var importSongResult = await ImportSongAsync(filePath, cancellationToken);
                 if (importSongResult.IsError)
                 {
-                    Console.WriteLine($"Error importing song from external import file '{filePath}': {importSongResult.GetError()}");
+                    _logger.LogError("Error importing song from external import file '{FilePath}': {Error}", filePath, importSongResult.GetError());
                 }
             }
         }
@@ -101,12 +134,12 @@ namespace Shuffull.Api.Services
                 var deleteAudioResult = await fileStorageService.DeleteFileAsync(songFilePath, cancellationToken);
                 if (deleteAudioResult.IsError)
                 {
-                    Console.WriteLine($"Warning: Error deleting external song import audio '{songFilePath}': {deleteAudioResult.GetError()}");
+                    _logger.LogWarning("Error deleting external song import audio '{FilePath}': {Error}", songFilePath, deleteAudioResult.GetError());
                 }
                 var deleteFileResult = await fileStorageService.DeleteFileAsync(filePath, cancellationToken);
                 if (deleteFileResult.IsError)
                 {
-                    Console.WriteLine($"Warning: Error deleting external song import details file '{filePath}': {deleteFileResult.GetError()}");
+                    _logger.LogWarning("Error deleting external song import details file '{FilePath}': {Error}", filePath, deleteFileResult.GetError());
                 }
 
                 return Result.Ok();
