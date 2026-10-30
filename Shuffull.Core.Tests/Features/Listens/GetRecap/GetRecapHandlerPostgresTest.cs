@@ -70,5 +70,8 @@ public class GetRecapHandlerPostgresTest : IAsyncLifetime
         Assert.Equal(("b", 1), (recap.MostSkipped!.Song.SongId, recap.MostSkipped.Skips));
         Assert.Equal(new RecapStreak(2, new DateOnly(2026, 1, 1), new DateOnly(2026, 1, 2)), recap.LongestStreak);
         Assert.Equal(DateTimeKind.Utc, recap.LongestSession!.Start.Kind);
+        // The earliest of the caller's listens, even one that falls in 2025 locally, read back as UTC.
+        Assert.Equal(Utc(2026, 1, 1, 4, 59), recap.FirstListen);
+        Assert.Equal(DateTimeKind.Utc, recap.FirstListen!.Value.Kind);
     }
 }
