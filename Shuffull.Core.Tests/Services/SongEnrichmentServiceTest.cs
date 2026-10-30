@@ -171,7 +171,7 @@ public class SongEnrichmentServiceTest : IDisposable
             ["AI:OpenAI:WeakModelName"] = "weak-model",
             ["AI:OpenAI:StrongModelName"] = "strong-model-x",
         }).Build();
-        var pending = (await new GetPendingTagSongsHandler(_database.Context, strengths, config)
+        var pending = (await new GetPendingTagSongsHandler(_database.Context, strengths, config, new RecordingHealthSignals(), TimeProvider.System)
             .Handle(new GetPendingTagSongsQuery(25), CancellationToken.None)).Get();
 
         var offered = Assert.Single(pending.Songs);

@@ -2,8 +2,12 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Nut.Results;
+using Shuffull.Core.Alerts;
+using Shuffull.Core.Errors;
+using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Persistence;
+using Shuffull.Core.Services.Alerts;
 using Shuffull.Core.Tools;
 using Shuffull.Metadata.Services.AI;
 using Shuffull.Metadata.Tools;
@@ -22,28 +26,54 @@ namespace Shuffull.Core.Features.Songs.GetPendingTagSongs;
 public class GetPendingTagSongsHandler(
     ShuffullContext context,
     ModelStrengths modelStrengths,
-    IConfiguration configuration)
+    IConfiguration configuration,
+    IHealthSignals signals,
+    TimeProvider timeProvider)
     : IRequestHandler<GetPendingTagSongsQuery, Result<PendingTagSongsResponse>>
 {
     private const int DefaultLimit = 25;
-    private const int MaxLimit = 200;
+    /// <summary>The largest page the queue hands out.</summary>
+    public const int MaxLimit = 200;
 
-    // The first retry comes sooner than the funnel's 10-minute cycle. Each further miss doubles the wait, up to an
-    // hour. The cap is low because a hold is not a failure: the funnel tags a song in up to three chained AI
-    // batches, holding it each time and needing it offered again to queue the next, so a held song should wait at
-    // most an hour past its batch landing. A song that can never be tagged still drops from every cycle to once
-    // an hour. The site can't tell the two apart; the funnel would have to report holds (shuffull-workspace#36).
-    private static readonly TimeSpan FirstRetryDelay = TimeSpan.FromMinutes(5);
-    private static readonly TimeSpan MaxRetryDelay = TimeSpan.FromHours(1);
+    /// <summary>
+    /// The first retry comes sooner than the funnel's 10-minute cycle, so a song the funnel reports as held for an AI
+    /// batch is offered again on its next cycle (HoldTagSongs puts it back here). Each unreported miss doubles the
+    /// wait, up to an hour, so a song that can never be tagged drops from every cycle to once an hour. A funnel that
+    /// predates hold reports (shuffull-workspace#36) gets its held songs on that same ladder.
+    /// </summary>
+    public static readonly TimeSpan FirstRetryDelay = TimeSpan.FromMinutes(5);
+    /// <summary>The longest a song sits out between hand-outs, and how far back in line a held song rejoins.</summary>
+    public static readonly TimeSpan MaxRetryDelay = TimeSpan.FromHours(1);
 
     public async Task<Result<PendingTagSongsResponse>> Handle(GetPendingTagSongsQuery request, CancellationToken cancellationToken)
     {
         var limit = request.Limit <= 0 ? DefaultLimit : Math.Min(request.Limit, MaxLimit);
 
-        // Read straight from configuration rather than through IAIServiceResolver, which is only registered when
-        // the site's own AI is enabled. Blank counts as missing — see TierModelConfiguration.
-        var weakModel = TierModelConfiguration.ResolveModel(configuration, TierModelConfiguration.Weak);
-        var strongModel = TierModelConfiguration.ResolveModel(configuration, TierModelConfiguration.Strong);
+        // A declared model must be on the ladder. Scoring an unknown one 0 would either make every song look
+        // behind (the whole library handed out, every write then refused) or, through the fail-safe below, quietly
+        // offer nothing while the funnel looks healthy. Neither is safe to guess between, and the two maps are
+        // meant to be identical, so an unknown model is a config fault: refuse the poll loudly, and alert.
+        var declaredWeak = NonBlank(request.WeakModel);
+        var declaredStrong = NonBlank(request.StrongModel);
+        var unknown = new[] { declaredWeak, declaredStrong }
+            .Where(m => m is not null && !modelStrengths.Knows(m))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (unknown.Count > 0)
+        {
+            var message = $"The producer tags with {string.Join(" and ", unknown.Select(m => $"'{m}'"))}, which "
+                + "AI:ModelStrengths doesn't list, so no work is handed out. Register it in both ModelStrengths maps.";
+            await signals.FailureAsync(ShuffullSignalRules.PendingTagsModels, message, cancellationToken);
+            return Result.Error<PendingTagSongsResponse>(new KindedError(ErrorKind.Invalid, message));
+        }
+        // Declared or not: a funnel rolled back to a build that declares nothing must still clear the alert.
+        await signals.SuccessAsync(ShuffullSignalRules.PendingTagsModels, cancellationToken);
+
+        // A tier the producer didn't declare is read straight from configuration rather than through
+        // IAIServiceResolver, which is only registered when the site's own AI is enabled. Blank counts as missing —
+        // see TierModelConfiguration.
+        var weakModel = declaredWeak ?? TierModelConfiguration.ResolveModel(configuration, TierModelConfiguration.Weak);
+        var strongModel = declaredStrong ?? TierModelConfiguration.ResolveModel(configuration, TierModelConfiguration.Strong);
 
         // Fail SAFE, exactly as RetagStaleSongs does: an unregistered target model scores 0, which would make
         // every song look "behind" and hand the producer the entire library to re-tag. Returning nothing until
@@ -109,13 +139,23 @@ public class GetPendingTagSongsHandler(
 
         // Real upgrades (a Keep, a Like, untagged songs) first, then revision re-scores, so a library-wide re-score
         // never queues ahead of what a user just asked for. Oldest first within each: the queue drains in the order
-        // work was requested, so a long legacy backfill cannot be starved by newer arrivals. A song that was handed out and is still behind (no
-        // tags inferable, held in a batch, a write refused) sits out its backoff instead of filling the page.
-        var now = DateTime.UtcNow;
+        // work was requested, so a long legacy backfill cannot be starved by newer arrivals. A song that was handed
+        // out and is still behind (no tags inferable, held in a batch, a write refused) sits out its backoff instead
+        // of filling the page.
+        //
+        // A song the producer reported held comes back every cycle until its batch lands, and is usually among the
+        // oldest. Kept at its old place, 25 songs held at once (a strong-model change makes every liked song behind)
+        // would fill every page until their batches land, and a fresh Keep would wait behind them. Sent to the very
+        // end, enough newer work would starve it instead. So each hold sends it to the back of the line as of
+        // MaxRetryDelay after it is due again (Song.TagQueuePlace): work asked for within that hour goes first, and
+        // anything newer waits behind it. Neither side can hold the other off for good. A producer that doesn't
+        // report holds has no held songs, and sees the order it always did.
+        var now = timeProvider.GetUtcNow().UtcDateTime;
         var rows = await pending
             .Where(s => s.NextTagAttemptAt == null || s.NextTagAttemptAt <= now)
             .OrderBy(s => upgradeIds.Contains(s.SongId) ? 0 : 1)
-            .ThenBy(s => s.Version)
+            .ThenBy(Song.TagQueuePlace(MaxRetryDelay))
+            .ThenBy(s => s.Version) // songs held in one report share a place
             .Take(limit)
             .Select(s => new
             {
@@ -142,7 +182,8 @@ public class GetPendingTagSongsHandler(
 
         // Count the hand-out as an attempt. The site can't see why the producer fails a song, or whether it
         // reports back at all, so the only safe signal is that it was offered. Writing tags resets the count
-        // (Song.ResetTagAttempts). Version is untouched: this is queue state, not a change clients need.
+        // (Song.ResetTagAttempts), and so does a reported hold (HoldTagSongs), which is not a failure. Version is
+        // untouched: this is queue state, not a change clients need.
         foreach (var batch in rows.GroupBy(r => r.TagAttempts + 1))
         {
             var ids = batch.Select(r => r.SongId).ToList();
@@ -173,4 +214,6 @@ public class GetPendingTagSongsHandler(
         var delay = FirstRetryDelay * Math.Pow(2, Math.Clamp(attempts - 1, 0, 30));
         return delay < MaxRetryDelay ? delay : MaxRetryDelay;
     }
+
+    private static string? NonBlank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

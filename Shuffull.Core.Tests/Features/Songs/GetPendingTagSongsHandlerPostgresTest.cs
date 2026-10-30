@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Nut.Results;
 using Shuffull.Core.Features.Songs.GetPendingTagSongs;
+using Shuffull.Core.Features.Songs.HoldTagSongs;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Tests.Infrastructure;
@@ -80,7 +81,7 @@ public class GetPendingTagSongsHandlerPostgresTest : IAsyncLifetime
     private async Task<PendingTagSongsResponse> RunAsync(int limit)
     {
         await using var context = Database.CreateContext();
-        return (await new GetPendingTagSongsHandler(context, Strengths, Config)
+        return (await new GetPendingTagSongsHandler(context, Strengths, Config, new RecordingHealthSignals(), TimeProvider.System)
             .Handle(new GetPendingTagSongsQuery(limit), CancellationToken.None)).Get();
     }
 
@@ -146,5 +147,67 @@ public class GetPendingTagSongsHandlerPostgresTest : IAsyncLifetime
 
         Assert.Equal([untagged.SongId, rescore.SongId], page.Songs.Select(s => s.SongId));
         Assert.Equal(2, page.Remaining);
+    }
+
+    [PostgresFact]
+    public async Task AHoldReport_BringsTheSongBack_AndOnlyEverBringsADueTimeForward()
+    {
+        // The hold's UPDATE carries a conditional SET (keep the earlier due time); pin how Npgsql translates it.
+        var day = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var held = await SeedSongAsync(day);
+        var alreadyDue = await SeedSongAsync(day.AddDays(1));
+        var neverHandedOut = await SeedSongAsync(day.AddDays(2), tagModel: "weak-model");
+        var soon = DateTime.UtcNow.AddMinutes(1);
+        await using (var context = Database.CreateContext())
+        {
+            var h = await context.Songs.FindAsync(held.SongId);
+            h!.TagAttempts = 6;
+            h.NextTagAttemptAt = DateTime.UtcNow.AddHours(1);
+            var d = await context.Songs.FindAsync(alreadyDue.SongId);
+            d!.TagAttempts = 2;
+            d.NextTagAttemptAt = soon;
+            await context.SaveChangesAsync();
+        }
+
+        var before = DateTime.UtcNow;
+        await using (var context = Database.CreateContext())
+        {
+            var result = await new HoldTagSongsHandler(context, TimeProvider.System)
+                .Handle(new HoldTagSongsCommand([held.SongId, alreadyDue.SongId, neverHandedOut.SongId]), CancellationToken.None);
+            Assert.True(result.IsOk);
+        }
+
+        await using var check = Database.CreateContext();
+        var reheld = await check.Songs.FindAsync(held.SongId);
+        Assert.Equal(0, reheld!.TagAttempts);
+        Assert.InRange(reheld.NextTagAttemptAt!.Value, before, DateTime.UtcNow + GetPendingTagSongsHandler.FirstRetryDelay);
+        var due = await check.Songs.FindAsync(alreadyDue.SongId);
+        Assert.Equal(0, due!.TagAttempts);
+        Assert.Equal(soon, due.NextTagAttemptAt!.Value, TimeSpan.FromMilliseconds(1));
+        var untouched = await check.Songs.FindAsync(neverHandedOut.SongId);
+        Assert.Null(untouched!.NextTagAttemptAt);
+        Assert.Equal(day.AddDays(2), untouched.Version);
+    }
+
+    [PostgresFact]
+    public async Task AHeldSong_RejoinsTheLine_AnHourAfterItIsDue()
+    {
+        // The queue's sort key adds an interval to the due time, but only for held songs; pin how Npgsql translates it.
+        var dueAt = DateTime.UtcNow.AddMinutes(-1);
+        var held = await SeedSongAsync(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+        await using (var context = Database.CreateContext())
+        {
+            var h = await context.Songs.FindAsync(held.SongId);
+            h!.TagAttempts = 0;
+            h.NextTagAttemptAt = dueAt;
+            await context.SaveChangesAsync();
+        }
+        var place = dueAt + GetPendingTagSongsHandler.MaxRetryDelay;
+        var askedJustBefore = await SeedSongAsync(place.AddMinutes(-1));
+        var askedJustAfter = await SeedSongAsync(place.AddMinutes(1));
+
+        var page = await RunAsync(limit: 3);
+
+        Assert.Equal([askedJustBefore.SongId, held.SongId, askedJustAfter.SongId], page.Songs.Select(s => s.SongId));
     }
 }

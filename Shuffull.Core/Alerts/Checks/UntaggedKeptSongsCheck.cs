@@ -12,10 +12,10 @@ namespace Shuffull.Core.Alerts.Checks;
 /// <c>TagAttempts</c>.
 ///
 /// <para>A hand-out is not a failure: the funnel holds a song while its AI batch runs (up to 4 h queued, then up to
-/// 24 h at OpenAI, for up to three chained batches), and the site can't tell a hold from a failure
-/// (shuffull-workspace#36). So this only fires once a song has been offered for at least
-/// <see cref="MinTimeOffered"/>. The funnel's own AiQueueCheck already alerts on a stuck batch queue at 12 h; this is
-/// the backstop for a song that fails on the funnel's side every time.</para>
+/// 24 h at OpenAI, for up to three chained batches). A funnel that reports its holds resets the count with each one
+/// (HoldTagSongs, shuffull-workspace#36), but an older funnel doesn't, so this still only fires once a song has been
+/// offered for at least <see cref="MinTimeOffered"/>. The funnel's own AiQueueCheck already alerts on a stuck batch
+/// queue at 12 h; this is the backstop for a song that fails on the funnel's side every time.</para>
 /// </summary>
 public sealed class UntaggedKeptSongsCheck(ShuffullContext db) : IAlertCheck
 {

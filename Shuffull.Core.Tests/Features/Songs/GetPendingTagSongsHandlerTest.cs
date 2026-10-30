@@ -1,6 +1,9 @@
 using Microsoft.Extensions.Configuration;
 using Nut.Results;
+using Shuffull.Core.Alerts;
+using Shuffull.Core.Errors;
 using Shuffull.Core.Features.Songs.GetPendingTagSongs;
+using Shuffull.Core.Features.Songs.HoldTagSongs;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Tests.Infrastructure;
@@ -18,6 +21,7 @@ namespace Shuffull.Core.Tests.Features.Songs;
 public class GetPendingTagSongsHandlerTest : IDisposable
 {
     private readonly DatabaseFixture _database;
+    private readonly RecordingHealthSignals _signals = new();
 
     public GetPendingTagSongsHandlerTest() => _database = new DatabaseFixture();
 
@@ -80,9 +84,24 @@ public class GetPendingTagSongsHandlerTest : IDisposable
         return song;
     }
 
-    private Task<Result<PendingTagSongsResponse>> RunAsync(int limit = 25, IConfiguration? config = null)
-        => new GetPendingTagSongsHandler(_database.Context, Strengths(), config ?? Config())
-            .Handle(new GetPendingTagSongsQuery(limit), CancellationToken.None);
+    private Task<Result<PendingTagSongsResponse>> RunAsync(int limit = 25, IConfiguration? config = null,
+                                                         string? weakModel = null, string? strongModel = null,
+                                                         TimeProvider? clock = null)
+        => new GetPendingTagSongsHandler(_database.Context, Strengths(), config ?? Config(), _signals, clock ?? TimeProvider.System)
+            .Handle(new GetPendingTagSongsQuery(limit, weakModel, strongModel), CancellationToken.None);
+
+    private async Task HoldAsync(TimeProvider clock, params string[] songIds)
+    {
+        await using var context = _database.CreateContext();
+        Assert.True((await new HoldTagSongsHandler(context, clock)
+            .Handle(new HoldTagSongsCommand(songIds), CancellationToken.None)).IsOk);
+    }
+
+    private async Task<Song> ReloadAsync(string songId)
+    {
+        await using var context = _database.CreateContext();
+        return (await context.Songs.FindAsync(songId))!;
+    }
 
     [Theory]
     [InlineData(null, TagTiers.Weak)]              // never rated -> cheap tier
@@ -417,5 +436,166 @@ public class GetPendingTagSongsHandlerTest : IDisposable
         Assert.Equal(128, result.MeasuredBpm);
         Assert.Equal(2019, result.OriginalReleaseYear);
         Assert.Equal("la la", result.PlainLyrics);
+    }
+
+    // ── The funnel's declared models (shuffull-workspace#36) ──────────────────────────────────────────────────
+
+    [Fact]
+    public async Task FunnelStrongModelWeakerThanTheSitesConfig_LikedSongsAtThatModelAreNotOffered()
+    {
+        // The site's config targets a stronger model than the funnel runs. Judged against the config, a liked song
+        // already at the funnel's strong model looks behind, is handed out, and every write is refused
+        // (TagUpgradeRule) — once an hour, forever. Judged against what the funnel declares, it is done.
+        var config = Config(weak: "weak-model", strong: "frontier-model");
+        var atFunnelStrong = await SeedAsync(tagModel: "strong-model", like: LikeStatus.Like);
+        var belowFunnelStrong = await SeedAsync(tagModel: "weak-model", like: LikeStatus.Like);
+
+        var response = (await RunAsync(config: config, weakModel: "weak-model", strongModel: "strong-model")).Get();
+
+        var offered = Assert.Single(response.Songs);
+        Assert.Equal(belowFunnelStrong.SongId, offered.SongId);
+        Assert.Equal(TagTiers.Strong, offered.Tier);
+        Assert.DoesNotContain(response.Songs, s => s.SongId == atFunnelStrong.SongId);
+        Assert.Equal(1, response.Remaining);
+    }
+
+    [Fact]
+    public async Task AFunnelThatDeclaresNothing_IsJudgedAgainstTheSitesConfig_AsBefore()
+    {
+        // Today's prod funnel sends no models. It must see exactly today's queue. Its poll still counts as healthy
+        // for the model alert, so one raised by a newer funnel clears if the funnel is rolled back.
+        var config = Config(weak: "weak-model", strong: "frontier-model");
+        var liked = await SeedAsync(tagModel: "strong-model", like: LikeStatus.Like);
+
+        var response = (await RunAsync(config: config)).Get();
+
+        Assert.Equal(liked.SongId, Assert.Single(response.Songs).SongId);
+        Assert.Contains(ShuffullSignalRules.PendingTagsModels, _signals.Successes);
+        Assert.Empty(_signals.Failures);
+    }
+
+    [Fact]
+    public async Task ATierTheFunnelLeavesOut_FallsBackToTheSitesConfig()
+    {
+        // Strong declared, weak not: the weak tier is still judged by the config's weak model, here strong-model,
+        // so a song on weak-model is behind it. With no weak model at all, only untagged songs would be.
+        var weakTagged = await SeedAsync(tagModel: "weak-model");
+
+        var response = (await RunAsync(config: Config(weak: "strong-model", strong: "frontier-model"),
+            strongModel: "strong-model")).Get();
+
+        var offered = Assert.Single(response.Songs);
+        Assert.Equal(weakTagged.SongId, offered.SongId);
+        Assert.Equal(TagTiers.Weak, offered.Tier);
+        Assert.Contains(ShuffullSignalRules.PendingTagsModels, _signals.Successes);
+    }
+
+    [Fact]
+    public async Task ADeclaredModelTheSiteDoesNotKnow_IsRefusedLoudly_AndHandsNothingOut()
+    {
+        // An unregistered model scores 0. Taken at face value that offers the whole library (every song looks
+        // behind); through the fail-safe it would offer nothing while the funnel looks healthy. So: a 400 that names
+        // the model, and a failure signal that alerts, with no hand-out counted against any song.
+        var song = await SeedAsync();
+
+        var result = await RunAsync(weakModel: "weak-model", strongModel: "not-in-the-map");
+
+        Assert.True(result.IsError);
+        Assert.Equal(ErrorKind.Invalid, ResultErrors.KindOf(result.GetError()));
+        Assert.Contains("not-in-the-map", result.GetError().Message);
+        var (key, error) = Assert.Single(_signals.Failures);
+        Assert.Equal(ShuffullSignalRules.PendingTagsModels, key);
+        Assert.Contains("not-in-the-map", error);
+        Assert.Equal(0, (await ReloadAsync(song.SongId)).TagAttempts);
+    }
+
+    [Fact]
+    public async Task ABlankDeclaredModel_CountsAsNotDeclared()
+    {
+        // A funnel config rendering KEY= sends an empty string; that is "no model", not an unknown one.
+        var song = await SeedAsync();
+
+        var response = (await RunAsync(weakModel: " ", strongModel: "")).Get();
+
+        Assert.Equal(song.SongId, Assert.Single(response.Songs).SongId);
+        Assert.Empty(_signals.Failures);
+    }
+
+    // ── Hold reports (shuffull-workspace#36) ─────────────────────────────────────────────────────────────────
+
+    private static readonly TimeSpan FunnelCycle = TimeSpan.FromMinutes(10);
+
+    [Fact]
+    public async Task ASongHeldThreeTimesInARow_IsStillOfferedWithinOneFunnelCycle()
+    {
+        // The funnel holds a song for each of up to three chained AI batches and needs it offered again to queue
+        // the next link. Unreported, those three hand-outs climb the ladder to 20 minutes, past a 10-minute cycle.
+        var clock = new ManualTimeProvider(DateTime.UtcNow);
+        var reported = await SeedAsync(version: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+        var unreported = await SeedAsync(version: new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc));
+
+        for (var hold = 1; hold <= 3; hold++)
+        {
+            var page = (await RunAsync(clock: clock)).Get();
+            Assert.Contains(page.Songs, s => s.SongId == reported.SongId);
+            await HoldAsync(clock, reported.SongId);
+            clock.UtcNow += FunnelCycle;
+        }
+
+        var fourth = (await RunAsync(clock: clock)).Get();
+        Assert.Contains(fourth.Songs, s => s.SongId == reported.SongId);
+        Assert.DoesNotContain(fourth.Songs, s => s.SongId == unreported.SongId); // still on the ladder: 20 min
+        Assert.Equal(1, (await ReloadAsync(reported.SongId)).TagAttempts); // holds don't count as failures
+    }
+
+    [Fact]
+    public async Task MoreHeldSongsThanAPage_YieldToAFreshKeep_AndADueRetry()
+    {
+        // Held songs come back every cycle while their batch runs, and are older than anything new. Each cycle the
+        // funnel holds the whole page again, as it does while a batch is pending.
+        var clock = new ManualTimeProvider(DateTime.UtcNow);
+        var old = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var held = new List<string>();
+        for (var i = 0; i < 3; i++)
+        {
+            held.Add((await SeedAsync(version: old.AddMinutes(i))).SongId);
+        }
+        var first = (await RunAsync(limit: 3, clock: clock)).Get();
+        Assert.Equal(held, first.Songs.Select(s => s.SongId));
+        await HoldAsync(clock, [.. held]);
+
+        // A failed hand-out from before, now due again, and a Keep that just arrived, both newer than every held song.
+        var retry = await SeedAsync(version: old.AddDays(1));
+        await using (var context = _database.CreateContext())
+        {
+            var song = (await context.Songs.FindAsync(retry.SongId))!;
+            song.TagAttempts = 2;
+            song.NextTagAttemptAt = clock.UtcNow;
+            await context.SaveChangesAsync();
+        }
+        var keep = await SeedAsync(version: old.AddDays(2));
+        clock.UtcNow += FunnelCycle;
+
+        var next = (await RunAsync(limit: 3, clock: clock)).Get();
+
+        Assert.Equal([retry.SongId, keep.SongId, held[0]], next.Songs.Select(s => s.SongId));
+    }
+
+    [Fact]
+    public async Task AHeldSong_RejoinsTheLine_AnHourAfterItIsDue()
+    {
+        // Behind work asked for within that hour, ahead of anything newer, so neither can starve the other.
+        var clock = new ManualTimeProvider(DateTime.UtcNow);
+        var held = await SeedAsync(version: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+        Assert.Equal(held.SongId, Assert.Single((await RunAsync(limit: 1, clock: clock)).Get().Songs).SongId);
+        await HoldAsync(clock, held.SongId);
+        var place = clock.UtcNow + GetPendingTagSongsHandler.FirstRetryDelay + GetPendingTagSongsHandler.MaxRetryDelay;
+        var askedJustBefore = await SeedAsync(version: place.AddMinutes(-1));
+        var askedJustAfter = await SeedAsync(version: place.AddMinutes(1));
+        clock.UtcNow += FunnelCycle;
+
+        var page = (await RunAsync(limit: 3, clock: clock)).Get();
+
+        Assert.Equal([askedJustBefore.SongId, held.SongId, askedJustAfter.SongId], page.Songs.Select(s => s.SongId));
     }
 }
