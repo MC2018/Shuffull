@@ -821,9 +821,8 @@ public partial class SongImportService : BackgroundService
             song.OnsetsPerSecond = songImport.OnsetsPerSecond;
             song.OriginalReleaseYear = songImport.OriginalReleaseYear;
 
-            // Swap the tag/artist joins; add any new master Artist/Tag rows. Remove first (+ save) so the new
-            // master rows exist before their joins reference them and the deleted joins can't collide. Tags are got
-            // or created by name, as in ImportToDbCoreAsync, so a name created since the split is reused.
+            // Swap the tag/artist joins. New Artist rows are added and saved, with the old joins removed, before the
+            // new joins reference them. Tags come from TagStore, which reuses a name created since the split.
             var tags = await TagStore.GetOrCreateAsync(dbContext, existingTags.Concat(newTags), cancellationToken);
             dbContext.SongTags.RemoveRange(song.SongTags);
             dbContext.SongArtists.RemoveRange(song.SongArtists);
