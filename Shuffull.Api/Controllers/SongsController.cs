@@ -32,13 +32,11 @@ namespace Shuffull.Api.Controllers;
 public class SongsController : ControllerBase
 {
     private readonly IMediator _mediator;
-    private readonly IConfiguration _configuration;
     private readonly IHealthSignals _signals;
 
-    public SongsController(IMediator mediator, IConfiguration configuration, IHealthSignals signals)
+    public SongsController(IMediator mediator, IHealthSignals signals)
     {
         _mediator = mediator;
-        _configuration = configuration;
         _signals = signals;
     }
 
@@ -116,16 +114,11 @@ public class SongsController : ControllerBase
     /// read-only: every song returned counts an attempt and is held back until its retry delay passes.
     /// </summary>
     [HttpGet("pending-tags")]
+    [ProducerKey]
     public async Task<IActionResult> GetPendingTagSongs(
         [FromQuery] int limit,
-        [FromHeader(Name = "X-Import-Key")] string? importKey,
         CancellationToken cancellationToken)
     {
-        if (!IsProducer(importKey))
-        {
-            return Unauthorized();
-        }
-
         // Proves the funnel is still asking for work; an hour without it alerts (Shuffull#75). Throttled to a write a minute.
         await _signals.SuccessAsync(ShuffullSignalRules.PendingTagsPoll, cancellationToken);
         return this.ToActionResult(await _mediator.Send(new GetPendingTagSongsQuery(limit), cancellationToken));
@@ -136,19 +129,12 @@ public class SongsController : ControllerBase
     /// never exported (the pre-funnel library, manual imports). Shared-secret guarded.
     /// </summary>
     [HttpGet("library")]
+    [ProducerKey]
     public async Task<IActionResult> GetLibrarySongs(
         [FromQuery] string? after,
         [FromQuery] int limit,
-        [FromHeader(Name = "X-Import-Key")] string? importKey,
         CancellationToken cancellationToken)
-    {
-        if (!IsProducer(importKey))
-        {
-            return Unauthorized();
-        }
-
-        return this.ToActionResult(await _mediator.Send(new GetLibrarySongsQuery(after, limit), cancellationToken));
-    }
+        => this.ToActionResult(await _mediator.Send(new GetLibrarySongsQuery(after, limit), cancellationToken));
 
     /// <summary>
     /// Producer: write back the tags an external engine generated, stamped with the model that produced them.
@@ -156,26 +142,14 @@ public class SongsController : ControllerBase
     /// <see cref="ApplySongTagsCommand"/> for why this is not UpdateSong.
     /// </summary>
     [HttpPost("{songId}/tags")]
+    [ProducerKey]
     public async Task<IActionResult> ApplySongTags(
         string songId,
         [FromBody] ApplySongTagsRequest request,
-        [FromHeader(Name = "X-Import-Key")] string? importKey,
         CancellationToken cancellationToken)
     {
-        if (!IsProducer(importKey))
-        {
-            return Unauthorized();
-        }
-
         return this.ToActionResult(
             await _mediator.Send(new ApplySongTagsCommand(songId, request.Tags, request.TagModel, request.TagRevision), cancellationToken));
-    }
-
-    /// <summary>Shared secret shared with the producer, same key the import/rating queues use.</summary>
-    private bool IsProducer(string? importKey)
-    {
-        var expected = _configuration["Shuffull:Import:Key"];
-        return !string.IsNullOrEmpty(expected) && importKey == expected;
     }
 
     /// <summary>

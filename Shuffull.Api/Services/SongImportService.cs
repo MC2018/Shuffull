@@ -1,5 +1,4 @@
-﻿using FluentAssertions.Common;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using Nut.Results;
 using Shuffull.Shared.Enums;
@@ -110,7 +109,7 @@ public partial class SongImportService : BackgroundService
         var result = await ImportSongAsync(songImport, cancellationToken);
         if (result.IsError)
         {
-            Console.WriteLine($"Error importing song from SongImport {songImport.SongImportId}: {result.GetError()}");
+            _logger.LogError(result.GetError(), "Error importing song from SongImport {SongImportId}", songImport.SongImportId);
         }
         return true;
     }
@@ -349,7 +348,7 @@ public partial class SongImportService : BackgroundService
                     : songImportDb.SetState(songImportState);
                 if (setStateResult.IsError)
                 {
-                    Console.WriteLine($"(Should never happen) Failed to set state for SongImport {songImport.SongImportId}: {setStateResult.GetError()}");
+                    _logger.LogError(setStateResult.GetError(), "(Should never happen) Failed to set state for SongImport {SongImportId}", songImport.SongImportId);
                 }
                 if (resolvedSongId != null)
                 {
@@ -884,7 +883,7 @@ public partial class SongImportService : BackgroundService
             var deleteResult = await _fileStorageService.DeleteFileAsync(path, cancellationToken);
             if (deleteResult.IsError)
             {
-                Console.WriteLine($"Warning: failed to delete replaced song file '{path}': {deleteResult.GetError()}");
+                _logger.LogWarning(deleteResult.GetError(), "Failed to delete replaced song file {Path}", path);
             }
         }
     }

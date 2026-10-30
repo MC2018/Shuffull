@@ -1,5 +1,4 @@
-﻿using FluentAssertions.Common;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using Nut.Results;
 using Shuffull.Shared.Tools;

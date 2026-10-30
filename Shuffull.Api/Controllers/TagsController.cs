@@ -1,6 +1,5 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using Shuffull.Core.Features.Tags.AddTagToSong;
 using Shuffull.Core.Features.Tags.GetAllTags;
 using Shuffull.Api.Extensions;
 using Shuffull.Api.Tools.Authorization;
@@ -27,12 +26,5 @@ public class TagsController : ControllerBase
     public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
     {
         return this.ToActionResult(await _mediator.Send(new GetAllTagsQuery(), cancellationToken));
-    }
-
-    [HttpPost("{tagId}/songs")]
-    [Authorize]
-    public async Task<IActionResult> AddToSong(string tagId, [FromQuery] string songId, CancellationToken cancellationToken)
-    {
-        return this.ToActionResult(await _mediator.Send(new AddTagToSongCommand(songId, tagId), cancellationToken));
     }
 }
