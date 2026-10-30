@@ -227,10 +227,10 @@ public partial class SongImportService : BackgroundService
             //Generate tags for the song
             var artistNames = existingArtists.Select(x => x.Name).Concat(newArtists.Select(x => x.Name)).ToList();
             var generateTagsResult = await GetGeneratedSongTagsAsync(songImport, artistNames, fileHash, cancellationToken);
-            List<Tag> existingTags, newTags;
+            List<Tag> tags;
             if (!generateTagsResult.IsError)
             {
-                (existingTags, newTags) = generateTagsResult.Get();
+                tags = generateTagsResult.Get();
             }
             else
             {
@@ -244,7 +244,7 @@ public partial class SongImportService : BackgroundService
                     default:
                         _logger.LogWarning("Importing SongImport {SongImportId} without tags after {Attempts} failed attempts: {Error}",
                             songImport.SongImportId, SongImport.MaxTagAttempts, generateTagsResult.GetError().Message);
-                        (existingTags, newTags) = (new List<Tag>(), new List<Tag>());
+                        tags = new List<Tag>();
                         break;
                 }
             }
@@ -274,7 +274,7 @@ public partial class SongImportService : BackgroundService
             {
                 // Replace an existing song in place: overwrite its content + tags but keep its id and every user
                 // association (likes, playlists, recently-played). Old fileHash-keyed files are cleaned up after.
-                var replaceResult = await ReplaceInDbAsync(songImport, fileHash, fileExtension, lyrics, generatedTags, existingArtists, newArtists, existingTags, newTags, linkToExistingSong, cancellationToken);
+                var replaceResult = await ReplaceInDbAsync(songImport, fileHash, fileExtension, lyrics, generatedTags, existingArtists, newArtists, tags, linkToExistingSong, cancellationToken);
                 if (replaceResult.IsError)
                 {
                     return replaceResult.PreserveErrorAs();
@@ -307,7 +307,7 @@ public partial class SongImportService : BackgroundService
                     // incl. a file-cached response) stamp our own strong model so the song isn't forever "stale".
                     TagModel = !string.IsNullOrWhiteSpace(songImport.GeneratedTagsJson)
                         ? songImport.TagModel
-                        : (existingTags.Count + newTags.Count > 0 ? _selfTagModelName : null),
+                        : (tags.Count > 0 ? _selfTagModelName : null),
                     TagRevision = ImportedTagRevision(songImport),
                     MeasuredBpm = songImport.MeasuredBpm,
                     LoudnessRangeLu = songImport.LoudnessRangeLu,
@@ -320,7 +320,7 @@ public partial class SongImportService : BackgroundService
                     Version = DateTime.UtcNow
                 };
                 var likeStatus = ImportedLikeStatus(songImport);
-                var importToDbResult = await ImportToDbAsync(song, existingArtists, newArtists, existingTags, newTags, songImport.UserId, songImport.PlaylistId, songImport.TargetPlaylistName, likeStatus, cancellationToken);
+                var importToDbResult = await ImportToDbAsync(song, existingArtists, newArtists, tags, songImport.UserId, songImport.PlaylistId, songImport.TargetPlaylistName, likeStatus, cancellationToken);
                 if (importToDbResult.IsError)
                 {
                     return importToDbResult;
@@ -480,13 +480,13 @@ public partial class SongImportService : BackgroundService
         return Result.Ok();
     }
 
-    private async Task<Result<Tuple<List<Tag>, List<Tag>>>> GetGeneratedSongTagsAsync(SongImport songImport, List<string> artistNames, string fileHash, CancellationToken cancellationToken = default!)
+    private async Task<Result<List<Tag>>> GetGeneratedSongTagsAsync(SongImport songImport, List<string> artistNames, string fileHash, CancellationToken cancellationToken = default!)
     {
         // Exploratory imports arrive untagged on purpose - the user auditions them first, and a keep triggers a
         // re-tag (SongEnrichmentService) that adds real tags + clears the flag. Spend no AI (producer or self).
         if (songImport.Exploratory)
         {
-            return Result.Ok(Tuple.Create(new List<Tag>(), new List<Tag>()));
+            return Result.Ok(new List<Tag>());
         }
 
         using var scope = _services.CreateScope();
@@ -504,22 +504,16 @@ public partial class SongImportService : BackgroundService
             var producerTags = JsonConvert.DeserializeObject<GeneratedSongTags>(songImport.GeneratedTagsJson);
             if (producerTags != null)
             {
-                var knownTags = await dbContext.Tags.AsNoTracking().ToListAsync(cancellationToken);
-                var produced = producerTags.ToTagList();
-                var existing = knownTags.Where(x => produced.Any(y => y.Name == x.Name)).ToList();
-                var fresh = produced.Where(x => knownTags.All(y => y.Name != x.Name)).ToList();
-                return Result.Ok(Tuple.Create(existing, fresh));
+                return Result.Ok(producerTags.ToTagList());
             }
         }
 
-        var allTags = await dbContext.Tags.AsNoTracking().ToListAsync(cancellationToken);
         var allGenres = await dbContext.Genres
             .AsNoTracking()
             .Include(x => x.GenreRelationsAsMain)
             .ThenInclude(x => x.SubGenre)
             .ToListAsync(cancellationToken); // TODO: specification, you need genre relations as main here
         GeneratedSongTags? generatedSongTags = null;
-        List<Tag> existingTags, newTags;
 
         // Load in existing tags if saved before
         var aiResponseFilePath = Path.Combine(_fileConfig.SavedAiResponsesDirectory, $"{fileHash}.json");
@@ -538,7 +532,7 @@ public partial class SongImportService : BackgroundService
             var mainGenresResult = await aiService.GenerateMainGenresAsync(mainGenresRequest, cancellationToken);
             if (mainGenresResult.IsError)
             {
-                return mainGenresResult.PreserveErrorAs<Tuple<List<Tag>, List<Tag>>>();
+                return mainGenresResult.PreserveErrorAs<List<Tag>>();
             }
             var mainGenresResponse = mainGenresResult.Get();
 
@@ -549,7 +543,7 @@ public partial class SongImportService : BackgroundService
             var subGenresResult = await aiService.GenerateSubGenresAsync(subGenresRequest, cancellationToken);
             if (subGenresResult.IsError)
             {
-                return subGenresResult.PreserveErrorAs<Tuple<List<Tag>, List<Tag>>>();
+                return subGenresResult.PreserveErrorAs<List<Tag>>();
             }
             var subGenresResponse = subGenresResult.Get();
 
@@ -558,7 +552,7 @@ public partial class SongImportService : BackgroundService
             var otherSongDetailsResult = await aiService.GenerateOtherSongDetailsAsync(otherSongDetailsRequest, cancellationToken);
             if (otherSongDetailsResult.IsError)
             {
-                return otherSongDetailsResult.PreserveErrorAs<Tuple<List<Tag>, List<Tag>>>();
+                return otherSongDetailsResult.PreserveErrorAs<List<Tag>>();
             }
             var otherSongDetailsResponse = otherSongDetailsResult.Get();
 
@@ -567,24 +561,21 @@ public partial class SongImportService : BackgroundService
             await _fileStorageService.UploadSerializableObjectAsync(aiResponseFilePath, generatedSongTags, true, cancellationToken);
         }
 
-        // If no tags generated, return empty lists
+        // If no tags generated, return an empty list
         if (generatedSongTags == null)
         {
-            return Result.Ok(Tuple.Create(new List<Tag>(), new List<Tag>()));
+            return Result.Ok(new List<Tag>());
         }
 
-        var generatedTags = generatedSongTags.ToTagList();
-        existingTags = allTags.Where(x => generatedTags.Select(y => y.Name).Contains(x.Name)).ToList();
-        newTags = generatedTags.Where((x) => !allTags.Select(y => y.Name).Contains(x.Name)).ToList();
-
-        return Result.Ok(Tuple.Create(existingTags, newTags));
+        // Unsaved tags with fresh ids: the write gets or creates each one by name inside its transaction.
+        return Result.Ok(generatedSongTags.ToTagList());
     }
 
-    private async Task<Result> ImportToDbAsync(Song song, List<Artist> existingArtists, List<Artist> newArtists, List<Tag> existingTags, List<Tag> newTags, string userId, string? playlistId, string? playlistName, LikeStatus likeStatus, CancellationToken cancellationToken = default!)
+    private async Task<Result> ImportToDbAsync(Song song, List<Artist> existingArtists, List<Artist> newArtists, List<Tag> wantedTags, string userId, string? playlistId, string? playlistName, LikeStatus likeStatus, CancellationToken cancellationToken = default!)
     {
         using var scope = _services.CreateScope();
         using var dbContext = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
-        return await ImportToDbCoreAsync(dbContext, song, existingArtists, newArtists, existingTags, newTags, userId, playlistId, playlistName, likeStatus, cancellationToken);
+        return await ImportToDbCoreAsync(dbContext, song, existingArtists, newArtists, wantedTags, userId, playlistId, playlistName, likeStatus, cancellationToken);
     }
 
     /// <summary>
@@ -593,7 +584,7 @@ public partial class SongImportService : BackgroundService
     /// half can be unit-tested against an in-memory <see cref="ShuffullContext"/> without the background host.
     /// Behavior is identical to the original inline body.
     /// </summary>
-    internal static async Task<Result> ImportToDbCoreAsync(ShuffullContext dbContext, Song song, List<Artist> existingArtists, List<Artist> newArtists, List<Tag> existingTags, List<Tag> newTags, string userId, string? playlistId, string? playlistName, LikeStatus likeStatus, CancellationToken cancellationToken = default!)
+    internal static async Task<Result> ImportToDbCoreAsync(ShuffullContext dbContext, Song song, List<Artist> existingArtists, List<Artist> newArtists, List<Tag> wantedTags, string userId, string? playlistId, string? playlistName, LikeStatus likeStatus, CancellationToken cancellationToken = default!)
     {
         using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
@@ -608,11 +599,12 @@ public partial class SongImportService : BackgroundService
             song.Exploratory = false;
         }
 
-        // Add newly generated items to the db. Tags were split into existing and new before the file moved, so a
-        // name another writer has created since is reused here rather than failing the import (Shuffull#82).
+        // Add newly generated items to the db. Tags are got or created by name here, inside the transaction, so a
+        // name another writer created after the tags were generated is reused rather than failing the import
+        // (Shuffull#82).
         dbContext.Songs.Add(song);
         dbContext.Artists.AddRange(newArtists);
-        var tags = await TagStore.GetOrCreateAsync(dbContext, existingTags.Concat(newTags), cancellationToken);
+        var tags = await TagStore.GetOrCreateAsync(dbContext, wantedTags, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         // Add relationships to the db
@@ -773,7 +765,7 @@ public partial class SongImportService : BackgroundService
     /// </summary>
     private async Task<Result<(string OldFileHash, string OldFileExtension)>> ReplaceInDbAsync(
         SongImport songImport, string fileHash, string fileExtension, SongLyrics? lyrics, GeneratedSongTags? generatedTags,
-        List<Artist> existingArtists, List<Artist> newArtists, List<Tag> existingTags, List<Tag> newTags,
+        List<Artist> existingArtists, List<Artist> newArtists, List<Tag> wantedTags,
         bool linkImportTarget, CancellationToken cancellationToken = default!)
     {
         using var scope = _services.CreateScope();
@@ -822,8 +814,8 @@ public partial class SongImportService : BackgroundService
             song.OriginalReleaseYear = songImport.OriginalReleaseYear;
 
             // Swap the tag/artist joins. New Artist rows are added and saved, with the old joins removed, before the
-            // new joins reference them. Tags come from TagStore, which reuses a name created since the split.
-            var tags = await TagStore.GetOrCreateAsync(dbContext, existingTags.Concat(newTags), cancellationToken);
+            // new joins reference them. Tags come from TagStore, which reuses a name another writer created since.
+            var tags = await TagStore.GetOrCreateAsync(dbContext, wantedTags, cancellationToken);
             dbContext.SongTags.RemoveRange(song.SongTags);
             dbContext.SongArtists.RemoveRange(song.SongArtists);
             dbContext.Artists.AddRange(newArtists);

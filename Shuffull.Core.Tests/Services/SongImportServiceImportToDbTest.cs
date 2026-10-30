@@ -57,8 +57,7 @@ public class SongImportServiceImportToDbTest : IDisposable
         string userId,
         List<Artist>? existingArtists = null,
         List<Artist>? newArtists = null,
-        List<Tag>? existingTags = null,
-        List<Tag>? newTags = null,
+        List<Tag>? tags = null,
         string? playlistId = null,
         string? playlistName = null,
         LikeStatus likeStatus = LikeStatus.Neutral)
@@ -67,8 +66,7 @@ public class SongImportServiceImportToDbTest : IDisposable
             song,
             existingArtists ?? new List<Artist>(),
             newArtists ?? new List<Artist>(),
-            existingTags ?? new List<Tag>(),
-            newTags ?? new List<Tag>(),
+            tags ?? new List<Tag>(),
             userId,
             playlistId,
             playlistName,
@@ -87,7 +85,7 @@ public class SongImportServiceImportToDbTest : IDisposable
         // Act
         var result = await ImportAsync(song, user.UserId,
             newArtists: new List<Artist> { newArtist },
-            newTags: new List<Tag> { newTag },
+            tags: new List<Tag> { newTag },
             likeStatus: LikeStatus.Like);
 
         // Assert
@@ -123,7 +121,7 @@ public class SongImportServiceImportToDbTest : IDisposable
         // Act
         var result = await ImportAsync(song, user.UserId,
             existingArtists: new List<Artist> { existingArtist },
-            existingTags: new List<Tag> { existingTag });
+            tags: new List<Tag> { existingTag });
 
         // Assert
         Assert.True(result.IsOk);
@@ -138,7 +136,7 @@ public class SongImportServiceImportToDbTest : IDisposable
     [Fact]
     public async Task ImportToDbCoreAsync_NewTagCreatedByAnotherWriterSinceTheSplit_LinksToThatTag()
     {
-        // The import split its tags before moving the file, and "Klingon" was new then. A curator re-tag committed
+        // "Klingon" was new when the import generated its tags, before moving the file. A curator re-tag committed
         // the same name before the import's write: Tags.Name is unique, so inserting it again used to fail the
         // import with the file already moved (Shuffull#82).
         var user = await SeedUserAsync();
@@ -150,7 +148,7 @@ public class SongImportServiceImportToDbTest : IDisposable
 
         var song = NewSong();
         var result = await ImportAsync(song, user.UserId,
-            newTags: new List<Tag> { new Language { TagId = "import-tag", Name = "Klingon" } });
+            tags: new List<Tag> { new Language { TagId = "import-tag", Name = "Klingon" } });
 
         Assert.True(result.IsOk);
         var tag = await _database.Context.Tags.AsNoTracking().SingleAsync(t => t.Name == "Klingon");

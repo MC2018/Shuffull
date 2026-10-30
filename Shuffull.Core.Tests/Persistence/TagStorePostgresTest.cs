@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Shuffull.Core.Models.Database;
+using Shuffull.Core.Persistence;
 using Shuffull.Core.Tests.Infrastructure;
-using Shuffull.Core.Tools;
 
-namespace Shuffull.Core.Tests.Tools;
+namespace Shuffull.Core.Tests.Persistence;
 
 /// <summary>
 /// Two writers creating the same new tag name at once, against real Postgres where their transactions really overlap

@@ -1,8 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Shuffull.Core.Models.Database;
-using Shuffull.Core.Persistence;
 
-namespace Shuffull.Core.Tools;
+namespace Shuffull.Core.Persistence;
 
 /// <summary>
 /// Gets or creates tags by name, safe against another writer creating the same name at the same time (Shuffull#82).

@@ -1,10 +1,10 @@
 using MediatR;
 using Nut.Results;
 using Shuffull.Core.Models.Database;
+using Shuffull.Core.Persistence;
 using Shuffull.Core.Persistence.Repositories;
 using Shuffull.Core.Persistence.Specifications.Artists;
 using Shuffull.Core.Persistence.Specifications.Songs;
-using Shuffull.Core.Persistence.Specifications.Tags;
 using Shuffull.Shared.Tools;
 
 namespace Shuffull.Core.Features.Songs.UpdateSong;
@@ -14,7 +14,7 @@ namespace Shuffull.Core.Features.Songs.UpdateSong;
 /// sets (reusing shared master rows by name, creating any that don't exist), then bumps <c>Song.Version</c> so
 /// clients re-sync the corrected song. Authorization is handled upstream by the role behavior.
 /// </summary>
-public class UpdateSongHandler(IUnitOfWork unitOfWork) : IRequestHandler<UpdateSongCommand, Result<UpdateSongResponse>>
+public class UpdateSongHandler(IUnitOfWork unitOfWork, ShuffullContext context) : IRequestHandler<UpdateSongCommand, Result<UpdateSongResponse>>
 {
     public async Task<Result<UpdateSongResponse>> Handle(UpdateSongCommand request, CancellationToken cancellationToken)
     {
@@ -41,11 +41,10 @@ public class UpdateSongHandler(IUnitOfWork unitOfWork) : IRequestHandler<UpdateS
             return Result.Error<UpdateSongResponse>(artistsResult.GetError().Message);
         }
 
-        var tagsResult = await ResolveTagsAsync(request.Tags, cancellationToken);
-        if (tagsResult.IsError)
-        {
-            return Result.Error<UpdateSongResponse>(tagsResult.GetError().Message);
-        }
+        // The tag inserts and the song's new joins commit together. UnitOfWork shares this context, so its save runs
+        // inside the transaction.
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        var tags = await ResolveTagsAsync(request.Tags, cancellationToken);
 
         // Replace the join sets wholesale: drop the old links, add fresh ones to the resolved masters. The
         // master Artist/Tag rows are shared, so they are never deleted here — only the song's links to them.
@@ -62,7 +61,7 @@ public class UpdateSongHandler(IUnitOfWork unitOfWork) : IRequestHandler<UpdateS
             }, cancellationToken);
         }
 
-        foreach (var tag in tagsResult.Get())
+        foreach (var tag in tags)
         {
             await unitOfWork.Repository<SongTag>().AddAsync(new SongTag
             {
@@ -81,6 +80,7 @@ public class UpdateSongHandler(IUnitOfWork unitOfWork) : IRequestHandler<UpdateS
             return Result.Error<UpdateSongResponse>(saveResult.GetError().Message);
         }
 
+        await transaction.CommitAsync(cancellationToken);
         return Result.Ok(new UpdateSongResponse(song.SongId, song.Version));
     }
 
@@ -127,45 +127,17 @@ public class UpdateSongHandler(IUnitOfWork unitOfWork) : IRequestHandler<UpdateS
     }
 
     /// <summary>
-    /// Maps the requested (name, type) tags onto master <see cref="Tag"/> rows of the matching TPH subtype,
-    /// reusing an existing row or creating one via <see cref="TagFactory"/>. De-duped by (name, type).
+    /// Maps the requested tags onto master <see cref="Tag"/> rows by name, creating a missing one with its requested TPH
+    /// subtype via <see cref="TagFactory"/>. Names are unique across types (Shuffull#43), so an existing name is reused
+    /// whatever its type: asking for "Romantic" as a Mood links the existing Theme "Romantic" rather than failing.
+    /// <see cref="TagStore"/> also reuses a name another writer creates meanwhile (Shuffull#82).
     /// </summary>
-    private async Task<Result<List<Tag>>> ResolveTagsAsync(IReadOnlyList<SongTagEdit> tags, CancellationToken cancellationToken)
+    private Task<List<Tag>> ResolveTagsAsync(IReadOnlyList<SongTagEdit> tags, CancellationToken cancellationToken)
     {
         var requested = tags
-            .Select(t => new SongTagEdit(t.Name.Trim(), t.Type))
+            .Select(t => (Name: t.Name.Trim(), t.Type))
             .Where(t => t.Name.Length > 0)
-            .Distinct()
-            .ToList();
-
-        var names = requested.Select(t => t.Name).Distinct(StringComparer.Ordinal).ToList();
-        var existingResult = await unitOfWork.Repository<Tag>()
-            .ListAsync(new TagsByNamesSpec(names), cancellationToken);
-        if (existingResult.IsError)
-        {
-            return Result.Error<List<Tag>>(existingResult.GetError().Message);
-        }
-
-        var existing = existingResult.Get();
-        var resolved = new List<Tag>();
-
-        foreach (var edit in requested)
-        {
-            var tag = existing.FirstOrDefault(t => t.Name == edit.Name && t.Type == edit.Type);
-            if (tag is null)
-            {
-                tag = TagFactory.Create(IdGenerator.Generate(), edit.Name, edit.Type);
-                var addResult = await unitOfWork.Repository<Tag>().AddAsync(tag, cancellationToken);
-                if (addResult.IsError)
-                {
-                    return Result.Error<List<Tag>>(addResult.GetError().Message);
-                }
-                existing.Add(tag);
-            }
-
-            resolved.Add(tag);
-        }
-
-        return Result.Ok(resolved);
+            .Select(t => TagFactory.Create(IdGenerator.Generate(), t.Name, t.Type));
+        return TagStore.GetOrCreateAsync(context, requested, cancellationToken);
     }
 }

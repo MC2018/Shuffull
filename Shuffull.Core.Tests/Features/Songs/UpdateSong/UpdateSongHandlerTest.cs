@@ -15,7 +15,7 @@ public class UpdateSongHandlerTest : IDisposable
     public UpdateSongHandlerTest()
     {
         _database = new DatabaseFixture();
-        _handler = new UpdateSongHandler(_database.UnitOfWork);
+        _handler = new UpdateSongHandler(_database.UnitOfWork, _database.Context);
     }
 
     public void Dispose()
@@ -163,6 +163,24 @@ public class UpdateSongHandlerTest : IDisposable
         var theme = await _database.Context.Tags.AsNoTracking().SingleAsync(t => t.Name == "Nighttime");
         Assert.Equal(TagType.Theme, theme.Type);
         Assert.IsType<Theme>(await _database.Context.Tags.SingleAsync(t => t.Name == "Nighttime"));
+    }
+
+    [Fact]
+    public async Task Handle_TagNameThatExistsUnderAnotherType_LinksTheExistingTag()
+    {
+        // Tag names are unique across types (Shuffull#43). Creating a Mood "Romantic" next to the Theme used to fail
+        // the whole edit on the unique index (Shuffull#82).
+        var theme = await SeedTagAsync(new Theme { Name = "Romantic" });
+        var song = await SeedSongAsync(DateTime.UtcNow.AddDays(-1));
+
+        var result = await _handler.Handle(
+            new UpdateSongCommand(song.SongId, "Name", null, null, Artists: [],
+                Tags: [new SongTagEdit("Romantic", TagType.Mood)]),
+            CancellationToken.None);
+
+        Assert.True(result.IsOk, result.IsError ? result.GetError().Message : null);
+        Assert.Equal([("Romantic", TagType.Theme)], await TagsForAsync(song.SongId));
+        Assert.Equal(theme.TagId, (await _database.Context.Tags.AsNoTracking().SingleAsync(t => t.Name == "Romantic")).TagId);
     }
 
     [Fact]
