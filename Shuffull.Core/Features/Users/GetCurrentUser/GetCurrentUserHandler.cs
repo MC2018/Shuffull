@@ -1,5 +1,6 @@
 using MediatR;
 using Nut.Results;
+using Shuffull.Core.Errors;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Dtos;
 using Shuffull.Core.Persistence.Repositories;
@@ -13,13 +14,13 @@ public class GetCurrentUserHandler(IUnitOfWork unitOfWork) : IRequestHandler<Get
         var userResult = await unitOfWork.Repository<User>().GetByIdAsync(request.UserId, cancellationToken);
         if (userResult.IsError)
         {
-            return Result.Error<GetCurrentUserResponse>("User not found.");
+            return Result.Error<GetCurrentUserResponse>(userResult.GetError().NotFoundAs("User not found."));
         }
 
         var dtoResult = UserDto.Create(userResult.Get());
         if (dtoResult.IsError)
         {
-            return Result.Error<GetCurrentUserResponse>(dtoResult.GetError().Message);
+            return Result.Error<GetCurrentUserResponse>(dtoResult.GetError());
         }
 
         return Result.Ok(new GetCurrentUserResponse(dtoResult.Get()));

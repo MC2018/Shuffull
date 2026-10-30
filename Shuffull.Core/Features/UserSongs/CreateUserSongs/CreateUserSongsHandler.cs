@@ -18,7 +18,7 @@ public class CreateUserSongsHandler(IUnitOfWork unitOfWork) : IRequestHandler<Cr
             .ListAsync(new SongsByIdsSpec(request.SongIds.ToList()).AsNoTracking(), cancellationToken);
         if (songsResult.IsError)
         {
-            return Result.Error<CreateUserSongsResponse>(songsResult.GetError().Message);
+            return Result.Error<CreateUserSongsResponse>(songsResult.GetError());
         }
 
         var userSongRepository = unitOfWork.Repository<UserSong>();
@@ -26,7 +26,7 @@ public class CreateUserSongsHandler(IUnitOfWork unitOfWork) : IRequestHandler<Cr
             .ListAsync(new UserSongsByUserAndSongIdsSpec(request.UserId, request.SongIds.ToList()).AsNoTracking(), cancellationToken);
         if (existingResult.IsError)
         {
-            return Result.Error<CreateUserSongsResponse>(existingResult.GetError().Message);
+            return Result.Error<CreateUserSongsResponse>(existingResult.GetError());
         }
 
         var existingSongIds = existingResult.Get().Select(us => us.SongId).ToHashSet();
@@ -50,7 +50,7 @@ public class CreateUserSongsHandler(IUnitOfWork unitOfWork) : IRequestHandler<Cr
             var addResult = await userSongRepository.AddAsync(userSong, cancellationToken);
             if (addResult.IsError)
             {
-                return Result.Error<CreateUserSongsResponse>(addResult.GetError().Message);
+                return Result.Error<CreateUserSongsResponse>(addResult.GetError());
             }
 
             created.Add(userSong);
@@ -61,7 +61,7 @@ public class CreateUserSongsHandler(IUnitOfWork unitOfWork) : IRequestHandler<Cr
             var saveResult = await unitOfWork.SaveChangesAsync(cancellationToken);
             if (saveResult.IsError)
             {
-                return Result.Error<CreateUserSongsResponse>(saveResult.GetError().Message);
+                return Result.Error<CreateUserSongsResponse>(saveResult.GetError());
             }
         }
 
@@ -71,7 +71,7 @@ public class CreateUserSongsHandler(IUnitOfWork unitOfWork) : IRequestHandler<Cr
             var dtoResult = UserSongDto.Create(userSong);
             if (dtoResult.IsError)
             {
-                return Result.Error<CreateUserSongsResponse>(dtoResult.GetError().Message);
+                return Result.Error<CreateUserSongsResponse>(dtoResult.GetError());
             }
 
             dtos.Add(dtoResult.Get());

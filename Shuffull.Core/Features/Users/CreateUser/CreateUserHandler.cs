@@ -1,6 +1,7 @@
 using MediatR;
 using Nut.Results;
 using Shuffull.Core.Authentication;
+using Shuffull.Core.Errors;
 using Shuffull.Core.Features.Users;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Dtos;
@@ -20,12 +21,12 @@ public class CreateUserHandler(IUnitOfWork unitOfWork, IAuthTokenGenerator token
             .AnyAsync(new UserByUsernameSpec(request.Username).AsNoTracking(), cancellationToken);
         if (existsResult.IsError)
         {
-            return Result.Error<AuthSessionResponse>(existsResult.GetError().Message);
+            return Result.Error<AuthSessionResponse>(existsResult.GetError());
         }
 
         if (existsResult.Get())
         {
-            return Result.Error<AuthSessionResponse>($"User '{request.Username}' already exists.");
+            return Result.Error<AuthSessionResponse>(ResultErrors.Conflict($"User '{request.Username}' already exists."));
         }
 
         var user = new User
@@ -39,13 +40,13 @@ public class CreateUserHandler(IUnitOfWork unitOfWork, IAuthTokenGenerator token
         var addResult = await userRepository.AddAsync(user, cancellationToken);
         if (addResult.IsError)
         {
-            return Result.Error<AuthSessionResponse>(addResult.GetError().Message);
+            return Result.Error<AuthSessionResponse>(addResult.GetError());
         }
 
         var saveResult = await unitOfWork.SaveChangesAsync(cancellationToken);
         if (saveResult.IsError)
         {
-            return Result.Error<AuthSessionResponse>(saveResult.GetError().Message);
+            return Result.Error<AuthSessionResponse>(saveResult.GetError());
         }
 
         var token = tokenGenerator.Generate(user);
@@ -53,7 +54,7 @@ public class CreateUserHandler(IUnitOfWork unitOfWork, IAuthTokenGenerator token
         var dtoResult = UserDto.Create(user);
         if (dtoResult.IsError)
         {
-            return Result.Error<AuthSessionResponse>(dtoResult.GetError().Message);
+            return Result.Error<AuthSessionResponse>(dtoResult.GetError());
         }
 
         return Result.Ok(new AuthSessionResponse(dtoResult.Get(), token.Token, token.Expiration));

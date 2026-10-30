@@ -15,7 +15,7 @@ public class GetPlaylistsHandler(IUnitOfWork unitOfWork) : IRequestHandler<GetPl
             .ListAsync(new PlaylistsByUserAndIdsSpec(request.UserId, request.PlaylistIds.ToList()).AsNoTracking(), cancellationToken);
         if (playlistsResult.IsError)
         {
-            return Result.Error<GetPlaylistsResponse>(playlistsResult.GetError().Message);
+            return Result.Error<GetPlaylistsResponse>(playlistsResult.GetError());
         }
 
         var dtos = new List<PlaylistDto>();
@@ -24,7 +24,7 @@ public class GetPlaylistsHandler(IUnitOfWork unitOfWork) : IRequestHandler<GetPl
             var dtoResult = PlaylistDto.Create(playlist);
             if (dtoResult.IsError)
             {
-                return Result.Error<GetPlaylistsResponse>(dtoResult.GetError().Message);
+                return Result.Error<GetPlaylistsResponse>(dtoResult.GetError());
             }
 
             dtos.Add(dtoResult.Get());

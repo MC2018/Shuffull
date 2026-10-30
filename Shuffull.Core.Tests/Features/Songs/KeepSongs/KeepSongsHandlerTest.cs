@@ -5,6 +5,7 @@ using Shuffull.Api.Services;
 using Shuffull.Core.Features.Songs.KeepSongs;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Alerts;
+using Shuffull.Core.Errors;
 using Shuffull.Core.Services;
 using Shuffull.Core.Tests.Infrastructure;
 
@@ -245,13 +246,15 @@ public class KeepSongsHandlerTest : IDisposable
         // Per-item "failed" would read as a verdict on the song; a batch error keeps the app's outbox rows.
         var user = await SeedUserAsync();
         var song = await SeedSongAsync(exploratory: true, owner: user);
-        var spy = new SpyPromotion(Result.Error<int>("database is locked"));
+        var spy = new SpyPromotion(Result.Error<int>(new KindedError(ErrorKind.ServerFault, "database is locked")));
 
         var result = await new KeepSongsHandler(_database.UnitOfWork, spy, _signals)
             .Handle(new KeepSongsCommand(user.UserId, [song.SongId]), CancellationToken.None);
 
         Assert.True(result.IsError);
         Assert.Contains("database is locked", result.GetError().Message);
+        // A 5xx, which the app retries. As a 400 the Keep was dead-lettered after 7 days (Shuffull#41).
+        Assert.Equal(ErrorKind.ServerFault, ResultErrors.KindOf(result.GetError()));
     }
 
     [Fact]

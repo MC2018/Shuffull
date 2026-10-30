@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Nut.Results;
+using Shuffull.Core.Errors;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Persistence;
@@ -139,9 +140,11 @@ public class DeletePlaylistHandler(ShuffullContext context)
         }
         catch (Exception ex)
         {
-            // Disposing the transaction rolls back every statement above, so nothing has been deleted.
+            // Disposing the transaction rolls back every statement above, so nothing has been deleted. A database
+            // fault is a 5xx, so the app's outbox retries the delete; a constraint the purge trips stays a 4xx, since
+            // a retry would trip it again and a 5xx would stop the app's sync on it (Shuffull#41).
             context.ChangeTracker.Clear();
-            return Result.Error<DeletePlaylistResponse>(ex.Message);
+            return Result.Error<DeletePlaylistResponse>(ResultErrors.FromException(ex, ex.Message));
         }
 
         return Result.Ok(new DeletePlaylistResponse(playlistId, Deleted: true, purgedSongIds));

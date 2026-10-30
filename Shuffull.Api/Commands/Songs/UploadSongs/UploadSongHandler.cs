@@ -1,4 +1,5 @@
 using Nut.Results;
+using Shuffull.Core.Errors;
 using Shuffull.Shared.Tools;
 using Shuffull.Api.Configuration;
 using Shuffull.Core.Models.Database;
@@ -27,7 +28,7 @@ public partial class UploadSongHandler(IServiceProvider services)
         var user = context.Users.Where(x => x.UserId == request.UserId).FirstOrDefault();
         if (user == null)
         {
-            return Result.Error("User not found.");
+            return Result.Error(ResultErrors.NotFound("User not found."));
         }
 
         if (request.Files.Any(x => !SupportedFileTypes().IsMatch(x.FileName)))

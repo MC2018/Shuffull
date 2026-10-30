@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
 using Nut.Results;
+using Shuffull.Core.Errors;
 
 namespace Shuffull.Core.Persistence.Repositories;
 
@@ -57,7 +58,7 @@ public class UnitOfWork : IUnitOfWork
         }
         catch (Exception ex)
         {
-            return Result.Error<int>($"Error saving changes: {ex.Message}");
+            return Result.Error<int>(ResultErrors.FromException(ex, $"Error saving changes: {ex.Message}"));
         }
     }
 
@@ -70,7 +71,7 @@ public class UnitOfWork : IUnitOfWork
         }
         catch (Exception ex)
         {
-            return Result.Error($"Error beginning transaction: {ex.Message}");
+            return Result.Error(ResultErrors.FromException(ex, $"Error beginning transaction: {ex.Message}"));
         }
     }
 
@@ -90,7 +91,7 @@ public class UnitOfWork : IUnitOfWork
         catch (Exception ex)
         {
             await RollbackTransactionAsync(cancellationToken);
-            return Result.Error($"Error committing transaction: {ex.Message}");
+            return Result.Error(ResultErrors.FromException(ex, $"Error committing transaction: {ex.Message}"));
         }
         finally
         {
@@ -113,7 +114,7 @@ public class UnitOfWork : IUnitOfWork
         }
         catch (Exception ex)
         {
-            return Result.Error($"Error rolling back transaction: {ex.Message}");
+            return Result.Error(ResultErrors.FromException(ex, $"Error rolling back transaction: {ex.Message}"));
         }
         finally
         {
@@ -132,25 +133,26 @@ public class UnitOfWork : IUnitOfWork
             var actionResult = await action();
             if (actionResult.IsError)
             {
-                return await RollbackAndLogAsync(actionResult.GetError().Message, cancellationToken);
+                return await RollbackAndLogAsync(actionResult.GetError(), cancellationToken);
             }
 
             return await CommitTransactionAsync(cancellationToken);
         }
         catch (Exception ex)
         {
-            return await RollbackAndLogAsync($"Transaction failed: {ex.Message}", cancellationToken);
+            return await RollbackAndLogAsync(ResultErrors.FromException(ex, $"Transaction failed: {ex.Message}"), cancellationToken);
         }
     }
 
-    private async Task<Result> RollbackAndLogAsync(string originalError, CancellationToken cancellationToken)
+    // Keeps the original error's kind: a failed rollback doesn't change whose fault the action's failure was.
+    private async Task<Result> RollbackAndLogAsync(Exception originalError, CancellationToken cancellationToken)
     {
         var rollbackResult = await RollbackTransactionAsync(cancellationToken);
         if (rollbackResult.IsError)
         {
             var rollbackError = rollbackResult.GetError().Message;
-            _logger.LogCritical("Transaction rollback failed after action error. OriginalError={OriginalError} RollbackError={RollbackError}", originalError, rollbackError);
-            return Result.Error($"Action failed: {originalError}; Rollback also failed: {rollbackError}");
+            _logger.LogCritical("Transaction rollback failed after action error. OriginalError={OriginalError} RollbackError={RollbackError}", originalError.Message, rollbackError);
+            return Result.Error(originalError.WithMessage($"Action failed: {originalError.Message}; Rollback also failed: {rollbackError}"));
         }
         return Result.Error(originalError);
     }

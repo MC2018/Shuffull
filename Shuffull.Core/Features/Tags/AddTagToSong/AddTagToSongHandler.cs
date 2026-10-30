@@ -1,5 +1,6 @@
 using MediatR;
 using Nut.Results;
+using Shuffull.Core.Errors;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Persistence.Repositories;
 using Shuffull.Core.Persistence.Specifications.Tags;
@@ -14,13 +15,13 @@ public class AddTagToSongHandler(IUnitOfWork unitOfWork) : IRequestHandler<AddTa
         var tagResult = await unitOfWork.Repository<Tag>().GetByIdAsync(request.TagId, cancellationToken);
         if (tagResult.IsError)
         {
-            return Result.Error<AddTagToSongResponse>("Tag not found.");
+            return Result.Error<AddTagToSongResponse>(tagResult.GetError().NotFoundAs("Tag not found."));
         }
 
         var songResult = await unitOfWork.Repository<Song>().GetByIdAsync(request.SongId, cancellationToken);
         if (songResult.IsError)
         {
-            return Result.Error<AddTagToSongResponse>("Song not found.");
+            return Result.Error<AddTagToSongResponse>(songResult.GetError().NotFoundAs("Song not found."));
         }
 
         var songTagRepository = unitOfWork.Repository<SongTag>();
@@ -28,7 +29,7 @@ public class AddTagToSongHandler(IUnitOfWork unitOfWork) : IRequestHandler<AddTa
             new SongTagSpec(request.SongId, request.TagId).AsNoTracking(), cancellationToken);
         if (existsResult.IsError)
         {
-            return Result.Error<AddTagToSongResponse>(existsResult.GetError().Message);
+            return Result.Error<AddTagToSongResponse>(existsResult.GetError());
         }
 
         // Already tagged: treat as an idempotent no-op success.
@@ -45,13 +46,13 @@ public class AddTagToSongHandler(IUnitOfWork unitOfWork) : IRequestHandler<AddTa
         }, cancellationToken);
         if (addResult.IsError)
         {
-            return Result.Error<AddTagToSongResponse>(addResult.GetError().Message);
+            return Result.Error<AddTagToSongResponse>(addResult.GetError());
         }
 
         var saveResult = await unitOfWork.SaveChangesAsync(cancellationToken);
         if (saveResult.IsError)
         {
-            return Result.Error<AddTagToSongResponse>(saveResult.GetError().Message);
+            return Result.Error<AddTagToSongResponse>(saveResult.GetError());
         }
 
         return Result.Ok(new AddTagToSongResponse(true));

@@ -1,5 +1,6 @@
 using MediatR;
 using Nut.Results;
+using Shuffull.Core.Errors;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Persistence.Repositories;
 using Shuffull.Core.Persistence.Specifications.UserSongs;
@@ -43,7 +44,7 @@ public class KeepSongsHandler(IUnitOfWork unitOfWork, IAuditionPromotionService 
             .ListAsync(new UserSongsByUserAndSongIdsSpec(request.UserId, order), cancellationToken);
         if (userSongsResult.IsError)
         {
-            return Result.Error<KeepSongsResponse>(userSongsResult.GetError().Message);
+            return Result.Error<KeepSongsResponse>(userSongsResult.GetError());
         }
 
         var owned = userSongsResult.Get().Select(us => us.SongId).ToHashSet();
@@ -54,8 +55,8 @@ public class KeepSongsHandler(IUnitOfWork unitOfWork, IAuditionPromotionService 
         var promoteResult = await promotion.PromoteAsync(toPromote, cancellationToken);
         if (promoteResult.IsError)
         {
-            return Result.Error<KeepSongsResponse>(
-                $"Could not record the keep for this batch; no songs were kept. {promoteResult.GetError().Message}");
+            return Result.Error<KeepSongsResponse>(promoteResult.GetError().WithMessage(
+                $"Could not record the keep for this batch; no songs were kept. {promoteResult.GetError().Message}"));
         }
 
         var results = order

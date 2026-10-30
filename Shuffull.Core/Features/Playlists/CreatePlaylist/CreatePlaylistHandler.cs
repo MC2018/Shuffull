@@ -24,19 +24,19 @@ public class CreatePlaylistHandler(IUnitOfWork unitOfWork) : IRequestHandler<Cre
         var addResult = await unitOfWork.Repository<Playlist>().AddAsync(playlist, cancellationToken);
         if (addResult.IsError)
         {
-            return Result.Error<CreatePlaylistResponse>(addResult.GetError().Message);
+            return Result.Error<CreatePlaylistResponse>(addResult.GetError());
         }
 
         var saveResult = await unitOfWork.SaveChangesAsync(cancellationToken);
         if (saveResult.IsError)
         {
-            return Result.Error<CreatePlaylistResponse>(saveResult.GetError().Message);
+            return Result.Error<CreatePlaylistResponse>(saveResult.GetError());
         }
 
         var dtoResult = PlaylistDto.Create(playlist);
         if (dtoResult.IsError)
         {
-            return Result.Error<CreatePlaylistResponse>(dtoResult.GetError().Message);
+            return Result.Error<CreatePlaylistResponse>(dtoResult.GetError());
         }
 
         return Result.Ok(new CreatePlaylistResponse(dtoResult.Get()));

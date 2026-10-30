@@ -1,5 +1,6 @@
 using MediatR;
 using Nut.Results;
+using Shuffull.Core.Errors;
 using Shuffull.Core.Persistence.Repositories;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Dtos;
@@ -15,13 +16,13 @@ public class GetSongHandler(IUnitOfWork unitOfWork) : IRequestHandler<GetSongQue
         var songResult = await songRepository.GetAsync(new SongByIdSpec(request.SongId).AsNoTracking(), cancellationToken);
         if (songResult.IsError)
         {
-            return Result.Error<GetSongResponse>($"Song with ID {request.SongId} not found.");
+            return Result.Error<GetSongResponse>(songResult.GetError().NotFoundAs($"Song with ID {request.SongId} not found."));
         }
 
         var songDtoResult = SongDto.Create(songResult.Get());
         if (songDtoResult.IsError)
         {
-            return Result.Error<GetSongResponse>(songDtoResult.GetError().Message);
+            return Result.Error<GetSongResponse>(songDtoResult.GetError());
         }
 
         return Result.Ok(new GetSongResponse(songDtoResult.Get()));

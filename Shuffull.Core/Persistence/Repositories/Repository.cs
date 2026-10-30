@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Nut.Results;
+using Shuffull.Core.Errors;
 using Shuffull.Core.Persistence.Specifications;
 
 namespace Shuffull.Core.Persistence.Repositories;
@@ -28,14 +29,14 @@ public class Repository<T> : IRepository<T> where T : class
 
             if (entity == null)
             {
-                return Result.Error<T>($"Entity with ID {id} not found.");
+                return Result.Error<T>(ResultErrors.NotFound($"Entity with ID {id} not found."));
             }
 
             return Result.Ok(entity);
         }
         catch (Exception ex)
         {
-            return Result.Error<T>($"Error retrieving entity by ID: {ex.Message}");
+            return Result.Error<T>(ResultErrors.FromException(ex, $"Error retrieving entity by ID: {ex.Message}"));
         }
     }
 
@@ -47,14 +48,14 @@ public class Repository<T> : IRepository<T> where T : class
 
             if (entity == null)
             {
-                return Result.Error<T>("Entity not found.");
+                return Result.Error<T>(ResultErrors.NotFound("Entity not found."));
             }
 
             return Result.Ok(entity);
         }
         catch (Exception ex)
         {
-            return Result.Error<T>($"Error retrieving entity: {ex.Message}");
+            return Result.Error<T>(ResultErrors.FromException(ex, $"Error retrieving entity: {ex.Message}"));
         }
     }
 
@@ -67,7 +68,7 @@ public class Repository<T> : IRepository<T> where T : class
         }
         catch (Exception ex)
         {
-            return Result.Error<List<T>>($"Error retrieving entities: {ex.Message}");
+            return Result.Error<List<T>>(ResultErrors.FromException(ex, $"Error retrieving entities: {ex.Message}"));
         }
     }
 
@@ -80,7 +81,7 @@ public class Repository<T> : IRepository<T> where T : class
         }
         catch (Exception ex)
         {
-            return Result.Error<List<T>>($"Error retrieving all entities: {ex.Message}");
+            return Result.Error<List<T>>(ResultErrors.FromException(ex, $"Error retrieving all entities: {ex.Message}"));
         }
     }
 
@@ -93,7 +94,7 @@ public class Repository<T> : IRepository<T> where T : class
         }
         catch (Exception ex)
         {
-            return Result.Error<int>($"Error counting entities: {ex.Message}");
+            return Result.Error<int>(ResultErrors.FromException(ex, $"Error counting entities: {ex.Message}"));
         }
     }
 
@@ -106,7 +107,7 @@ public class Repository<T> : IRepository<T> where T : class
         }
         catch (Exception ex)
         {
-            return Result.Error<bool>($"Error checking entity existence: {ex.Message}");
+            return Result.Error<bool>(ResultErrors.FromException(ex, $"Error checking entity existence: {ex.Message}"));
         }
     }
 
@@ -119,7 +120,7 @@ public class Repository<T> : IRepository<T> where T : class
         }
         catch (Exception ex)
         {
-            return Result.Error<T>($"Error adding entity: {ex.Message}");
+            return Result.Error<T>(ResultErrors.FromException(ex, $"Error adding entity: {ex.Message}"));
         }
     }
 
@@ -132,7 +133,7 @@ public class Repository<T> : IRepository<T> where T : class
         }
         catch (Exception ex)
         {
-            return Result.Error($"Error updating entity: {ex.Message}");
+            return Result.Error(ResultErrors.FromException(ex, $"Error updating entity: {ex.Message}"));
         }
     }
 
@@ -145,7 +146,7 @@ public class Repository<T> : IRepository<T> where T : class
         }
         catch (Exception ex)
         {
-            return Result.Error($"Error deleting entity: {ex.Message}");
+            return Result.Error(ResultErrors.FromException(ex, $"Error deleting entity: {ex.Message}"));
         }
     }
 
@@ -158,7 +159,7 @@ public class Repository<T> : IRepository<T> where T : class
         }
         catch (Exception ex)
         {
-            return Result.Error($"Error deleting entities: {ex.Message}");
+            return Result.Error(ResultErrors.FromException(ex, $"Error deleting entities: {ex.Message}"));
         }
     }
 

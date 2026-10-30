@@ -15,7 +15,7 @@ public class GetUserSongsHandler(IUnitOfWork unitOfWork) : IRequestHandler<GetUs
             .ListAsync(new UserSongsByUserAfterDateSpec(request.UserId, request.AfterDate, request.AfterId).AsNoTracking(), cancellationToken);
         if (userSongsResult.IsError)
         {
-            return Result.Error<GetUserSongsResponse>(userSongsResult.GetError().Message);
+            return Result.Error<GetUserSongsResponse>(userSongsResult.GetError());
         }
 
         var userSongs = userSongsResult.Get();
@@ -31,7 +31,7 @@ public class GetUserSongsHandler(IUnitOfWork unitOfWork) : IRequestHandler<GetUs
             var dtoResult = UserSongDto.Create(userSong);
             if (dtoResult.IsError)
             {
-                return Result.Error<GetUserSongsResponse>(dtoResult.GetError().Message);
+                return Result.Error<GetUserSongsResponse>(dtoResult.GetError());
             }
 
             dtos.Add(dtoResult.Get());

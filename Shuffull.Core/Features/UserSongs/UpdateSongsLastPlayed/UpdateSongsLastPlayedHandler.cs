@@ -1,5 +1,6 @@
 using MediatR;
 using Nut.Results;
+using Shuffull.Core.Errors;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Persistence.Repositories;
 using Shuffull.Core.Persistence.Specifications.UserSongs;
@@ -19,7 +20,7 @@ public class UpdateSongsLastPlayedHandler(IUnitOfWork unitOfWork) : IRequestHand
             .ListAsync(new UserSongsByUserAndSongIdsSpec(request.UserId, songIds), cancellationToken);
         if (userSongsResult.IsError)
         {
-            return Result.Error<UpdateSongsLastPlayedResponse>(userSongsResult.GetError().Message);
+            return Result.Error<UpdateSongsLastPlayedResponse>(userSongsResult.GetError());
         }
 
         // No matching play records is NOT a client error: the ids are simply songs this user has none for --
@@ -58,7 +59,7 @@ public class UpdateSongsLastPlayedHandler(IUnitOfWork unitOfWork) : IRequestHand
             var userResult = await unitOfWork.Repository<User>().GetByIdAsync(request.UserId, cancellationToken);
             if (userResult.IsError)
             {
-                return Result.Error<UpdateSongsLastPlayedResponse>("User not found.");
+                return Result.Error<UpdateSongsLastPlayedResponse>(userResult.GetError().NotFoundAs("User not found."));
             }
 
             userResult.Get().Version = now;
@@ -66,7 +67,7 @@ public class UpdateSongsLastPlayedHandler(IUnitOfWork unitOfWork) : IRequestHand
             var saveResult = await unitOfWork.SaveChangesAsync(cancellationToken);
             if (saveResult.IsError)
             {
-                return Result.Error<UpdateSongsLastPlayedResponse>(saveResult.GetError().Message);
+                return Result.Error<UpdateSongsLastPlayedResponse>(saveResult.GetError());
             }
         }
 
