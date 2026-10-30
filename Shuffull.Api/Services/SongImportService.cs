@@ -16,7 +16,6 @@ using Shuffull.Core.Models.Files;
 using Shuffull.Api.Services.FileStorage;
 using Shuffull.Api.Tools;
 using Shuffull.Api.Tools.SongParsing;
-using SkiaSharp;
 using System.ComponentModel.DataAnnotations;
 using System.Text.RegularExpressions;
 using Tag = Shuffull.Core.Models.Database.Tag;
@@ -439,47 +438,18 @@ public partial class SongImportService : BackgroundService
 
     private async Task<Result> SaveAlbumArtAsync(TagLib.File musicFile, string fileHash, CancellationToken cancellationToken = default!)
     {
-        SKBitmap newAlbumArt;
         var resolution = 512;
+        var picture = musicFile.Tag.Pictures.FirstOrDefault();
+        var imageBytes = picture != null && _mimeImageExtensions.Contains(picture.MimeType) ? picture.Data.Data : null;
 
-        if (musicFile.Tag.Pictures.Length > 0)
+        var jpegResult = ImageManipulator.ToAlbumArtJpeg(imageBytes, resolution);
+        if (jpegResult.IsError)
         {
-            var picture = musicFile.Tag.Pictures[0];
-            var mimeType = picture.MimeType;
-
-            if (_mimeImageExtensions.Contains(mimeType))
-            {
-                var rawAlbumArt = SKBitmap.Decode(picture.Data.Data)
-                    ?? throw new InvalidDataException($"Album art ({mimeType}) could not be decoded.");
-
-                if (rawAlbumArt.Width != resolution || rawAlbumArt.Height != resolution)
-                {
-                    using (rawAlbumArt)
-                    {
-                        newAlbumArt = ImageManipulator.ResizeWithPadding(rawAlbumArt, resolution, resolution);
-                    }
-                }
-                else
-                {
-                    newAlbumArt = rawAlbumArt;
-                }
-            }
-            else
-            {
-                newAlbumArt = ImageManipulator.GenerateDefaultImage(resolution, resolution);
-            }
-        }
-        else
-        {
-            newAlbumArt = ImageManipulator.GenerateDefaultImage(resolution, resolution);
+            return Result.Error($"{jpegResult.GetError().Message} ({picture?.MimeType})");
         }
 
-        using var albumArt = newAlbumArt;
         var outputFilePath = Path.Combine(_fileConfig.AlbumArtDirectory, $"{fileHash}.jpg");
-        using var stream = new MemoryStream();
-        // Quality 75 is what ImageSharp's JpegEncoder defaulted to before the swap.
-        albumArt.Encode(stream, SKEncodedImageFormat.Jpeg, 75);
-        stream.Position = 0; // Reset position
+        using var stream = new MemoryStream(jpegResult.Get());
         await _fileStorageService.UploadFileAsync(outputFilePath, stream, true, cancellationToken);
         return Result.Ok();
     }

@@ -10,11 +10,12 @@ COPY Shuffull.Api/Shuffull.Api.csproj         Shuffull.Api/
 COPY Shuffull.Core/Shuffull.Core.csproj       Shuffull.Core/
 COPY Shuffull.Shared/Shuffull.Shared.csproj   Shuffull.Shared/
 COPY Shuffull.Metadata/Shuffull.Metadata.csproj Shuffull.Metadata/
-RUN dotnet restore "Shuffull.Api/Shuffull.Api.csproj"
+# linux-x64 only: without a RID, SkiaSharp's native libraries for every platform (~120MB) land in /app.
+RUN dotnet restore "Shuffull.Api/Shuffull.Api.csproj" -r linux-x64
 
 # Copy the rest of the source and publish.
 COPY ./ ./
-RUN dotnet publish "Shuffull.Api/Shuffull.Api.csproj" -c Release -o /app --no-restore
+RUN dotnet publish "Shuffull.Api/Shuffull.Api.csproj" -c Release -r linux-x64 --self-contained false -o /app --no-restore
 
 # ---- Runtime stage ----
 FROM mcr.microsoft.com/dotnet/aspnet:8.0

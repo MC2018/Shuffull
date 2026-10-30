@@ -1,3 +1,4 @@
+using Nut.Results;
 using Shuffull.Api.Tools;
 using SkiaSharp;
 
@@ -77,19 +78,66 @@ public class ImageManipulatorTest
     }
 
     [Fact]
-    public void AlbumArt_RoundTripsThroughJpeg()
+    public void ToAlbumArtJpeg_PadsNonSquareArtToASquareJpeg()
     {
-        // SongImportService decodes embedded art, pads it to 512x512 and stores it as JPEG.
-        using var source = Solid(300, 300, SKColors.Blue);
+        using var source = Solid(600, 300, SKColors.Blue);
         using var png = source.Encode(SKEncodedImageFormat.Png, 100);
-        using var decoded = SKBitmap.Decode(png.ToArray());
 
-        using var result = ImageManipulator.ResizeWithPadding(decoded, 512, 512);
-        using var jpeg = result.Encode(SKEncodedImageFormat.Jpeg, 75);
-        using var reread = SKBitmap.Decode(jpeg.ToArray());
+        using var art = DecodeJpeg(ImageManipulator.ToAlbumArtJpeg(png.ToArray(), 512).Get());
 
-        Assert.Equal(512, reread.Width);
-        Assert.True(reread.GetPixel(256, 256).Blue > 200);
+        Assert.Equal(512, art.Width);
+        Assert.Equal(512, art.Height);
+        Assert.True(art.GetPixel(256, 256).Blue > 200);
+        Assert.True(art.GetPixel(256, 60).Blue < 30, "the padding above wide art should be black");
+    }
+
+    [Fact]
+    public void ToAlbumArtJpeg_KeepsArtAlreadyAtTheResolution()
+    {
+        using var source = Solid(512, 512, SKColors.Red);
+        using var png = source.Encode(SKEncodedImageFormat.Png, 100);
+
+        using var art = DecodeJpeg(ImageManipulator.ToAlbumArtJpeg(png.ToArray(), 512).Get());
+
+        Assert.Equal(512, art.Width);
+        Assert.True(art.GetPixel(0, 0).Red > 200, "art that is already square should not be padded");
+    }
+
+    [Fact]
+    public void ToAlbumArtJpeg_PutsTransparentArtOnBlack()
+    {
+        using var source = new SKBitmap(512, 512, SKColorType.Rgba8888, SKAlphaType.Unpremul);
+        source.Erase(SKColors.White.WithAlpha(0));
+        using var png = source.Encode(SKEncodedImageFormat.Png, 100);
+
+        using var art = DecodeJpeg(ImageManipulator.ToAlbumArtJpeg(png.ToArray(), 512).Get());
+
+        Assert.True(art.GetPixel(256, 256).Red < 30);
+    }
+
+    [Fact]
+    public void ToAlbumArtJpeg_NoArt_GivesABlackSquare()
+    {
+        using var art = DecodeJpeg(ImageManipulator.ToAlbumArtJpeg(null, 512).Get());
+
+        Assert.Equal(512, art.Width);
+        Assert.Equal(512, art.Height);
+        Assert.True(art.GetPixel(256, 256).Red < 30);
+    }
+
+    [Fact]
+    public void ToAlbumArtJpeg_UndecodableData_ReturnsError()
+    {
+        var result = ImageManipulator.ToAlbumArtJpeg("not an image"u8.ToArray(), 512);
+
+        Assert.True(result.IsError);
+    }
+
+    private static SKBitmap DecodeJpeg(byte[] bytes)
+    {
+        using var codec = SKCodec.Create(new MemoryStream(bytes));
+        Assert.Equal(SKEncodedImageFormat.Jpeg, codec.EncodedFormat);
+        return SKBitmap.Decode(codec);
     }
 
     private static SKBitmap Solid(int width, int height, SKColor color)
