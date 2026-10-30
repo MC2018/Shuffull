@@ -4,8 +4,9 @@ using Nut.Results;
 namespace Shuffull.Core.Features.Listens.RecordListens;
 
 /// <summary>
-/// One listen as the app sends it. Every field is nullable so that a missing or malformed one is reported against
-/// that item (<see cref="ListenOutcomes.Rejected"/>) instead of failing the whole batch. <see cref="EndReason"/> and
+/// One listen as the app sends it. Every field is nullable so that a missing or out-of-range value is reported against
+/// that item (<see cref="ListenOutcomes.Rejected"/>) instead of failing the whole batch. A value of the wrong JSON
+/// type (a <c>startedAt</c> that isn't a date) still fails the whole request at binding. <see cref="EndReason"/> and
 /// <see cref="Context"/> are the enum names, matched without case ("skipped", "genreJam").
 /// </summary>
 /// <param name="UserId">Optional. When sent it must be the caller's own id.</param>
