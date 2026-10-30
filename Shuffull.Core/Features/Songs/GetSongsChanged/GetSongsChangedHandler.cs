@@ -16,7 +16,7 @@ public class GetSongsChangedHandler(IUnitOfWork unitOfWork, TagStalenessJudge st
             .ListAsync(new SongsByVersionAfterDateSpec(request.AfterDate, request.AfterId).AsNoTracking(), cancellationToken);
         if (songsResult.IsError)
         {
-            return Result.Error<GetSongsChangedResponse>(songsResult.GetError().Message);
+            return Result.Error<GetSongsChangedResponse>(songsResult.GetError());
         }
 
         var songs = songsResult.Get();
@@ -32,7 +32,7 @@ public class GetSongsChangedHandler(IUnitOfWork unitOfWork, TagStalenessJudge st
             var dtoResult = SongDto.Create(song, staleness.IsStale(song));
             if (dtoResult.IsError)
             {
-                return Result.Error<GetSongsChangedResponse>(dtoResult.GetError().Message);
+                return Result.Error<GetSongsChangedResponse>(dtoResult.GetError());
             }
 
             dtos.Add(dtoResult.Get());

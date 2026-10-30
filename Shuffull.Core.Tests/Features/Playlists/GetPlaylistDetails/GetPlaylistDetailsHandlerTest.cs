@@ -1,4 +1,5 @@
 using Nut.Results;
+using Shuffull.Core.Errors;
 using Shuffull.Core.Features.Playlists.GetPlaylistDetails;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Tests.Infrastructure;
@@ -110,6 +111,7 @@ public class GetPlaylistDetailsHandlerTest : IDisposable
         // Assert
         Assert.True(result.IsError);
         Assert.Contains("Playlist not found", result.GetError().Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(ErrorKind.NotFound, ResultErrors.KindOf(result.GetError()));
     }
 
     [Fact]
@@ -127,5 +129,6 @@ public class GetPlaylistDetailsHandlerTest : IDisposable
         // Assert
         Assert.True(result.IsError);
         Assert.Contains("Playlist not found", result.GetError().Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(ErrorKind.NotFound, ResultErrors.KindOf(result.GetError()));
     }
 }

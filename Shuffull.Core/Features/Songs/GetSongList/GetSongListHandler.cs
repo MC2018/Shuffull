@@ -16,7 +16,7 @@ public class GetSongListHandler(IUnitOfWork unitOfWork, TagStalenessJudge stalen
         var songsResult = await songRepository.ListAsync(new SongsByIdsSpec(request.SongIds).AsNoTracking(), cancellationToken);
         if (songsResult.IsError)
         {
-            return Result.Error<GetSongListResponse>(songsResult.GetError().Message);
+            return Result.Error<GetSongListResponse>(songsResult.GetError());
         }
 
         var dtos = new List<SongDto>();
@@ -25,7 +25,7 @@ public class GetSongListHandler(IUnitOfWork unitOfWork, TagStalenessJudge stalen
             var dtoResult = SongDto.Create(song, staleness.IsStale(song));
             if (dtoResult.IsError)
             {
-                return Result.Error<GetSongListResponse>(dtoResult.GetError().Message);
+                return Result.Error<GetSongListResponse>(dtoResult.GetError());
             }
 
             dtos.Add(dtoResult.Get());

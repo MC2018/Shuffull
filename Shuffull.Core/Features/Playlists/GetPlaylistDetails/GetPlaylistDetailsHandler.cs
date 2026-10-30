@@ -1,5 +1,6 @@
 using MediatR;
 using Nut.Results;
+using Shuffull.Core.Errors;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Dtos;
 using Shuffull.Core.Persistence.Repositories;
@@ -15,13 +16,13 @@ public class GetPlaylistDetailsHandler(IUnitOfWork unitOfWork) : IRequestHandler
             .GetAsync(new PlaylistDetailsByUserAndIdSpec(request.UserId, request.PlaylistId).AsNoTracking(), cancellationToken);
         if (playlistResult.IsError)
         {
-            return Result.Error<GetPlaylistDetailsResponse>("Playlist not found.");
+            return Result.Error<GetPlaylistDetailsResponse>(playlistResult.GetError().NotFoundAs("Playlist not found."));
         }
 
         var dtoResult = PlaylistDetailsDto.Create(playlistResult.Get());
         if (dtoResult.IsError)
         {
-            return Result.Error<GetPlaylistDetailsResponse>(dtoResult.GetError().Message);
+            return Result.Error<GetPlaylistDetailsResponse>(dtoResult.GetError());
         }
 
         return Result.Ok(new GetPlaylistDetailsResponse(dtoResult.Get()));

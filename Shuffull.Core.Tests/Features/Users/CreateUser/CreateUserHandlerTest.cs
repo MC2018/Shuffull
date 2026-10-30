@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Nut.Results;
 using Shuffull.Core.Authentication;
+using Shuffull.Core.Errors;
 using Shuffull.Core.Features.Users.CreateUser;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Tests.Infrastructure;
@@ -82,6 +83,7 @@ public class CreateUserHandlerTest : IDisposable
         // Assert
         Assert.True(result.IsError);
         Assert.Contains("already exists", result.GetError().Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(ErrorKind.Conflict, ResultErrors.KindOf(result.GetError()));
 
         var count = await _database.Context.Users.AsNoTracking().CountAsync(u => u.Username == "alice");
         Assert.Equal(1, count);

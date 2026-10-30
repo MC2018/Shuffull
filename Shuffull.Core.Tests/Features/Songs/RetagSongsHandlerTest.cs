@@ -1,4 +1,5 @@
 using Nut.Results;
+using Shuffull.Core.Errors;
 using Shuffull.Core.Features.Songs.RetagSongs;
 using Shuffull.Core.Services;
 
@@ -227,7 +228,7 @@ public class RetagSongsHandlerTest
     {
         // If we cannot record the decision, enriching anyway would be backwards: the caller must keep its
         // outbox row and retry rather than have the keep quietly evaporate.
-        var promotion = new SpyPromotion(Result.Error<int>("db is down"));
+        var promotion = new SpyPromotion(Result.Error<int>(new KindedError(ErrorKind.ServerFault, "db is down")));
         var enrichment = new ScriptedEnrichment(_ => Result.Ok(SongEnrichmentStatus.Enriched));
 
         var result = await new RetagSongsHandler(promotion, enrichment)
@@ -235,6 +236,7 @@ public class RetagSongsHandlerTest
 
         Assert.True(result.IsError);
         Assert.Contains("db is down", result.GetError().Message);
+        Assert.Equal(ErrorKind.ServerFault, ResultErrors.KindOf(result.GetError())); // a 5xx the app retries
         Assert.Empty(enrichment.Calls);
     }
 

@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Nut.Results;
+using Shuffull.Core.Errors;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Persistence;
 using Shuffull.Core.Tools;
@@ -30,7 +31,7 @@ public class ApplySongTagsHandler(ShuffullContext context, ModelStrengths modelS
             .FirstOrDefaultAsync(s => s.SongId == request.SongId, cancellationToken);
         if (song is null)
         {
-            return Result.Error<ApplySongTagsResponse>($"Song '{request.SongId}' was not found.");
+            return Result.Error<ApplySongTagsResponse>(ResultErrors.NotFound($"Song '{request.SongId}' was not found."));
         }
 
         // Only a genuine upgrade is written, by the same rules the work query hands songs out by: a stronger model,

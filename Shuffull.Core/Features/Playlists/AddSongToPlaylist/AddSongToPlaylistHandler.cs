@@ -1,5 +1,6 @@
 using MediatR;
 using Nut.Results;
+using Shuffull.Core.Errors;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Persistence.Repositories;
 using Shuffull.Core.Persistence.Specifications.Playlists;
@@ -17,13 +18,13 @@ public class AddSongToPlaylistHandler(IUnitOfWork unitOfWork) : IRequestHandler<
         var playlistResult = await playlistRepository.GetAsync(new PlaylistByUserAndIdSpec(request.UserId, request.PlaylistId), cancellationToken);
         if (playlistResult.IsError)
         {
-            return Result.Error<AddSongToPlaylistResponse>("Playlist not found.");
+            return Result.Error<AddSongToPlaylistResponse>(playlistResult.GetError().NotFoundAs("Playlist not found."));
         }
 
         var songResult = await unitOfWork.Repository<Song>().GetByIdAsync(request.SongId, cancellationToken);
         if (songResult.IsError)
         {
-            return Result.Error<AddSongToPlaylistResponse>("Song not found.");
+            return Result.Error<AddSongToPlaylistResponse>(songResult.GetError().NotFoundAs("Song not found."));
         }
 
         var playlistSongRepository = unitOfWork.Repository<PlaylistSong>();
@@ -31,7 +32,7 @@ public class AddSongToPlaylistHandler(IUnitOfWork unitOfWork) : IRequestHandler<
             new PlaylistSongSpec(request.PlaylistId, request.SongId).AsNoTracking(), cancellationToken);
         if (existsResult.IsError)
         {
-            return Result.Error<AddSongToPlaylistResponse>(existsResult.GetError().Message);
+            return Result.Error<AddSongToPlaylistResponse>(existsResult.GetError());
         }
 
         // Already present: treat as an idempotent no-op success.
@@ -48,7 +49,7 @@ public class AddSongToPlaylistHandler(IUnitOfWork unitOfWork) : IRequestHandler<
         }, cancellationToken);
         if (addResult.IsError)
         {
-            return Result.Error<AddSongToPlaylistResponse>(addResult.GetError().Message);
+            return Result.Error<AddSongToPlaylistResponse>(addResult.GetError());
         }
 
         // Bump the playlist version so clients can detect the change (tracked entity, persisted below).
@@ -57,7 +58,7 @@ public class AddSongToPlaylistHandler(IUnitOfWork unitOfWork) : IRequestHandler<
         var saveResult = await unitOfWork.SaveChangesAsync(cancellationToken);
         if (saveResult.IsError)
         {
-            return Result.Error<AddSongToPlaylistResponse>(saveResult.GetError().Message);
+            return Result.Error<AddSongToPlaylistResponse>(saveResult.GetError());
         }
 
         return Result.Ok(new AddSongToPlaylistResponse(true));

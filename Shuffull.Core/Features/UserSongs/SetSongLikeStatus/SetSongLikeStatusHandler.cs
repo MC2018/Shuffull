@@ -1,5 +1,6 @@
 using MediatR;
 using Nut.Results;
+using Shuffull.Core.Errors;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Persistence.Repositories;
@@ -20,13 +21,13 @@ public class SetSongLikeStatusHandler(IUnitOfWork unitOfWork)
             .ListAsync(new UserSongsByUserAndSongIdsSpec(request.UserId, [request.SongId]), cancellationToken);
         if (userSongsResult.IsError)
         {
-            return Result.Error<SetSongLikeStatusResponse>(userSongsResult.GetError().Message);
+            return Result.Error<SetSongLikeStatusResponse>(userSongsResult.GetError());
         }
 
         var userSong = userSongsResult.Get().FirstOrDefault();
         if (userSong is null)
         {
-            return Result.Error<SetSongLikeStatusResponse>("No matching song was found for this user.");
+            return Result.Error<SetSongLikeStatusResponse>(ResultErrors.NotFound("No matching song was found for this user."));
         }
 
         // Tracked (FindAsync) so the promotion below is persisted by the same SaveChanges as the like. Null only
@@ -54,7 +55,7 @@ public class SetSongLikeStatusHandler(IUnitOfWork unitOfWork)
             var userResult = await unitOfWork.Repository<User>().GetByIdAsync(request.UserId, cancellationToken);
             if (userResult.IsError)
             {
-                return Result.Error<SetSongLikeStatusResponse>("User not found.");
+                return Result.Error<SetSongLikeStatusResponse>(userResult.GetError().NotFoundAs("User not found."));
             }
             userResult.Get().Version = now;
 
@@ -93,7 +94,7 @@ public class SetSongLikeStatusHandler(IUnitOfWork unitOfWork)
 
         if (saveResult.IsError)
         {
-            return Result.Error<SetSongLikeStatusResponse>(saveResult.GetError().Message);
+            return Result.Error<SetSongLikeStatusResponse>(saveResult.GetError());
         }
 
         return Result.Ok(new SetSongLikeStatusResponse(request.SongId, userSong.LikeStatus));

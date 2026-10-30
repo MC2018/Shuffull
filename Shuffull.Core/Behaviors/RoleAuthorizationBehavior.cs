@@ -2,6 +2,7 @@ using System.Reflection;
 using MediatR;
 using Nut.Results;
 using Shuffull.Core.Authentication;
+using Shuffull.Core.Errors;
 
 namespace Shuffull.Core.Behaviors;
 
@@ -9,7 +10,7 @@ namespace Shuffull.Core.Behaviors;
 /// MediatR pipeline behavior that enforces <see cref="RequiresRoleAttribute"/> on a request before its handler
 /// runs. A request without the attribute passes straight through; one that has it is allowed only when the
 /// current user holds the required <see cref="Role"/>, otherwise the pipeline short-circuits to a
-/// "Forbidden" <see cref="Result"/>/<see cref="Result{T}"/> and the handler never executes.
+/// "Forbidden" <see cref="Result"/>/<see cref="Result{T}"/> (a 403) and the handler never executes.
 /// <para>
 /// Registered after <see cref="ValidationBehavior{TRequest,TResponse}"/> so a request is validated first, then
 /// authorized. Mirrors the Sociallite PolicyAuthorizationBehavior, simplified to role checks (no resource scope).
@@ -32,7 +33,7 @@ public class RoleAuthorizationBehavior<TRequest, TResponse>(ICurrentUser current
             return await next();
         }
 
-        return CreateForbiddenResult($"Forbidden: this action requires the {attribute.Role} role.");
+        return CreateForbiddenResult(ResultErrors.Forbidden($"Forbidden: this action requires the {attribute.Role} role."));
     }
 
     /// <summary>
@@ -40,24 +41,24 @@ public class RoleAuthorizationBehavior<TRequest, TResponse>(ICurrentUser current
     /// reflection, so this behavior works for any handler that returns a Result without per-handler boilerplate
     /// (same approach as <see cref="ValidationBehavior{TRequest,TResponse}"/>).
     /// </summary>
-    private static TResponse CreateForbiddenResult(string message)
+    private static TResponse CreateForbiddenResult(Exception error)
     {
         var responseType = typeof(TResponse);
 
         if (responseType.IsGenericType && responseType.GetGenericTypeDefinition() == typeof(Result<>))
         {
             var innerType = responseType.GetGenericArguments()[0];
-            var errorMethod = typeof(Result).GetMethod("Error", 1, [typeof(string)]);
+            var errorMethod = typeof(Result).GetMethod("Error", 1, [typeof(Exception)]);
             if (errorMethod != null)
             {
                 var genericError = errorMethod.MakeGenericMethod(innerType);
-                return (TResponse)genericError.Invoke(null, [message])!;
+                return (TResponse)genericError.Invoke(null, [error])!;
             }
         }
 
         if (responseType == typeof(Result))
         {
-            return (TResponse)(object)Result.Error(message);
+            return (TResponse)(object)Result.Error(error);
         }
 
         throw new InvalidOperationException(

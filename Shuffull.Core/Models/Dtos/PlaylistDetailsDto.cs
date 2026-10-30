@@ -39,7 +39,7 @@ public record PlaylistDetailsDto(
             var songResult = SongDto.Create(playlistSong.Song);
             if (songResult.IsError)
             {
-                return Result.Error<PlaylistDetailsDto>(songResult.GetError().Message);
+                return Result.Error<PlaylistDetailsDto>(songResult.GetError());
             }
 
             songs.Add(songResult.Get());

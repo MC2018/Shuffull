@@ -2,6 +2,7 @@ using Nut.Results;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shuffull.Api.Services;
+using Shuffull.Core.Errors;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Persistence;
 using Shuffull.Core.Tests.Infrastructure;
@@ -179,5 +180,17 @@ public class AuditionPromotionServiceTest : IDisposable
 
         Assert.Equal(1, result.Get()); // counted once, not twice
         Assert.False((await ReloadAsync(song.SongId)).Exploratory);
+    }
+
+    [Fact]
+    public async Task Failure_IsAServerFault_SoTheAppRetriesTheKeep()
+    {
+        // No database to reach. As a 400 the app dead-lettered the Keep after 7 days; a 5xx is retried (Shuffull#41).
+        var unreachable = new AuditionPromotionService(new ServiceCollection().BuildServiceProvider());
+
+        var result = await unreachable.PromoteAsync(["song-1"]);
+
+        Assert.True(result.IsError);
+        Assert.Equal(ErrorKind.ServerFault, ResultErrors.KindOf(result.GetError()));
     }
 }

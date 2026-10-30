@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Nut.Results;
+using Shuffull.Core.Errors;
 using Shuffull.Core.Features.Tags.AddTagToSong;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Tests.Infrastructure;
@@ -109,6 +110,7 @@ public class AddTagToSongHandlerTest : IDisposable
         // Assert
         Assert.True(result.IsError);
         Assert.Contains("Tag not found", result.GetError().Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(ErrorKind.NotFound, ResultErrors.KindOf(result.GetError()));
     }
 
     [Fact]
@@ -125,5 +127,6 @@ public class AddTagToSongHandlerTest : IDisposable
         // Assert
         Assert.True(result.IsError);
         Assert.Contains("Song not found", result.GetError().Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(ErrorKind.NotFound, ResultErrors.KindOf(result.GetError()));
     }
 }

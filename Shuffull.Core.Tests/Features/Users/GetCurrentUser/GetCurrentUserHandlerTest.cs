@@ -1,4 +1,5 @@
 using Nut.Results;
+using Shuffull.Core.Errors;
 using Shuffull.Core.Features.Users.GetCurrentUser;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Tests.Infrastructure;
@@ -60,5 +61,6 @@ public class GetCurrentUserHandlerTest : IDisposable
         // Assert
         Assert.True(result.IsError);
         Assert.Contains("User not found", result.GetError().Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(ErrorKind.NotFound, ResultErrors.KindOf(result.GetError()));
     }
 }

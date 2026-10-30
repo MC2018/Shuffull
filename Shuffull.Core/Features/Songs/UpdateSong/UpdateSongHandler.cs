@@ -1,5 +1,6 @@
 using MediatR;
 using Nut.Results;
+using Shuffull.Core.Errors;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Persistence;
 using Shuffull.Core.Persistence.Repositories;
@@ -23,7 +24,7 @@ public class UpdateSongHandler(IUnitOfWork unitOfWork, ShuffullContext context) 
             .GetAsync(new SongWithRelationsByIdSpec(request.SongId), cancellationToken);
         if (songResult.IsError)
         {
-            return Result.Error<UpdateSongResponse>($"Song '{request.SongId}' was not found.");
+            return Result.Error<UpdateSongResponse>(songResult.GetError().NotFoundAs($"Song '{request.SongId}' was not found."));
         }
 
         var song = songResult.Get();
@@ -38,7 +39,7 @@ public class UpdateSongHandler(IUnitOfWork unitOfWork, ShuffullContext context) 
         var artistsResult = await ResolveArtistsAsync(request.Artists, cancellationToken);
         if (artistsResult.IsError)
         {
-            return Result.Error<UpdateSongResponse>(artistsResult.GetError().Message);
+            return Result.Error<UpdateSongResponse>(artistsResult.GetError());
         }
 
         // The tag inserts and the song's new joins commit together. UnitOfWork shares this context, so its save runs
@@ -77,7 +78,7 @@ public class UpdateSongHandler(IUnitOfWork unitOfWork, ShuffullContext context) 
         var saveResult = await unitOfWork.SaveChangesAsync(cancellationToken);
         if (saveResult.IsError)
         {
-            return Result.Error<UpdateSongResponse>(saveResult.GetError().Message);
+            return Result.Error<UpdateSongResponse>(saveResult.GetError());
         }
 
         await transaction.CommitAsync(cancellationToken);
@@ -100,7 +101,7 @@ public class UpdateSongHandler(IUnitOfWork unitOfWork, ShuffullContext context) 
             .ListAsync(new ArtistsByNamesSpec(requested), cancellationToken);
         if (existingResult.IsError)
         {
-            return Result.Error<List<Artist>>(existingResult.GetError().Message);
+            return Result.Error<List<Artist>>(existingResult.GetError());
         }
 
         var existing = existingResult.Get();
@@ -115,7 +116,7 @@ public class UpdateSongHandler(IUnitOfWork unitOfWork, ShuffullContext context) 
                 var addResult = await unitOfWork.Repository<Artist>().AddAsync(artist, cancellationToken);
                 if (addResult.IsError)
                 {
-                    return Result.Error<List<Artist>>(addResult.GetError().Message);
+                    return Result.Error<List<Artist>>(addResult.GetError());
                 }
                 existing.Add(artist);
             }

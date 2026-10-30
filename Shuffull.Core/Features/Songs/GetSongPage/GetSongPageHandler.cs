@@ -15,7 +15,7 @@ public class GetSongPageHandler(IUnitOfWork unitOfWork) : IRequestHandler<GetSon
         var songsResult = await songRepository.ListAsync(new SongPageSpec(request.PageIndex).AsNoTracking(), cancellationToken);
         if (songsResult.IsError)
         {
-            return Result.Error<GetSongPageResponse>(songsResult.GetError().Message);
+            return Result.Error<GetSongPageResponse>(songsResult.GetError());
         }
 
         var dtos = new List<SongDto>();
@@ -24,7 +24,7 @@ public class GetSongPageHandler(IUnitOfWork unitOfWork) : IRequestHandler<GetSon
             var dtoResult = SongDto.Create(song);
             if (dtoResult.IsError)
             {
-                return Result.Error<GetSongPageResponse>(dtoResult.GetError().Message);
+                return Result.Error<GetSongPageResponse>(dtoResult.GetError());
             }
 
             dtos.Add(dtoResult.Get());

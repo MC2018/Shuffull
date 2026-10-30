@@ -1,5 +1,6 @@
 using MediatR;
 using Nut.Results;
+using Shuffull.Core.Errors;
 using Shuffull.Core.Services;
 
 namespace Shuffull.Core.Features.Songs.RetagSongs;
@@ -62,8 +63,8 @@ public class RetagSongsHandler(IAuditionPromotionService promotion, ISongEnrichm
         var promoteResult = await promotion.PromoteAsync(order, cancellationToken);
         if (promoteResult.IsError)
         {
-            return Result.Error<RetagSongsResponse>(
-                $"Could not record the keep/promote for this batch; no songs were re-tagged. {promoteResult.GetError().Message}");
+            return Result.Error<RetagSongsResponse>(promoteResult.GetError().WithMessage(
+                $"Could not record the keep/promote for this batch; no songs were re-tagged. {promoteResult.GetError().Message}"));
         }
 
         var results = new List<SongRetagResult>(order.Count);

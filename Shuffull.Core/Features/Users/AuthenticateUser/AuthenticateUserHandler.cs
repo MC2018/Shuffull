@@ -20,7 +20,7 @@ public class AuthenticateUserHandler(IUnitOfWork unitOfWork, IAuthTokenGenerator
             .ListAsync(new UserByUsernameSpec(request.Username), cancellationToken);
         if (usersResult.IsError)
         {
-            return Result.Error<AuthSessionResponse>(usersResult.GetError().Message);
+            return Result.Error<AuthSessionResponse>(usersResult.GetError());
         }
 
         var candidates = usersResult.Get();
@@ -48,7 +48,7 @@ public class AuthenticateUserHandler(IUnitOfWork unitOfWork, IAuthTokenGenerator
         var dtoResult = UserDto.Create(user);
         if (dtoResult.IsError)
         {
-            return Result.Error<AuthSessionResponse>(dtoResult.GetError().Message);
+            return Result.Error<AuthSessionResponse>(dtoResult.GetError());
         }
 
         return Result.Ok(new AuthSessionResponse(dtoResult.Get(), token.Token, token.Expiration));

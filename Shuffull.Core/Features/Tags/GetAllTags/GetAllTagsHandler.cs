@@ -15,7 +15,7 @@ public class GetAllTagsHandler(IUnitOfWork unitOfWork) : IRequestHandler<GetAllT
         var tagsResult = await tagRepository.ListAsync(new AllTagsSpec().AsNoTracking(), cancellationToken);
         if (tagsResult.IsError)
         {
-            return Result.Error<GetAllTagsResponse>(tagsResult.GetError().Message);
+            return Result.Error<GetAllTagsResponse>(tagsResult.GetError());
         }
 
         var dtos = new List<TagDto>();
@@ -24,7 +24,7 @@ public class GetAllTagsHandler(IUnitOfWork unitOfWork) : IRequestHandler<GetAllT
             var dtoResult = TagDto.Create(tag);
             if (dtoResult.IsError)
             {
-                return Result.Error<GetAllTagsResponse>(dtoResult.GetError().Message);
+                return Result.Error<GetAllTagsResponse>(dtoResult.GetError());
             }
 
             dtos.Add(dtoResult.Get());

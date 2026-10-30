@@ -2,6 +2,7 @@ using MediatR;
 using Nut.Results;
 using Shuffull.Core.Authentication;
 using Shuffull.Core.Behaviors;
+using Shuffull.Core.Errors;
 using Shuffull.Core.Models.Database;
 
 namespace Shuffull.Core.Tests.Behaviors;
@@ -68,6 +69,7 @@ public class RoleAuthorizationBehaviorTest
         Assert.False(nextCalled);
         Assert.True(response.IsError);
         Assert.StartsWith("Forbidden", response.GetError().Message);
+        Assert.Equal(ErrorKind.Forbidden, ResultErrors.KindOf(response.GetError()));
     }
 
     [Fact]
@@ -79,6 +81,7 @@ public class RoleAuthorizationBehaviorTest
         Assert.False(nextCalled);
         Assert.True(response.IsError);
         Assert.StartsWith("Forbidden", response.GetError().Message);
+        Assert.Equal(ErrorKind.Forbidden, ResultErrors.KindOf(response.GetError()));
     }
 
     [Fact]

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Nut.Results;
+using Shuffull.Core.Errors;
 using Shuffull.Core.Persistence;
 using Shuffull.Core.Services;
 
@@ -65,7 +66,9 @@ public class AuditionPromotionService(IServiceProvider services) : IAuditionProm
         }
         catch (Exception e)
         {
-            return Result.Error<int>(e);
+            // Nothing in a batch of ids can make this fail every time, so any failure is the server's (a 5xx the app
+            // retries). Only a database refusal of the data itself would stay a 4xx.
+            return Result.Error<int>(ResultErrors.FromException(e, e.Message, ErrorKind.ServerFault));
         }
     }
 }

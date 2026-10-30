@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Nut.Results;
+using Shuffull.Core.Errors;
 using Shuffull.Core.Features.Songs.ApplySongTags;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Tests.Infrastructure;
@@ -288,6 +289,9 @@ public class ApplySongTagsHandlerTest : IDisposable
     [Fact]
     public async Task UnknownSongIsAnError()
     {
-        Assert.True((await RunAsync("does-not-exist", Tags("Rock"), "weak-model")).IsError);
+        var result = await RunAsync("does-not-exist", Tags("Rock"), "weak-model");
+
+        Assert.True(result.IsError);
+        Assert.Equal(ErrorKind.NotFound, ResultErrors.KindOf(result.GetError()));
     }
 }
