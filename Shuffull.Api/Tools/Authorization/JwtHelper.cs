@@ -16,7 +16,8 @@ public class JwtHelper
         _configuration = services
             .GetRequiredService<IConfiguration>()
             .GetSection(JwtConfiguration.JwtConfigurationSection)
-            .Get<JwtConfiguration>();
+            .Get<JwtConfiguration>()
+            ?? throw new InvalidOperationException("Jwt configuration is not set.");
     }
 
     public string GenerateJwtToken(User user, DateTime expiration)

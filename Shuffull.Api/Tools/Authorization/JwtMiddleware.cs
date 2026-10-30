@@ -27,7 +27,8 @@ public class JwtMiddleware
         _configuration = services
             .GetRequiredService<IConfiguration>()
             .GetSection(JwtConfiguration.JwtConfigurationSection)
-            .Get<JwtConfiguration>();
+            .Get<JwtConfiguration>()
+            ?? throw new InvalidOperationException("Jwt configuration is not set.");
         _logger = services.GetRequiredService<ILogger<JwtMiddleware>>();
     }
 

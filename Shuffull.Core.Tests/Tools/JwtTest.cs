@@ -121,4 +121,16 @@ public class JwtTest
 
         Assert.Equal("round-trip-user", userId);
     }
+
+    [Fact]
+    public void JwtHelper_WithoutJwtSection_FailsAtConstruction()
+    {
+        // Without the section the helper used to construct fine and throw a NullReferenceException at the
+        // first login. It now says what is missing, up front.
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
+
+        var ex = Assert.Throws<InvalidOperationException>(() => new JwtHelper(services.BuildServiceProvider()));
+        Assert.Contains("Jwt", ex.Message);
+    }
 }

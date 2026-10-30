@@ -10,7 +10,7 @@ namespace Shuffull.Core.Tests.Infrastructure;
 /// <summary>
 /// Test fixture that provides a real in-memory SQLite database backed by the concrete
 /// <see cref="ShuffullContext"/>. The schema is created from the EF model (EnsureCreated), not the
-/// SQL Server migrations, so it stays provider-agnostic. Use as a field in a test class and dispose
+/// Postgres migrations, so it stays provider-agnostic. Use as a field in a test class and dispose
 /// after each test.
 /// </summary>
 public class DatabaseFixture : IDisposable
