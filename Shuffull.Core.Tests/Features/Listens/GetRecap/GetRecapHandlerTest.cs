@@ -86,10 +86,11 @@ public class GetRecapHandlerTest : IDisposable
         _fx.Listen("a", Utc(2027, 1, 2), minutes: 2);
         new RecapFixture(_database.Context, _other.UserId).Listen("theirs", Utc(2024, 1, 1), minutes: 2);
 
-        Assert.Equal(Utc(2025, 11, 3, 20), (await RecapAsync()).FirstListen);
+        var firstListen = (await RecapAsync()).FirstListen;
+        Assert.Equal(Utc(2025, 11, 3, 20), firstListen);
+        Assert.Equal(DateTimeKind.Utc, firstListen!.Value.Kind);
         // The same for any year asked, even one with no listens of its own.
         Assert.Equal(Utc(2025, 11, 3, 20), (await RecapAsync(year: 2030, timeZone: NewYork)).FirstListen);
-        Assert.Equal(DateTimeKind.Utc, (await RecapAsync()).FirstListen!.Value.Kind);
         Assert.Equal(Utc(2024, 1, 1), (await RecapAsync(userId: _other.UserId)).FirstListen);
     }
 
