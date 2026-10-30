@@ -22,11 +22,14 @@ public class SongImportIntakeService
     private readonly ShuffullContext _context;
     private readonly IFileStorageService _fileStorage;
     private readonly ShuffullFilesConfiguration _fileConfig;
+    private readonly ILogger<SongImportIntakeService> _logger;
 
-    public SongImportIntakeService(ShuffullContext context, IFileStorageService fileStorage, IConfiguration configuration)
+    public SongImportIntakeService(ShuffullContext context, IFileStorageService fileStorage, IConfiguration configuration,
+        ILogger<SongImportIntakeService> logger)
     {
         _context = context;
         _fileStorage = fileStorage;
+        _logger = logger;
         _fileConfig = configuration.GetSection(ShuffullFilesConfiguration.FilesConfigurationSection).Get<ShuffullFilesConfiguration>()
             ?? throw new InvalidOperationException("Files configuration is not set.");
     }
@@ -67,6 +70,15 @@ public class SongImportIntakeService
                 songName = SongImportMetadataResolver.ResolveSongName(details.Name, id3Title, details.ExternalSongId);
             }
 
+            // A value that isn't a percent is stored as unknown, and said so: a producer sending seconds by mistake
+            // would otherwise just look like songs with no hook data.
+            var hookStartPercent = SongImport.ValidHookStartPercent(details.HookStartPercent);
+            if (details.HookStartPercent is not null && hookStartPercent is null)
+            {
+                _logger.LogWarning("Hook start {HookStartPercent} for {ExternalSongId} is not a percent from 0 to 100; storing it as unknown.",
+                    details.HookStartPercent, details.ExternalSongId);
+            }
+
             var songImport = new SongImport
             {
                 SongImportId = songImportId,
@@ -94,6 +106,7 @@ public class SongImportIntakeService
                 CrestFactorDb = details.CrestFactorDb,
                 OnsetsPerSecond = details.OnsetsPerSecond,
                 OriginalReleaseYear = details.OriginalReleaseYear,
+                HookStartPercent = hookStartPercent,
                 Exploratory = details.Exploratory,
                 MarkAsLiked = details.MarkAsLiked,
                 TargetPlaylistName = details.TargetPlaylistName,

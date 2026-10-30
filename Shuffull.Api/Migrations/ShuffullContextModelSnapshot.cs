@@ -205,6 +205,9 @@ namespace Shuffull.Api.Migrations
                     b.Property<int?>("Heaviness")
                         .HasColumnType("integer");
 
+                    b.Property<double?>("HookStartPercent")
+                        .HasColumnType("double precision");
+
                     b.Property<double?>("LoudnessRangeLu")
                         .HasColumnType("double precision");
 
@@ -317,6 +320,9 @@ namespace Shuffull.Api.Migrations
 
                     b.Property<string>("GeneratedTagsJson")
                         .HasColumnType("text");
+
+                    b.Property<double?>("HookStartPercent")
+                        .HasColumnType("double precision");
 
                     b.Property<string>("ImportFolder")
                         .IsRequired()

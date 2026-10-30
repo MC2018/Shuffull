@@ -314,6 +314,7 @@ public partial class SongImportService : BackgroundService
                     CrestFactorDb = songImport.CrestFactorDb,
                     OnsetsPerSecond = songImport.OnsetsPerSecond,
                     OriginalReleaseYear = songImport.OriginalReleaseYear,
+                    HookStartPercent = songImport.HookStartPercent,
                     // Provisional until the user keeps it (Keep or Like); ImportToDbCoreAsync clears it up front for
                     // an import that arrives already liked.
                     Exploratory = songImport.Exploratory,
@@ -788,11 +789,16 @@ public partial class SongImportService : BackgroundService
         // are tied to the specific audio (LRC is trim-shifted for it). SongId + user associations are untouched.
         song.FileExtension = fileExtension;
         song.FileHash = fileHash;
+        var sameSource = string.Equals(song.ExternalSongId, songImport.ExternalSongId, StringComparison.Ordinal);
         song.ExternalSongId = songImport.ExternalSongId;
         song.SyncedLyrics = lyrics?.Synced;
         song.PlainLyrics = lyrics?.Plain;
         song.LyricsInstrumental = lyrics?.Instrumental ?? false;
         song.LyricsSource = lyrics?.Source;
+        // The hook start point is measured off the source, so it isn't held by the curator lock. Unlike the lyrics, a
+        // null from the same video doesn't clear it: that re-source just doesn't know the hook, and the old one still
+        // fits (Shuffull#79). A replacement onto a different video drops it, since it was measured on other audio.
+        song.HookStartPercent = songImport.HookStartPercent ?? (sameSource ? song.HookStartPercent : null);
         song.Version = DateTime.UtcNow;
 
         // Curator-protected metadata: once a human has hand-edited this song, a re-source must NOT clobber their

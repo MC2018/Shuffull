@@ -1,17 +1,11 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
-using Moq;
 using Nut.Results;
 using Shuffull.Api.Services;
-using Shuffull.Api.Services.FileStorage;
-using Shuffull.Metadata.Models;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Features.Playlists.DeletePlaylist;
 using Shuffull.Core.Models.Enums;
-using Shuffull.Core.Persistence;
 using Shuffull.Core.Tests.Infrastructure;
+using static Shuffull.Core.Tests.Infrastructure.SongImportHarness;
 using Shuffull.Shared.Tools;
 
 namespace Shuffull.Core.Tests.Services;
@@ -95,53 +89,8 @@ public class SongImportDuplicateLinkTest : IDisposable
         LastUpdatedAt = DateTime.UtcNow,
     };
 
-    /// <summary>A few silent MPEG-1 Layer III frames (128 kbps, 44.1 kHz): enough for TagLib to open as an mp3.</summary>
-    private static byte[] Mp3Frames(byte fill = 0)
-    {
-        const int frameLength = 417; // 144 * 128000 / 44100
-        var bytes = new byte[frameLength * 10];
-        for (var offset = 0; offset < bytes.Length; offset += frameLength)
-        {
-            bytes[offset] = 0xFF;
-            bytes[offset + 1] = 0xFB;
-            bytes[offset + 2] = 0x90;
-            bytes[offset + 3] = 0x00;
-            for (var i = offset + 4; i < offset + frameLength; i++)
-            {
-                bytes[i] = fill;
-            }
-        }
-        return bytes;
-    }
-
-    /// <summary>Queues <paramref name="songImport"/> and runs one pass of the real import loop over <paramref name="audio"/>.</summary>
-    private async Task<SongImport> RunImportAsync(SongImport songImport, byte[] audio)
-    {
-        _database.Context.SongImports.Add(songImport);
-        await _database.Context.SaveChangesAsync();
-
-        var services = new ServiceCollection()
-            .AddScoped<ShuffullContext>(_ => _database.CreateContext())
-            .BuildServiceProvider();
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?> { ["Shuffull:Files:MusicRootDirectory"] = "music" })
-            .Build();
-        var fileStorage = new Mock<IFileStorageService>();
-        fileStorage.Setup(x => x.DownloadFileBytesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.Ok(audio));
-        fileStorage.Setup(x => x.DownloadSerializableObjectAsync<GeneratedSongTags>(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.Error<GeneratedSongTags>("no saved AI response"));
-        fileStorage.Setup(x => x.UploadFileAsync(It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.Ok());
-        fileStorage.Setup(x => x.MoveFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.Ok());
-        fileStorage.Setup(x => x.DeleteFileAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.Ok());
-        var importer = new SongImportService(configuration, services, NullLogger<SongImportService>.Instance, fileStorage.Object);
-
-        Assert.True(await importer.ImportNextAsync(CancellationToken.None));
-        return await _database.CreateContext().SongImports.AsNoTracking().SingleAsync(si => si.SongImportId == songImport.SongImportId);
-    }
+    private Task<SongImport> RunImportAsync(SongImport songImport, byte[] audio) =>
+        SongImportHarness.RunImportAsync(_database, songImport, audio);
 
     private async Task<Result> LinkAsync(SongImport songImport)
     {
