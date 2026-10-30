@@ -3,8 +3,10 @@ using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Shuffull.Api.Commands.Listens.RecordListens;
 using Shuffull.Api.Controllers;
 using Shuffull.Api.Extensions;
+using Shuffull.Core.Features.Listens.RecordListens;
 using Shuffull.Core.Features.Playlists.CreatePlaylist;
 using Shuffull.Core.Features.Playlists.GetPlaylists;
 using Shuffull.Core.Features.Playlists.GetUserPlaylists;
@@ -24,15 +26,15 @@ using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Tests.Infrastructure;
 using Shuffull.Metadata.Models;
 using Shuffull.Shared.Enums;
-using RatingAckOutcomes = Shuffull.Api.Controllers.Outcomes;
+using RatingAckOutcomes = Shuffull.Api.Controllers.YoutubeRatingOutcomes;
 using RetagOutcomes = Shuffull.Core.Features.Songs.RetagSongs.Outcomes;
 
 namespace Shuffull.Core.Tests.Contracts;
 
 /// <summary>
 /// The wire shapes the app and the funnel depend on (listed in <c>Contracts/Golden/README.md</c>), written with the
-/// API's real JSON options into checked-in files under <c>Contracts/Golden</c>. For the two request bodies the funnel
-/// sends, the API must also bind the file, in camelCase and in PascalCase, since the funnel writes some keys each way.
+/// API's real JSON options into checked-in files under <c>Contracts/Golden</c>. For the request bodies the funnel and
+/// the app send, the API must also bind the file, in camelCase and in PascalCase, since the funnel writes some keys each way.
 /// The app (vitest, through its zod schemas) and the funnel (xunit, through its real HTTP clients) parse copies of the
 /// same files, so a field renamed or retyped here fails a test on the consuming side instead of surfacing in prod as
 /// a silently-null column. Same idea as ShuffullApp's hashParity.test.ts.
@@ -125,6 +127,20 @@ public class ApiContractGoldenFilesTest
         [
             new SongKeepResult("song-full", KeepOutcomes.Kept),
             new SongKeepResult("song-sparse", KeepOutcomes.Failed, "Song is not in your library."),
+        ]),
+        // POST /api/v1/listens — a REQUEST body: the listen log the app's outbox sends (ShuffullApp#57).
+        ["listens-request"] = new RecordListensRequest(
+        [
+            new ListenItem("listen-full", "song-full", V1, V1.AddSeconds(214), 201.5, 214.0, "finished", "playlist",
+                PlaylistId: "playlist-1", Platform: "android", UserId: "user-1"),
+            new ListenItem("listen-sparse", "song-sparse", V2, V2.AddSeconds(12), 12, null, "skipped", "genreJam"),
+        ]),
+        // POST /api/v1/listens. The app reads each outcome: "recorded" and "duplicate" are done, "rejected" is final.
+        ["listens"] = new RecordListensResponse(
+        [
+            new ListenResult("listen-full", ListenOutcomes.Recorded),
+            new ListenResult("listen-sparse", ListenOutcomes.Duplicate),
+            new ListenResult("listen-bad", ListenOutcomes.Rejected, "endedAt is before startedAt."),
         ]),
         // POST /api/v1/songs/retag. Per-item outcomes inside a 200; the app must read them, not the status.
         ["songs-retag"] = new RetagSongsResponse(
@@ -221,11 +237,11 @@ public class ApiContractGoldenFilesTest
     };
 
     /// <summary>
-    /// The request bodies among <see cref="Cases"/>. The funnel writes them with no naming policy, so their keys
+    /// The request bodies among <see cref="Cases"/>. The funnel writes its two with no naming policy, so their keys
     /// arrive PascalCase or mixed (songs-tags wraps PascalCase tags in a camelCase object), and rely on the API
-    /// binding case-insensitively.
+    /// binding case-insensitively. The app's (listens-request) arrive camelCase.
     /// </summary>
-    private static readonly string[] RequestCases = ["songs-tags", "youtube-ratings-ack"];
+    private static readonly string[] RequestCases = ["listens-request", "songs-tags", "youtube-ratings-ack"];
 
     public static TheoryData<string> CaseNames => new(Cases.Keys);
 

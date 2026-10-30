@@ -121,6 +121,59 @@ namespace Shuffull.Api.Migrations
                     b.ToTable("HealthSignals");
                 });
 
+            modelBuilder.Entity("Shuffull.Core.Models.Database.Listen", b =>
+                {
+                    b.Property<string>("ListenId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("Context")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("EndReason")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("EndedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Platform")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("PlaylistId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("RecordedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<double>("SecondsListened")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("SongDurationSeconds")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("SongId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("ListenId");
+
+                    b.HasIndex("UserId", "StartedAt");
+
+                    b.HasIndex("UserId", "SongId", "StartedAt");
+
+                    b.ToTable("Listens");
+                });
+
             modelBuilder.Entity("Shuffull.Core.Models.Database.Playlist", b =>
                 {
                     b.Property<string>("PlaylistId")
@@ -665,6 +718,17 @@ namespace Shuffull.Api.Migrations
                     b.Navigation("MainGenre");
 
                     b.Navigation("SubGenre");
+                });
+
+            modelBuilder.Entity("Shuffull.Core.Models.Database.Listen", b =>
+                {
+                    b.HasOne("Shuffull.Core.Models.Database.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Shuffull.Core.Models.Database.Playlist", b =>
