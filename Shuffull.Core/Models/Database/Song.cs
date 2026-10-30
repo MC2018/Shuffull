@@ -54,8 +54,8 @@ namespace Shuffull.Core.Models.Database
         // correct era instead of regenerating an AI guess.
         public int? OriginalReleaseYear { get; set; }
         // Where the song's hook begins, as a percent of its length (0-100): the app's audition start point. From the
-        // producer's import; null = unknown, and the app then picks its own default. Tied to the audio, not curated,
-        // so a re-source refreshes it even on a MetadataLocked song.
+        // producer's import; null = unknown, and the app then picks its own default. Nobody edits it by hand, so a
+        // re-source with a value replaces it even on a MetadataLocked song; one without keeps the old value.
         public double? HookStartPercent { get; set; }
 
         // Provisional "audition" song: imported from an exploratory source with NO AI tags, awaiting the user's

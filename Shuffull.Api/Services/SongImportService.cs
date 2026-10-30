@@ -794,8 +794,9 @@ public partial class SongImportService : BackgroundService
         song.PlainLyrics = lyrics?.Plain;
         song.LyricsInstrumental = lyrics?.Instrumental ?? false;
         song.LyricsSource = lyrics?.Source;
-        // The hook start point is measured off the source, like the lyrics, so it follows the audio rather than the
-        // curator lock. A re-source that doesn't know it keeps the one the song already has.
+        // The hook start point is measured off the source, so it isn't held by the curator lock. Unlike the lyrics, a
+        // null doesn't clear it: a re-source that doesn't know the hook keeps the old one (Shuffull#79), even when a
+        // replacement points the song at a different video.
         song.HookStartPercent = songImport.HookStartPercent ?? song.HookStartPercent;
         song.Version = DateTime.UtcNow;
 

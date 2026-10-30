@@ -1,9 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Moq;
 using Nut.Results;
 using Shuffull.Api.Services;
-using Shuffull.Api.Services.FileStorage;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Tests.Infrastructure;
 using Shuffull.Metadata.Contracts;
@@ -32,17 +29,7 @@ public class SongImportTagRevisionTest : IDisposable
         TargetPlaylistId: null, TargetPlaylistName: null, ExternalSource: ExternalSource.Youtube,
         GeneratedTags: tags, Name: "Song Name", Artists: ["Artist"], TagRevision: tagRevision);
 
-    private SongImportIntakeService Intake()
-    {
-        var storage = new Mock<IFileStorageService>();
-        storage.Setup(s => s.UploadFileAsync(It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.Ok());
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["Shuffull:Files:SongImportDirectory"] = "/imports",
-        }).Build();
-        return new SongImportIntakeService(_database.Context, storage.Object, configuration);
-    }
+    private SongImportIntakeService Intake() => SongImportHarness.Intake(_database);
 
     [Fact]
     public async Task Intake_CarriesTheProducersRevision()

@@ -1,21 +1,14 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
-using Moq;
 using Newtonsoft.Json;
 using Nut.Results;
-using Shuffull.Api.Services;
-using Shuffull.Api.Services.FileStorage;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Dtos;
 using Shuffull.Core.Models.Enums;
-using Shuffull.Core.Persistence;
 using Shuffull.Core.Tests.Infrastructure;
+using static Shuffull.Core.Tests.Infrastructure.SongImportHarness;
 using Shuffull.Metadata.Contracts;
 using Shuffull.Metadata.Enums;
-using Shuffull.Metadata.Models;
 using Shuffull.Shared.Tools;
 
 namespace Shuffull.Core.Tests.Services;
@@ -81,22 +74,10 @@ public class SongImportHookStartTest : IDisposable
 
     // --- Intake: the hand-off lands on the SongImport row ---
 
-    private SongImportIntakeService Intake()
-    {
-        var storage = new Mock<IFileStorageService>();
-        storage.Setup(s => s.UploadFileAsync(It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.Ok());
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["Shuffull:Files:SongImportDirectory"] = "/imports",
-        }).Build();
-        return new SongImportIntakeService(_database.Context, storage.Object, configuration);
-    }
-
     private async Task<double?> IntakeAsync(double? hookStartPercent)
     {
         var details = Details(hookStartPercent) with { Name = "Song Name", Artists = ["Artist"] };
-        var result = await Intake().CreateImportAsync(details, [1, 2, 3]);
+        var result = await SongImportHarness.Intake(_database).CreateImportAsync(details, [1, 2, 3]);
         Assert.True(result.IsOk, result.IsError ? result.GetError().Message : null);
         var row = await _database.CreateContext().SongImports.AsNoTracking().SingleAsync(i => i.SongImportId == result.Get());
         return row.HookStartPercent;
@@ -129,25 +110,6 @@ public class SongImportHookStartTest : IDisposable
     }
 
     // --- Import: the SongImport row lands on the Song ---
-
-    /// <summary>A few silent MPEG-1 Layer III frames (128 kbps, 44.1 kHz): enough for TagLib to open as an mp3.</summary>
-    private static byte[] Mp3Frames(byte fill = 0)
-    {
-        const int frameLength = 417; // 144 * 128000 / 44100
-        var bytes = new byte[frameLength * 10];
-        for (var offset = 0; offset < bytes.Length; offset += frameLength)
-        {
-            bytes[offset] = 0xFF;
-            bytes[offset + 1] = 0xFB;
-            bytes[offset + 2] = 0x90;
-            bytes[offset + 3] = 0x00;
-            for (var i = offset + 4; i < offset + frameLength; i++)
-            {
-                bytes[i] = fill;
-            }
-        }
-        return bytes;
-    }
 
     private async Task SeedUserAsync()
     {
@@ -184,36 +146,12 @@ public class SongImportHookStartTest : IDisposable
         LastUpdatedAt = DateTime.UtcNow,
     };
 
-    /// <summary>Queues <paramref name="songImport"/> and runs one pass of the real import loop over <paramref name="audio"/>.</summary>
+    /// <summary>Runs <paramref name="songImport"/> through the real import loop and returns the song it became.</summary>
     private async Task<Song> RunImportAsync(SongImport songImport, byte[] audio)
     {
-        _database.Context.SongImports.Add(songImport);
-        await _database.Context.SaveChangesAsync();
-
-        var services = new ServiceCollection()
-            .AddScoped<ShuffullContext>(_ => _database.CreateContext())
-            .BuildServiceProvider();
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?> { ["Shuffull:Files:MusicRootDirectory"] = "music" })
-            .Build();
-        var fileStorage = new Mock<IFileStorageService>();
-        fileStorage.Setup(x => x.DownloadFileBytesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.Ok(audio));
-        fileStorage.Setup(x => x.DownloadSerializableObjectAsync<GeneratedSongTags>(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.Error<GeneratedSongTags>("no saved AI response"));
-        fileStorage.Setup(x => x.UploadFileAsync(It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.Ok());
-        fileStorage.Setup(x => x.MoveFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.Ok());
-        fileStorage.Setup(x => x.DeleteFileAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.Ok());
-        var importer = new SongImportService(configuration, services, NullLogger<SongImportService>.Instance, fileStorage.Object);
-
-        Assert.True(await importer.ImportNextAsync(CancellationToken.None));
-        using var read = _database.CreateContext();
-        var import = await read.SongImports.AsNoTracking().SingleAsync(si => si.SongImportId == songImport.SongImportId);
+        var import = await SongImportHarness.RunImportAsync(_database, songImport, audio);
         Assert.Equal(SongImportState.Completed, import.State);
-        return await read.Songs.AsNoTracking().SingleAsync(s => s.SongId == import.SongId);
+        return await _database.CreateContext().Songs.AsNoTracking().SingleAsync(s => s.SongId == import.SongId);
     }
 
     [Fact]
