@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Shuffull.Api.Commands.Listens.RecordListens;
 using Shuffull.Api.Extensions;
 using Shuffull.Api.Tools.Authorization;
+using Shuffull.Core.Features.Listens.GetListenStats;
 using Shuffull.Core.Features.Listens.RecordListens;
 using Shuffull.Core.Models.Database;
 
@@ -38,5 +39,22 @@ public class ListensController : ControllerBase
         }
 
         return this.ToActionResult(await _mediator.Send(new RecordListensCommand(user.UserId, request.Listens ?? []), cancellationToken));
+    }
+
+    /// <summary>
+    /// Any signed-in user: per-song stats from their own listens (plays, skips, average seconds, completion %, last
+    /// played and the "maybe drop this" flag), for every song they have a listen for. A separate read rather than
+    /// fields on the synced song payloads: stats change on every play, and a listen must not bump sync Versions.
+    /// </summary>
+    [HttpGet("stats")]
+    [Authorize]
+    public async Task<IActionResult> Stats(CancellationToken cancellationToken)
+    {
+        if (HttpContext.Items["User"] is not User user)
+        {
+            return Unauthorized();
+        }
+
+        return this.ToActionResult(await _mediator.Send(new GetListenStatsQuery(user.UserId, MaybeDropRule.Default), cancellationToken));
     }
 }

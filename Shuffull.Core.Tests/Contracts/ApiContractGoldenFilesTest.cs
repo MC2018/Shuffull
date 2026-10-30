@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using Shuffull.Api.Commands.Listens.RecordListens;
 using Shuffull.Api.Controllers;
 using Shuffull.Api.Extensions;
+using Shuffull.Core.Features.Listens.GetListenStats;
 using Shuffull.Core.Features.Listens.RecordListens;
 using Shuffull.Core.Features.Playlists.CreatePlaylist;
 using Shuffull.Core.Features.Playlists.GetPlaylists;
@@ -142,6 +143,15 @@ public class ApiContractGoldenFilesTest
             new ListenResult("listen-sparse", ListenOutcomes.Duplicate),
             new ListenResult("listen-bad", ListenOutcomes.Rejected, "endedAt is before startedAt."),
         ]),
+        // GET /api/v1/listens/stats. Per-song stats and the "maybe drop this" flag (ShuffullApp#115).
+        ["listens-stats"] = new GetListenStatsResponse(
+            MaybeDropRule.Default,
+            [
+                new SongListenStats("song-full", Plays: 12, Skips: 4, AverageSecondsListened: 151.25, CompletionPercent: 70.5,
+                    LastPlayed: V1, RecentQuickSkips: 3, MaybeDrop: true),
+                new SongListenStats("song-sparse", Plays: 1, Skips: 0, AverageSecondsListened: 12, CompletionPercent: null,
+                    LastPlayed: V2, RecentQuickSkips: 0, MaybeDrop: false),
+            ]),
         // POST /api/v1/songs/retag. Per-item outcomes inside a 200; the app must read them, not the status.
         ["songs-retag"] = new RetagSongsResponse(
         [
