@@ -94,6 +94,7 @@ public class SongImportIntakeService
                 CrestFactorDb = details.CrestFactorDb,
                 OnsetsPerSecond = details.OnsetsPerSecond,
                 OriginalReleaseYear = details.OriginalReleaseYear,
+                HookStartPercent = SongImport.ValidHookStartPercent(details.HookStartPercent),
                 Exploratory = details.Exploratory,
                 MarkAsLiked = details.MarkAsLiked,
                 TargetPlaylistName = details.TargetPlaylistName,

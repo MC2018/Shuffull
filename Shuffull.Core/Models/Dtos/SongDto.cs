@@ -34,7 +34,10 @@ public record SongDto(
     // e.g. a Standard-tier import tagged by the weak model. The app treats it exactly like Exploratory for
     // promote-on-like: a like enqueues a re-tag that upgrades the tags. Server-computed on the sync paths only
     // (defaults false elsewhere); never true for exploratory or curator-locked songs.
-    bool TagsStale = false)
+    bool TagsStale = false,
+    // Where the song's hook begins, as a percent of its length (0-100): the audition start point. Null when
+    // unknown. App builds that predate it drop the field (their zod schemas aren't strict).
+    double? HookStartPercent = null)
 {
     /// <summary>
     /// Heaviness again, under its name before shuffull-workspace#50, for app builds that still read "energy".
@@ -79,6 +82,7 @@ public record SongDto(
             Bpm: song.Bpm,
             Heaviness: song.Heaviness,
             Exploratory: song.Exploratory,
-            TagsStale: tagsStale));
+            TagsStale: tagsStale,
+            HookStartPercent: song.HookStartPercent));
     }
 }

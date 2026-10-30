@@ -63,6 +63,8 @@ public class SongImport
     public double? OnsetsPerSecond { get; set; }
     /// <summary>Authoritative original release year (reliable MusicBrainz match); carried through to the Song.</summary>
     public int? OriginalReleaseYear { get; set; }
+    /// <summary>Where the hook begins, as a percent of the song's length (0-100); null when unknown. Carried through to the Song.</summary>
+    public double? HookStartPercent { get; set; }
     /// <summary>Exploratory ("audition") import: skip AI tagging; persist the Song as provisional.</summary>
     public bool Exploratory { get; set; }
     /// <summary>Whether the user liked the song on the external source; mapped to a Like on import.</summary>
@@ -88,6 +90,13 @@ public class SongImport
     public bool IsLastTagAttempt => FailedTagAttempts + 1 >= MaxTagAttempts;
 
     public Song? Song { get; set; }
+
+    /// <summary>
+    /// The producer's hook start point if it is a usable percent, else null (unknown). A NaN would also fail every
+    /// song sync, since System.Text.Json refuses to write one.
+    /// </summary>
+    public static double? ValidHookStartPercent(double? percent) =>
+        percent is double p && p >= 0 && p <= 100 ? p : null;
 
     public string FileName => $"{SongImportId}{FileType}";
     public string GetImportFolderPath(string songImportDirectory) => Path.Combine(songImportDirectory, ImportFolder);
