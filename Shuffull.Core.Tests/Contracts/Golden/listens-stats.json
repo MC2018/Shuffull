@@ -1,7 +1,7 @@
 {
   "maybeDropRule": {
     "skippedUnderSeconds": 30,
-    "skips": 3,
+    "quickSkips": 3,
     "ofLastPlays": 5
   },
   "songs": [

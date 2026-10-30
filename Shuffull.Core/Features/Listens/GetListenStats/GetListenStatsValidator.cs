@@ -12,7 +12,7 @@ public class GetListenStatsValidator : AbstractValidator<GetListenStatsQuery>
         RuleFor(x => x.Rule)
             .Cascade(CascadeMode.Stop)
             .NotNull().WithMessage("The maybe-drop rule is required.")
-            .Must(r => r.SkippedUnderSeconds > 0 && r.Skips >= 1 && r.Skips <= r.OfLastPlays)
-            .WithMessage("The maybe-drop rule needs a positive time and 1 <= skips <= plays looked at.");
+            .Must(r => r.SkippedUnderSeconds > 0 && r.QuickSkips >= 1 && r.QuickSkips <= r.OfLastPlays)
+            .WithMessage("The maybe-drop rule needs a positive time and 1 <= quick skips <= plays looked at.");
     }
 }

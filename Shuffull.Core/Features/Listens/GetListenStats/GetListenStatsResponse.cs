@@ -12,7 +12,7 @@ namespace Shuffull.Core.Features.Listens.GetListenStats;
 /// <param name="LastPlayed">When the most recent listen started (UTC).</param>
 /// <param name="RecentQuickSkips">How many of the last <see cref="MaybeDropRule.OfLastPlays"/> plays were skips in
 /// under <see cref="MaybeDropRule.SkippedUnderSeconds"/>.</param>
-/// <param name="MaybeDrop">True when <paramref name="RecentQuickSkips"/> reaches <see cref="MaybeDropRule.Skips"/>.</param>
+/// <param name="MaybeDrop">True when <paramref name="RecentQuickSkips"/> reaches <see cref="MaybeDropRule.QuickSkips"/>.</param>
 public record SongListenStats(
     string SongId,
     int Plays,

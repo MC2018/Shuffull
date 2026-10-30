@@ -11,9 +11,10 @@ namespace Shuffull.Core.Features.Listens.GetListenStats;
 /// never touches a song's or user-song's <c>Version</c>. The "last N plays" for the maybe-drop flag needs a window
 /// function, which LINQ can't express on both providers, hence raw SQL. Both Postgres and SQLite run it.
 ///
-/// <para>Cost: it reads only the caller's rows, through the <c>(UserId, SongId, StartedAt)</c> index that
-/// Shuffull#60 added. A year of heavy listening (about 18,000 listens) aggregates in a few milliseconds; the
-/// measured plan is in Shuffull#61's PR.</para>
+/// <para>Cost: it reads only the caller's rows, through the <c>(UserId, StartedAt)</c> index that
+/// Shuffull#60 added. Measured on Postgres 16: a year of heavy listening (21,900 listens over 2,500 songs, in a
+/// table of 362,000) takes about 30 ms, most of it an in-memory sort of the caller's rows. No other index is
+/// needed.</para>
 /// </summary>
 public class GetListenStatsHandler(ShuffullContext context)
     : IRequestHandler<GetListenStatsQuery, Result<GetListenStatsResponse>>
@@ -58,7 +59,7 @@ public class GetListenStatsHandler(ShuffullContext context)
                 // SQLite hands the timestamp back unspecified; it was stored as UTC.
                 LastPlayed: DateTime.SpecifyKind(r.LastPlayed, DateTimeKind.Utc),
                 RecentQuickSkips: (int)r.RecentQuickSkips,
-                MaybeDrop: r.RecentQuickSkips >= rule.Skips))
+                MaybeDrop: r.RecentQuickSkips >= rule.QuickSkips))
             .ToList();
 
         return Result.Ok(new GetListenStatsResponse(rule, songs));

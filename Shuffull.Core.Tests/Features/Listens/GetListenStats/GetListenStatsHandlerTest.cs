@@ -165,7 +165,7 @@ public class GetListenStatsHandlerTest : IDisposable
     public async Task Stats_UseTheRuleTheyAreGiven_AndEchoIt()
     {
         _listens.AddQuickSkip(_database.Context, "song", seconds: 8);
-        var rule = new MaybeDropRule(SkippedUnderSeconds: 10, Skips: 1, OfLastPlays: 1);
+        var rule = new MaybeDropRule(SkippedUnderSeconds: 10, QuickSkips: 1, OfLastPlays: 1);
 
         var stats = await StatsAsync(rule);
 
