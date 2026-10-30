@@ -185,7 +185,8 @@ public partial class SongImportService : BackgroundService
                     {
                         // True duplicate: the audio is dropped, but the import was still FOR someone. Give that user
                         // and playlist the existing song, or a second user's import (or a song request) reports
-                        // success and the song never appears for them (Shuffull#56).
+                        // success and the song never appears for them (Shuffull#56). An audition song linked to a
+                        // second user this way is spared by each user's mix delete, so it is never purged (Shuffull#87).
                         var linkResult = await LinkDuplicateAsync(duplicate.SongId, songImport, cancellationToken);
                         if (linkResult.IsError)
                         {
@@ -649,7 +650,8 @@ public partial class SongImportService : BackgroundService
 
     /// <summary>
     /// Applies a dropped duplicate import's target to the song it matched: the importing user's UserSong and the
-    /// target playlist's PlaylistSong, each only if missing. The existing song's content is left alone. Split out
+    /// target playlist's PlaylistSong, each only if missing. The existing song's audio, tags and metadata are left
+    /// alone; a liked import only promotes it out of Exploratory. Split out
     /// from <see cref="LinkDuplicateAsync"/>, which owns the DI scope, so it can be tested against an in-memory
     /// <see cref="ShuffullContext"/>.
     /// </summary>
