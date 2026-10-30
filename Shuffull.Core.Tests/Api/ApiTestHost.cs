@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Shuffull.Api.Controllers;
+using Shuffull.Api.Extensions;
 using Shuffull.Core.Models.Database;
 
 namespace Shuffull.Core.Tests.Api;
@@ -29,7 +30,7 @@ public sealed class ApiTestHost : IAsyncDisposable
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
-        builder.Services.AddControllers().AddApplicationPart(typeof(UsersController).Assembly);
+        builder.Services.AddShuffullControllers().AddApplicationPart(typeof(UsersController).Assembly);
         configureServices(builder.Services);
 
         var app = builder.Build();

@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using NLog.Web;
 using Shuffull.Api.Configuration;
+using Shuffull.Api.Extensions;
 using Shuffull.Api.Services;
 using Shuffull.Api.Services.Alerts;
 using Shuffull.Api.Services.FileStorage;
@@ -21,7 +22,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Single host: thin JSON CQRS API + the background song-import/AI pipeline + static music/album-art
 // serving + the EF migrations (applied on startup). There is no server-rendered UI — a dedicated
 // website will consume this API later.
-builder.Services.AddControllers();
+builder.Services.AddShuffullControllers();
 
 // --- Auth (JWT) ---------------------------------------------------------------------------------
 builder.Services.AddScoped<JwtHelper>();
