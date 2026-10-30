@@ -24,6 +24,8 @@ namespace Shuffull.Api.Services
         /// <summary>How long the loop waits between scans of the drop folder. Settable for tests.</summary>
         internal TimeSpan PollInterval { get; init; } = TimeSpan.FromSeconds(20);
         private static readonly TimeSpan MaxLoopErrorDelay = TimeSpan.FromMinutes(5);
+        /// <summary>Failed scans in a row; sets the backoff before the next one.</summary>
+        private int _consecutiveErrors;
 
         public ExternalSongImporterService(IServiceProvider services, IConfiguration configuration, ILogger<ExternalSongImporterService> logger)
         {
@@ -47,8 +49,6 @@ namespace Shuffull.Api.Services
                 }
             }
         }
-
-        private int _consecutiveErrors;
 
         /// <summary>
         /// One scan of the drop folder. Returns how long to wait before the next: the poll interval, or a backoff while
@@ -81,15 +81,12 @@ namespace Shuffull.Api.Services
             }
 
             _consecutiveErrors++;
-            var delay = LoopErrorDelay(_consecutiveErrors, PollInterval);
+            // The poll interval, doubling, capped at 5 minutes.
+            var delay = Backoff.Doubling(PollInterval, _consecutiveErrors, MaxLoopErrorDelay);
             _logger.LogError(thrown, "External song import scan failed ({Count} in a row); retrying in {Delay}: {Error}",
                 _consecutiveErrors, delay, scan.GetError());
             return delay;
         }
-
-        /// <summary>The loop's pause after its Nth consecutive error: the poll interval, doubling, capped at 5 minutes.</summary>
-        internal static TimeSpan LoopErrorDelay(int consecutiveErrors, TimeSpan interval) =>
-            Backoff.Doubling(interval, consecutiveErrors, MaxLoopErrorDelay);
 
         /// <summary>Stages every import in the drop folder. An error means the folder couldn't be listed; a file that
         /// fails to import is logged and left for the next scan.</summary>
