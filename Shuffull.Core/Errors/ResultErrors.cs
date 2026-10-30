@@ -71,7 +71,8 @@ public static class ResultErrors
             }
         }
 
-        // A DbUpdateException always wraps the provider's error, so this is only reached without one.
-        return exception is DbUpdateException ? ErrorKind.ServerFault : otherwise;
+        // A save that failed without a provider error inside (EF or the driver refusing a value it was given, such as a
+        // non-UTC timestamp) fails the same way on every retry, so it is not a ServerFault either.
+        return otherwise;
     }
 }

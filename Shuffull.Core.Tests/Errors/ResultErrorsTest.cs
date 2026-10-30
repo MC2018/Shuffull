@@ -55,11 +55,13 @@ public class ResultErrorsTest
     }
 
     [Fact]
-    public void SaveFailureWithoutADriverError_IsAServerFault()
+    public void SaveFailureWithoutADriverError_TakesTheCallersDefault()
     {
-        var error = ResultErrors.FromException(new DbUpdateException("An error occurred while saving."), "m");
+        // e.g. the driver refusing a non-UTC timestamp: every retry fails the same way, so it must not be a 5xx.
+        var error = ResultErrors.FromException(
+            new DbUpdateException("An error occurred while saving.", new ArgumentException("Cannot write DateTime with Kind=Local")), "m");
 
-        Assert.Equal(ErrorKind.ServerFault, ResultErrors.KindOf(error));
+        Assert.Equal(ErrorKind.Invalid, ResultErrors.KindOf(error));
     }
 
     [Fact]
