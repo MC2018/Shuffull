@@ -7,6 +7,7 @@ namespace Shuffull.Core.Tests.Services;
 /// <summary>
 /// The hook start point rides the producer's hand-off, which both sides serialize with Newtonsoft's defaults. A
 /// payload from a producer that doesn't send it has to read as unknown, not as 0% (the very start of the song).
+/// Only the contract is covered here: intake doesn't store the value yet (Shuffull#79).
 /// </summary>
 public class SongImportHookStartTest
 {
