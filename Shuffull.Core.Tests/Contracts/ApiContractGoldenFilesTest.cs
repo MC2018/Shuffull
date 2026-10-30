@@ -397,7 +397,13 @@ public class ApiContractGoldenFilesTest
             foreach (var name in RequestCases)
             {
                 data.Add(name, false);
-                data.Add(name, true);
+
+                // A body with no keys (a bare id array, the like status) has no PascalCase spelling to test.
+                var body = JsonSerializer.SerializeToNode(Cases[name], Cases[name].GetType(), ApiJsonOptions());
+                if (!JsonNode.DeepEquals(body, PascalCaseNames(body)))
+                {
+                    data.Add(name, true);
+                }
             }
 
             return data;
