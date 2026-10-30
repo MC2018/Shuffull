@@ -462,14 +462,15 @@ public class GetPendingTagSongsHandlerTest : IDisposable
     [Fact]
     public async Task AFunnelThatDeclaresNothing_IsJudgedAgainstTheSitesConfig_AsBefore()
     {
-        // Today's prod funnel sends no models. It must see exactly today's queue, and record no model signal.
+        // Today's prod funnel sends no models. It must see exactly today's queue. Its poll still counts as healthy
+        // for the model alert, so one raised by a newer funnel clears if the funnel is rolled back.
         var config = Config(weak: "weak-model", strong: "frontier-model");
         var liked = await SeedAsync(tagModel: "strong-model", like: LikeStatus.Like);
 
         var response = (await RunAsync(config: config)).Get();
 
         Assert.Equal(liked.SongId, Assert.Single(response.Songs).SongId);
-        Assert.DoesNotContain(ShuffullSignalRules.PendingTagsModels, _signals.Successes);
+        Assert.Contains(ShuffullSignalRules.PendingTagsModels, _signals.Successes);
         Assert.Empty(_signals.Failures);
     }
 
@@ -545,5 +546,38 @@ public class GetPendingTagSongsHandlerTest : IDisposable
         Assert.Contains(fourth.Songs, s => s.SongId == reported.SongId);
         Assert.DoesNotContain(fourth.Songs, s => s.SongId == unreported.SongId); // still on the ladder: 20 min
         Assert.Equal(1, (await ReloadAsync(reported.SongId)).TagAttempts); // holds don't count as failures
+    }
+
+    [Fact]
+    public async Task MoreHeldSongsThanAPage_NeverCrowdOutAFreshKeep_OrADueRetry()
+    {
+        // Held songs come back every cycle while their batch runs, and are older than anything new. Each cycle the
+        // funnel holds the whole page again, as it does while a batch is pending.
+        var clock = new ManualTimeProvider(DateTime.UtcNow);
+        var old = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var held = new List<string>();
+        for (var i = 0; i < 3; i++)
+        {
+            held.Add((await SeedAsync(version: old.AddMinutes(i))).SongId);
+        }
+        var first = (await RunAsync(limit: 3, clock: clock)).Get();
+        Assert.Equal(held, first.Songs.Select(s => s.SongId));
+        await HoldAsync(clock, [.. held]);
+
+        // A failed hand-out from before, now due again, and a Keep that just arrived, both newer than every held song.
+        var retry = await SeedAsync(version: old.AddDays(1));
+        await using (var context = _database.CreateContext())
+        {
+            var song = (await context.Songs.FindAsync(retry.SongId))!;
+            song.TagAttempts = 2;
+            song.NextTagAttemptAt = clock.UtcNow;
+            await context.SaveChangesAsync();
+        }
+        var keep = await SeedAsync(version: old.AddDays(2));
+        clock.UtcNow += FunnelCycle;
+
+        var next = (await RunAsync(limit: 3, clock: clock)).Get();
+
+        Assert.Equal([retry.SongId, keep.SongId, held[0]], next.Songs.Select(s => s.SongId));
     }
 }

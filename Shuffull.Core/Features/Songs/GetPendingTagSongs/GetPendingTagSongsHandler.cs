@@ -64,10 +64,8 @@ public class GetPendingTagSongsHandler(
             await signals.FailureAsync(ShuffullSignalRules.PendingTagsModels, message, cancellationToken);
             return Result.Error<PendingTagSongsResponse>(new KindedError(ErrorKind.Invalid, message));
         }
-        if (declaredWeak is not null || declaredStrong is not null)
-        {
-            await signals.SuccessAsync(ShuffullSignalRules.PendingTagsModels, cancellationToken);
-        }
+        // Declared or not: a funnel rolled back to a build that declares nothing must still clear the alert.
+        await signals.SuccessAsync(ShuffullSignalRules.PendingTagsModels, cancellationToken);
 
         // A tier the producer didn't declare is read straight from configuration rather than through
         // IAIServiceResolver, which is only registered when the site's own AI is enabled. Blank counts as missing —
@@ -139,12 +137,21 @@ public class GetPendingTagSongsHandler(
 
         // Real upgrades (a Keep, a Like, untagged songs) first, then revision re-scores, so a library-wide re-score
         // never queues ahead of what a user just asked for. Oldest first within each: the queue drains in the order
-        // work was requested, so a long legacy backfill cannot be starved by newer arrivals. A song that was handed out and is still behind (no
-        // tags inferable, held in a batch, a write refused) sits out its backoff instead of filling the page.
+        // work was requested, so a long legacy backfill cannot be starved by newer arrivals. A song that was handed
+        // out and is still behind (no tags inferable, held in a batch, a write refused) sits out its backoff instead
+        // of filling the page.
+        //
+        // A song the producer reported held comes back every cycle until its batch lands, and is usually among the
+        // oldest, so within each group it goes behind everything else, taking only the slots left over. Otherwise 25
+        // songs held at once (a strong-model change makes every liked song behind) would fill every page until their
+        // batches land, and a fresh Keep would wait behind them. Only a hold report leaves a song at no attempts with
+        // a due time set (a hand-out counts one, writing tags clears both), so a producer that doesn't report holds
+        // sees the order it always did.
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var rows = await pending
             .Where(s => s.NextTagAttemptAt == null || s.NextTagAttemptAt <= now)
             .OrderBy(s => upgradeIds.Contains(s.SongId) ? 0 : 1)
+            .ThenBy(s => s.TagAttempts == 0 && s.NextTagAttemptAt != null ? 1 : 0)
             .ThenBy(s => s.Version)
             .Take(limit)
             .Select(s => new

@@ -37,7 +37,8 @@ public static class ShuffullSignalRules
             RemindEvery: Daily, StaleAfter: TimeSpan.FromHours(1),
             StaleSubject: _ => "The funnel stopped picking up songs to tag"),
 
-        // Only recorded when the funnel declares its models (shuffull-workspace#36); an older funnel records nothing.
+        // Fails only when the funnel declares a model the site doesn't know (shuffull-workspace#36). Every other poll
+        // is a success, including one that declares nothing, so rolling the funnel back clears it.
         new(PendingTagsModels, _ => "The funnel tags with a model the site doesn't know",
             "The funnel sends the weak and strong models it runs when it asks songs/pending-tags for work, and at least " +
             "one isn't in the API's AI:ModelStrengths. Rather than guess how strong it is, the site hands out no tagging " +

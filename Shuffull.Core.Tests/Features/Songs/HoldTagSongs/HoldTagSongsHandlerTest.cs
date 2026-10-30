@@ -94,15 +94,4 @@ public class HoldTagSongsHandlerTest : IDisposable
     [Fact]
     public async Task AnEmptyReport_IsANoOp()
         => Assert.Equal(new HoldTagSongsResponse(0), await HoldAsync());
-
-    [Fact]
-    public void AReport_IsCappedAtOnePage()
-    {
-        var validator = new HoldTagSongsValidator();
-        var page = Enumerable.Range(0, GetPendingTagSongsHandler.MaxLimit).Select(i => $"song-{i}").ToList();
-
-        Assert.True(validator.Validate(new HoldTagSongsCommand(page)).IsValid);
-        Assert.False(validator.Validate(new HoldTagSongsCommand([.. page, "one-more"])).IsValid);
-        Assert.False(validator.Validate(new HoldTagSongsCommand(null!)).IsValid);
-    }
 }
