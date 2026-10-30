@@ -8,6 +8,7 @@ using Shuffull.Api.Commands.Songs.HoldTagSongs;
 using Shuffull.Api.Controllers;
 using Shuffull.Api.Extensions;
 using Shuffull.Core.Features.Listens.GetListenStats;
+using Shuffull.Core.Features.Listens.GetRecap;
 using Shuffull.Core.Features.Listens.RecordListens;
 using Shuffull.Core.Features.Playlists.CreatePlaylist;
 using Shuffull.Core.Features.Playlists.GetPlaylists;
@@ -153,6 +154,36 @@ public class ApiContractGoldenFilesTest
                 new SongListenStats("song-sparse", Plays: 1, Skips: 0, AverageSecondsListened: 12, CompletionPercent: null,
                     LastPlayed: V2, RecentQuickSkips: 0, MaybeDrop: false),
             ]),
+        // GET /api/v1/recap/{year}. The yearly recap (ShuffullApp#116): months and the heatmap are in the asked zone.
+        ["recap"] = new GetRecapResponse(
+            Year: 2026,
+            TimeZone: "America/New_York",
+            From: new DateTime(2026, 1, 1, 5, 0, 0, DateTimeKind.Utc),
+            To: new DateTime(2027, 1, 1, 5, 0, 0, DateTimeKind.Utc),
+            TotalMinutes: 125.5,
+            Plays: 40,
+            MinutesByMonth: [10, 20.5, 0, 0, 0, 0, 0, 0, 0, 0, 45, 50],
+            Heatmap: Enumerable.Range(0, 7)
+                .Select(day => (IReadOnlyList<double>)Enumerable.Range(0, 24).Select(hour => day == 5 && hour == 21 ? 125.5 : 0.0).ToList())
+                .ToList(),
+            TopSongsByMinutes: [new RecapSong("song-full", "Song Full", ["Artist A", "Artist B"], 80, 25)],
+            TopSongsByPlays: [new RecapSong("song-sparse", null, [], 45.5, 30)],
+            TopArtistsByMinutes: [new RecapArtist("artist-a", "Artist A", 80, 25)],
+            TopArtistsByPlays: [new RecapArtist("artist-a", "Artist A", 80, 25)],
+            TopGenres: [new RecapGenre("tag-rock", "Rock", 80)],
+            GenresByMonth: [new RecapGenreMonth(1, 10, [new RecapGenreShare("tag-rock", "Rock", 2.5, 25)])],
+            AuditionMinutes: 12.5,
+            KeepRate: new RecapKeepRate(AuditionedSongs: 4, KeptSongs: 1, Percent: 25),
+            LongestStreak: new RecapStreak(3, new DateOnly(2026, 11, 2), new DateOnly(2026, 11, 4)),
+            LongestSession: new RecapSession(V1, V1.AddMinutes(95), 90, 22),
+            BiggestGrower: new RecapGrower(new RecapSong("song-full", "Song Full", ["Artist A"], 50, 15), Month: 12,
+                PreviousMonthMinutes: 5),
+            SongOfEachSeason:
+            [
+                new RecapSeason("winter", new RecapSong("song-full", "Song Full", ["Artist A"], 80, 25)),
+                new RecapSeason("spring", null),
+            ],
+            MostSkipped: new RecapMostSkipped(new RecapSong("song-sparse", null, [], 45.5, 30), Skips: 7)),
         // POST /api/v1/songs/retag. Per-item outcomes inside a 200; the app must read them, not the status.
         ["songs-retag"] = new RetagSongsResponse(
         [
