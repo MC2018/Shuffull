@@ -41,14 +41,14 @@ public class UserSongsController : ControllerBase
 
     [HttpGet]
     [Authorize]
-    public async Task<IActionResult> GetAll([FromQuery] DateTime afterDate, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAll([FromQuery] DateTime afterDate, [FromQuery] string? afterId, CancellationToken cancellationToken)
     {
         if (HttpContext.Items["User"] is not User user)
         {
             return Unauthorized();
         }
 
-        return this.ToActionResult(await _mediator.Send(new GetUserSongsQuery(user.UserId, afterDate), cancellationToken));
+        return this.ToActionResult(await _mediator.Send(new GetUserSongsQuery(user.UserId, afterDate, afterId), cancellationToken));
     }
 
     [HttpPost("last-played")]

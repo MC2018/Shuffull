@@ -100,4 +100,94 @@ public class GetUserSongsHandlerTest : IDisposable
         Assert.Empty(result.Get().UserSongs);
         Assert.True(result.Get().EndOfList);
     }
+
+    [Fact]
+    public async Task Handle_KeysetCursor_PagesThroughATieLargerThanAPage_EachRecordOnce()
+    {
+        // Arrange — 1,200 play records sharing one Version (shuffull-workspace#38), plus another user's record at the
+        // same Version that must never appear. Inserted shuffled so the order has to come from the query.
+        var user = await SeedUserAsync();
+        var otherUser = await SeedUserAsync();
+        var version = new DateTime(2026, 10, 23, 12, 0, 0, DateTimeKind.Utc).AddTicks(1234560);
+        var songIds = Enumerable.Range(0, 1200).Select(i => $"song-{i:0000}").ToList();
+        await _database.Context.Songs.AddRangeAsync(songIds.Select(id => new Song
+        {
+            SongId = id,
+            Name = "Song",
+            FileExtension = ".mp3",
+            FileHash = $"hash-{id}",
+            ExternalSongId = null,
+        }));
+        await _database.Context.UserSongs.AddRangeAsync(Enumerable.Range(0, songIds.Count)
+            .Select(i => songIds[i * 7 % songIds.Count])
+            .Select(id => new UserSong { UserId = user.UserId, SongId = id, LastPlayed = version, Version = version })
+            .Append(new UserSong { UserId = otherUser.UserId, SongId = songIds[600], LastPlayed = version, Version = version }));
+        await _database.Context.SaveChangesAsync();
+
+        // Act — page from the last record's exact Version and SongId.
+        var pages = new List<GetUserSongsResponse>();
+        var query = new GetUserSongsQuery(user.UserId, DateTime.MinValue);
+        while (pages.Count < 10)
+        {
+            var result = await _handler.Handle(query, CancellationToken.None);
+            Assert.True(result.IsOk);
+            var page = result.Get();
+            pages.Add(page);
+            if (page.EndOfList)
+            {
+                break;
+            }
+
+            query = new GetUserSongsQuery(user.UserId, page.UserSongs[^1].Version, page.UserSongs[^1].SongId);
+        }
+
+        // Assert
+        Assert.Equal(new[] { 500, 500, 200 }, pages.Select(p => p.UserSongs.Count).ToArray());
+        Assert.Equal(new[] { false, false, true }, pages.Select(p => p.EndOfList).ToArray());
+        Assert.Equal(songIds, pages.SelectMany(p => p.UserSongs).Select(us => us.SongId).ToList());
+        Assert.All(pages.SelectMany(p => p.UserSongs), us => Assert.Equal(user.UserId, us.UserId));
+    }
+
+    [Fact]
+    public async Task Handle_KeysetCursor_SkipsTiedRecordsUpToTheIdAndKeepsLaterVersions()
+    {
+        // Arrange — explicit song ids so a later version can carry a smaller id than the cursor's.
+        var user = await SeedUserAsync();
+        var cursor = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        foreach (var (songId, version) in new[]
+                 {
+                     ("a", cursor), ("b", cursor), ("c", cursor), ("0-later", cursor.AddTicks(10)), ("z-earlier", cursor.AddTicks(-10)),
+                 })
+        {
+            await _database.Context.Songs.AddAsync(new Song { SongId = songId, Name = "Song", FileExtension = ".mp3", FileHash = $"hash-{songId}" });
+            await _database.Context.UserSongs.AddAsync(new UserSong { UserId = user.UserId, SongId = songId, LastPlayed = version, Version = version });
+        }
+        await _database.Context.SaveChangesAsync();
+
+        // Act — the client already has everything up to and including (cursor, "b").
+        var result = await _handler.Handle(new GetUserSongsQuery(user.UserId, cursor, "b"), CancellationToken.None);
+
+        // Assert — the rest of the tie by id, then later versions regardless of id.
+        Assert.True(result.IsOk);
+        Assert.Equal(new[] { "c", "0-later" }, result.Get().UserSongs.Select(us => us.SongId).ToArray());
+        Assert.True(result.Get().EndOfList);
+    }
+
+    [Fact]
+    public async Task Handle_WithoutAfterId_KeepsTheLegacyStrictlyAfterCursor()
+    {
+        // Arrange
+        var user = await SeedUserAsync();
+        var cutoff = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        await SeedUserSongAsync(user.UserId, cutoff);
+        var newer = await SeedUserSongAsync(user.UserId, cutoff.AddTicks(10));
+
+        // Act — installed apps send afterDate alone; an empty afterId means the same.
+        var withoutId = await _handler.Handle(new GetUserSongsQuery(user.UserId, cutoff), CancellationToken.None);
+        var emptyId = await _handler.Handle(new GetUserSongsQuery(user.UserId, cutoff, ""), CancellationToken.None);
+
+        // Assert — the record at exactly the cursor stays excluded, as installed apps expect.
+        Assert.Equal(new[] { newer.SongId }, withoutId.Get().UserSongs.Select(us => us.SongId).ToArray());
+        Assert.Equal(new[] { newer.SongId }, emptyId.Get().UserSongs.Select(us => us.SongId).ToArray());
+    }
 }

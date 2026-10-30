@@ -12,7 +12,7 @@ public class GetUserSongsHandler(IUnitOfWork unitOfWork) : IRequestHandler<GetUs
     public async Task<Result<GetUserSongsResponse>> Handle(GetUserSongsQuery request, CancellationToken cancellationToken)
     {
         var userSongsResult = await unitOfWork.Repository<UserSong>()
-            .ListAsync(new UserSongsByUserAfterDateSpec(request.UserId, request.AfterDate).AsNoTracking(), cancellationToken);
+            .ListAsync(new UserSongsByUserAfterDateSpec(request.UserId, request.AfterDate, request.AfterId).AsNoTracking(), cancellationToken);
         if (userSongsResult.IsError)
         {
             return Result.Error<GetUserSongsResponse>(userSongsResult.GetError().Message);
