@@ -99,7 +99,7 @@ public class RecordListensHandlerTest : IDisposable
         Assert.True((await RunAsync(me.UserId, batch)).IsOk);
 
         // A resend that differs is still the same listen: the first copy stays as it was.
-        var resend = await RunAsync(me.UserId, batch[0] with { SecondsListened = 999 }, batch[1]);
+        var resend = await RunAsync(me.UserId, batch[0] with { SecondsListened = 12 }, batch[1]);
 
         Assert.Equal([("a", ListenOutcomes.Duplicate), ("b", ListenOutcomes.Duplicate)], Outcomes(resend));
         await using var check = _database.CreateContext();
@@ -138,14 +138,19 @@ public class RecordListensHandlerTest : IDisposable
             Item(new string('x', Listen.MaxIdLength + 1)),
             Item(""),
             Item("future") with { StartedAt = DateTime.UtcNow.AddDays(3), EndedAt = DateTime.UtcNow.AddDays(3) },
+            Item("clock-at-1970") with { StartedAt = DateTime.UnixEpoch, EndedAt = DateTime.UnixEpoch.AddSeconds(30) },
+            Item("milliseconds-as-seconds") with { SecondsListened = 30_000 },
+            Item("nul-in-platform") with { Platform = "and\0roid" },
+            null!,
             Item("good"));
 
         Assert.True(result.IsOk);
         var outcomes = result.Get().Results;
-        Assert.Equal(14, outcomes.Count);
-        Assert.All(outcomes.Take(13), r => Assert.Equal(ListenOutcomes.Rejected, r.Outcome));
-        Assert.All(outcomes.Take(13), r => Assert.False(string.IsNullOrWhiteSpace(r.Error)));
-        Assert.Equal(ListenOutcomes.Recorded, outcomes[13].Outcome);
+        Assert.Equal(18, outcomes.Count);
+        Assert.All(outcomes.Take(17), r => Assert.Equal(ListenOutcomes.Rejected, r.Outcome));
+        Assert.All(outcomes.Take(17), r => Assert.False(string.IsNullOrWhiteSpace(r.Error)));
+        Assert.Null(outcomes[16].ListenId);
+        Assert.Equal(ListenOutcomes.Recorded, outcomes[17].Outcome);
         Assert.Equal(["good"], await StoredIdsAsync());
     }
 

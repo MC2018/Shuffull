@@ -25,6 +25,14 @@ public class RecordListensHandler(ShuffullContext context)
     // ahead would sit in the wrong month of the recap.
     public static readonly TimeSpan MaxClockSkew = TimeSpan.FromDays(1);
 
+    // No real listen starts before the log existed. A phone that boots with its clock at 1970 would otherwise
+    // file its listens there.
+    public static readonly DateTime EarliestStart = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+    // secondsListened counts only play time, so it fits inside endedAt - startedAt. This much over is clock rounding;
+    // far more is a unit bug (milliseconds sent as seconds).
+    public const double SecondsListenedSlack = 5;
+
     public async Task<Result<RecordListensResponse>> Handle(RecordListensCommand request, CancellationToken cancellationToken)
     {
         var items = request.Listens ?? [];
@@ -97,7 +105,7 @@ public class RecordListensHandler(ShuffullContext context)
         {
             if (c.Listen is null)
             {
-                return new ListenResult(c.Item.ListenId, ListenOutcomes.Rejected, c.Error);
+                return new ListenResult(c.Item?.ListenId, ListenOutcomes.Rejected, c.Error);
             }
 
             var id = c.Listen.ListenId;
@@ -114,13 +122,22 @@ public class RecordListensHandler(ShuffullContext context)
         return Result.Ok(new RecordListensResponse(results));
     }
 
-    private sealed record CheckedItem(ListenItem Item, Listen? Listen, string? Error);
+    private sealed record CheckedItem(ListenItem? Item, Listen? Listen, string? Error);
 
     /// <summary>The listen to store for <paramref name="item"/>, or why it is rejected.</summary>
-    private static CheckedItem Check(ListenItem item, string userId, DateTime now)
+    private static CheckedItem Check(ListenItem? item, string userId, DateTime now)
     {
         CheckedItem Reject(string error) => new(item, null, error);
 
+        if (item is null)
+        {
+            return Reject("A listen is required.");
+        }
+        // Postgres text can't hold a NUL, and the failed insert would fail the whole batch.
+        if (new[] { item.ListenId, item.SongId, item.PlaylistId, item.Platform, item.UserId }.Any(s => s?.Contains('\0') == true))
+        {
+            return Reject("Text fields can't contain a NUL character.");
+        }
         if (string.IsNullOrWhiteSpace(item.ListenId) || item.ListenId.Length > Listen.MaxIdLength)
         {
             return Reject($"A listen id is required, at most {Listen.MaxIdLength} characters.");
@@ -148,9 +165,17 @@ public class RecordListensHandler(ShuffullContext context)
         {
             return Reject("endedAt is in the future.");
         }
+        if (startedAt < EarliestStart)
+        {
+            return Reject($"startedAt is before {EarliestStart:yyyy-MM-dd}; the device clock is probably wrong.");
+        }
         if (item.SecondsListened is not { } secondsListened || !double.IsFinite(secondsListened) || secondsListened < 0)
         {
             return Reject("secondsListened is required and must be zero or more.");
+        }
+        if (secondsListened > (endedAt - startedAt).TotalSeconds + SecondsListenedSlack)
+        {
+            return Reject("secondsListened is longer than the time between startedAt and endedAt.");
         }
         if (item.SongDurationSeconds is { } duration && (!double.IsFinite(duration) || duration < 0))
         {

@@ -38,8 +38,8 @@ public class Listen
     [Required]
     public DateTime EndedAt { get; set; }
 
-    /// <summary>Time the song actually played, without pauses. Can differ from <see cref="EndedAt"/> minus
-    /// <see cref="StartedAt"/> both ways (a pause, a seek).</summary>
+    /// <summary>Time the song actually played: pauses, buffering and seeks don't count. So it is at most
+    /// <see cref="EndedAt"/> minus <see cref="StartedAt"/>, and less after a pause.</summary>
     [Required]
     public double SecondsListened { get; set; }
 
