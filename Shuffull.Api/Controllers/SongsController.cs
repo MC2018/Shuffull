@@ -50,12 +50,14 @@ public class SongsController : ControllerBase
     /// <summary>
     /// Incremental song sync: songs whose <c>Version</c> is newer than the client's cursor, paged and ordered
     /// by version. Lets the app refresh songs it already holds (e.g. an in-place replacement) — the full-page
-    /// <see cref="GetSongPage"/> / list endpoints only seed songs the client doesn't have yet.
+    /// <see cref="GetSongPage"/> / list endpoints only seed songs the client doesn't have yet. Send the last song's
+    /// exact <c>version</c> string and <c>songId</c> as <c>afterDate</c> + <c>afterId</c> to page by (Version, SongId),
+    /// which steps through any number of songs sharing one Version; <c>afterDate</c> alone is the old cursor.
     /// </summary>
     [HttpGet("changed")]
     [Authorize]
-    public async Task<IActionResult> GetSongsChanged([FromQuery] DateTime afterDate, CancellationToken cancellationToken)
-        => this.ToActionResult(await _mediator.Send(new GetSongsChangedQuery(afterDate), cancellationToken));
+    public async Task<IActionResult> GetSongsChanged([FromQuery] DateTime afterDate, [FromQuery] string? afterId, CancellationToken cancellationToken)
+        => this.ToActionResult(await _mediator.Send(new GetSongsChangedQuery(afterDate, afterId), cancellationToken));
 
     [HttpGet("{songId}")]
     [Authorize]

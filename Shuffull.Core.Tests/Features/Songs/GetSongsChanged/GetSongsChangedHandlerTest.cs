@@ -176,4 +176,76 @@ public class GetSongsChangedHandlerTest : IDisposable
         Assert.Equal(SongsByVersionAfterDateSpec.PageSize, result.Get().Songs.Count);
         Assert.True(result.Get().EndOfList);
     }
+
+    [Fact]
+    public async Task Handle_KeysetCursor_PagesThroughATieLargerThanAPage_EachSongOnce()
+    {
+        // Arrange — 1,200 songs stamped with one Version, as a bulk SQL write does (shuffull-workspace#38). Ids are
+        // inserted shuffled so the order has to come from the query, not from insertion.
+        var version = new DateTime(2026, 10, 23, 12, 0, 0, DateTimeKind.Utc).AddTicks(1234560);
+        var ids = Enumerable.Range(0, 1200).Select(i => $"song-{i:0000}").ToList();
+        await _database.Context.Songs.AddRangeAsync(Enumerable.Range(0, ids.Count).Select(i => NewSong(ids[i * 7 % ids.Count], version)));
+        await _database.Context.SaveChangesAsync();
+
+        // Act — page the way a keyset client does: from the last song's exact Version and SongId.
+        var pages = new List<GetSongsChangedResponse>();
+        var cursor = new GetSongsChangedQuery(DateTime.MinValue);
+        while (pages.Count < 10)
+        {
+            var result = await _handler.Handle(cursor, CancellationToken.None);
+            Assert.True(result.IsOk);
+            var page = result.Get();
+            pages.Add(page);
+            if (page.EndOfList)
+            {
+                break;
+            }
+
+            cursor = new GetSongsChangedQuery(page.Songs[^1].Version, page.Songs[^1].SongId);
+        }
+
+        // Assert
+        Assert.Equal(new[] { 500, 500, 200 }, pages.Select(p => p.Songs.Count).ToArray());
+        Assert.Equal(new[] { false, false, true }, pages.Select(p => p.EndOfList).ToArray());
+        Assert.Equal(ids, pages.SelectMany(p => p.Songs).Select(s => s.SongId).ToList());
+    }
+
+    [Fact]
+    public async Task Handle_KeysetCursor_SkipsTiedSongsUpToTheIdAndKeepsLaterVersions()
+    {
+        // Arrange
+        var cursor = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        await _database.Context.Songs.AddRangeAsync(
+            NewSong("a", cursor),
+            NewSong("b", cursor),
+            NewSong("c", cursor),
+            NewSong("0-later", cursor.AddTicks(10)),
+            NewSong("z-earlier", cursor.AddTicks(-10)));
+        await _database.Context.SaveChangesAsync();
+
+        // Act — the client already has everything up to and including (cursor, "b").
+        var result = await _handler.Handle(new GetSongsChangedQuery(cursor, "b"), CancellationToken.None);
+
+        // Assert — the rest of the tie by id, then later versions regardless of id.
+        Assert.True(result.IsOk);
+        Assert.Equal(new[] { "c", "0-later" }, result.Get().Songs.Select(s => s.SongId).ToArray());
+        Assert.True(result.Get().EndOfList);
+    }
+
+    [Fact]
+    public async Task Handle_WithoutAfterId_KeepsTheLegacyStrictlyAfterCursor()
+    {
+        // Arrange — installed apps send afterDate alone; a song at exactly that Version stays excluded whatever its id.
+        var cursor = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        await _database.Context.Songs.AddRangeAsync(NewSong("zzz", cursor), NewSong("next", cursor.AddTicks(10)));
+        await _database.Context.SaveChangesAsync();
+
+        // Act
+        var withoutId = await _handler.Handle(new GetSongsChangedQuery(cursor), CancellationToken.None);
+        var emptyId = await _handler.Handle(new GetSongsChangedQuery(cursor, ""), CancellationToken.None);
+
+        // Assert
+        Assert.Equal(new[] { "next" }, withoutId.Get().Songs.Select(s => s.SongId).ToArray());
+        Assert.Equal(new[] { "next" }, emptyId.Get().Songs.Select(s => s.SongId).ToArray());
+    }
 }

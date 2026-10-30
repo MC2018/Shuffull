@@ -13,7 +13,7 @@ public class GetSongsChangedHandler(IUnitOfWork unitOfWork, TagStalenessJudge st
     public async Task<Result<GetSongsChangedResponse>> Handle(GetSongsChangedQuery request, CancellationToken cancellationToken)
     {
         var songsResult = await unitOfWork.Repository<Song>()
-            .ListAsync(new SongsByVersionAfterDateSpec(request.AfterDate).AsNoTracking(), cancellationToken);
+            .ListAsync(new SongsByVersionAfterDateSpec(request.AfterDate, request.AfterId).AsNoTracking(), cancellationToken);
         if (songsResult.IsError)
         {
             return Result.Error<GetSongsChangedResponse>(songsResult.GetError().Message);
