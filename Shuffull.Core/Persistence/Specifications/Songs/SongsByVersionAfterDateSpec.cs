@@ -12,7 +12,7 @@ namespace Shuffull.Core.Persistence.Specifications.Songs;
 /// <para>
 /// With <c>afterId</c> the cursor is the keyset (Version, SongId) of the last row the client has: rows that tie
 /// on that Version page by id, so a tie of any size can't repeat a page or skip a row (Shuffull#64). Without it
-/// the filter is <c>Version &gt; afterDate</c> alone, which is what installed apps still send.
+/// the filter is <c>Version > afterDate</c> alone, which is what installed apps still send.
 /// </para>
 /// </summary>
 public class SongsByVersionAfterDateSpec : BaseSpecification<Song>

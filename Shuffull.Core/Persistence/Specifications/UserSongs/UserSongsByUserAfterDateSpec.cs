@@ -9,7 +9,7 @@ namespace Shuffull.Core.Persistence.Specifications.UserSongs;
 /// remain (mirrors the legacy UserSongController.GetAll's MAX_PAGE_LENGTH + 1 probe).
 /// <para>
 /// With <c>afterId</c> (a SongId; unique within one user) the cursor is the keyset (Version, SongId), so a tie
-/// of any size pages through by id (Shuffull#64). Without it the filter is <c>Version &gt; afterDate</c> alone,
+/// of any size pages through by id (Shuffull#64). Without it the filter is <c>Version > afterDate</c> alone,
 /// which is what installed apps still send.
 /// </para>
 /// </summary>
