@@ -10,6 +10,8 @@ public static class ShuffullSignalRules
 
     public const string FunnelProbe = "probe:funnel";
     public const string PendingTagsPoll = "funnel-poll:pending-tags";
+    /// <summary>Whether the models the funnel declares on songs/pending-tags are on the site's ladder.</summary>
+    public const string PendingTagsModels = "pending-tags:models";
     public const string YoutubeRatingsPoll = "funnel-poll:youtube-ratings";
     /// <summary>Prefix of the per-song keys <see cref="KeepRefusedKey"/> makes.</summary>
     public const string KeepRefusedPrefix = "keep-refused:";
@@ -34,6 +36,14 @@ public static class ShuffullSignalRules
             "Kept songs stay untagged meanwhile. Is the funnel's downloader running, and is its ImportKey still right?",
             RemindEvery: Daily, StaleAfter: TimeSpan.FromHours(1),
             StaleSubject: _ => "The funnel stopped picking up songs to tag"),
+
+        // Only recorded when the funnel declares its models (shuffull-workspace#36); an older funnel records nothing.
+        new(PendingTagsModels, _ => "The funnel tags with a model the site doesn't know",
+            "The funnel sends the weak and strong models it runs when it asks songs/pending-tags for work, and at least " +
+            "one isn't in the API's AI:ModelStrengths. Rather than guess how strong it is, the site hands out no tagging " +
+            "work, so kept and liked songs stay untagged. Add the model to both ModelStrengths maps (Shuffull.Api and " +
+            "YoutubeFunnel.Downloader appsettings.json) and deploy the API. The failure message names the model.",
+            MinFailures: 3, RemindEvery: Daily),
 
         new(YoutubeRatingsPoll, null,
             "The funnel's youtube worker fetches pending likes every 10 minutes; it hasn't for an hour, so likes aren't " +

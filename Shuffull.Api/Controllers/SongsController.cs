@@ -13,6 +13,7 @@ using Shuffull.Core.Features.Songs.RetagSongs;
 using Shuffull.Core.Features.Songs.ApplySongTags;
 using Shuffull.Core.Features.Songs.GetPendingTagSongs;
 using Shuffull.Core.Features.Songs.GetLibrarySongs;
+using Shuffull.Core.Features.Songs.HoldTagSongs;
 using Shuffull.Core.Features.Songs.RetagStaleSongs;
 using Shuffull.Core.Features.Songs.UpdateSong;
 using Shuffull.Api.Tools.Authorization;
@@ -112,17 +113,33 @@ public class SongsController : ControllerBase
     /// Producer: the songs whose tags are behind the model they deserve, oldest first, with the tier each
     /// should be tagged at. Shared-secret guarded — this is the funnel's work queue, not a user endpoint. Not
     /// read-only: every song returned counts an attempt and is held back until its retry delay passes.
+    /// <c>weakModel</c> / <c>strongModel</c> are the models the funnel runs per tier, and "behind" is judged against
+    /// them; one left out falls back to the site's config. A model missing from AI:ModelStrengths is a 400.
     /// </summary>
     [HttpGet("pending-tags")]
     [ProducerKey]
     public async Task<IActionResult> GetPendingTagSongs(
         [FromQuery] int limit,
+        [FromQuery] string? weakModel,
+        [FromQuery] string? strongModel,
         CancellationToken cancellationToken)
     {
         // Proves the funnel is still asking for work; an hour without it alerts (Shuffull#75). Throttled to a write a minute.
         await _signals.SuccessAsync(ShuffullSignalRules.PendingTagsPoll, cancellationToken);
-        return this.ToActionResult(await _mediator.Send(new GetPendingTagSongsQuery(limit), cancellationToken));
+        return this.ToActionResult(
+            await _mediator.Send(new GetPendingTagSongsQuery(limit, weakModel, strongModel), cancellationToken));
     }
+
+    /// <summary>
+    /// Producer: the songs from its last page that it held for an AI batch. Each goes back to the queue's first retry
+    /// delay with its attempt count reset, so it is offered again next cycle. Shared-secret guarded.
+    /// </summary>
+    [HttpPost("pending-tags/holds")]
+    [ProducerKey]
+    public async Task<IActionResult> HoldTagSongs(
+        [FromBody] HoldTagSongsRequest request,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(await _mediator.Send(new HoldTagSongsCommand(request.SongIds ?? []), cancellationToken));
 
     /// <summary>
     /// Producer: every library song, keyset-paged by id, so the funnel's duplicate registry also covers songs it

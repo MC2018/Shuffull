@@ -209,6 +209,8 @@ public class ApiContractGoldenFilesTest
                 Themes: ["Rebellion"]),
             TagModel: "gpt-5.6-terra",
             TagRevision: 3),
+        // POST /api/v1/songs/pending-tags/holds — a REQUEST body: the songs the funnel held for an AI batch.
+        ["songs-pending-tags-holds"] = new HoldTagSongsRequest(["song-full", "song-sparse"]),
         // GET /api/v1/songs/library. The funnel mirrors the site's songs into its duplicate registry from this.
         ["songs-library"] = new LibrarySongsPage(
             [
@@ -237,11 +239,11 @@ public class ApiContractGoldenFilesTest
     };
 
     /// <summary>
-    /// The request bodies among <see cref="Cases"/>. The funnel writes its two with no naming policy, so their keys
+    /// The request bodies among <see cref="Cases"/>. The funnel writes its bodies with no naming policy, so their keys
     /// arrive PascalCase or mixed (songs-tags wraps PascalCase tags in a camelCase object), and rely on the API
     /// binding case-insensitively. The app's (listens-request) arrive camelCase.
     /// </summary>
-    private static readonly string[] RequestCases = ["listens-request", "songs-tags", "youtube-ratings-ack"];
+    private static readonly string[] RequestCases = ["listens-request", "songs-tags", "youtube-ratings-ack", "songs-pending-tags-holds"];
 
     public static TheoryData<string> CaseNames => new(Cases.Keys);
 

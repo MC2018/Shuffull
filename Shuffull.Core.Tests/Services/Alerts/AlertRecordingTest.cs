@@ -99,7 +99,7 @@ public class AlertRecordingTest : IDisposable
     [Fact]
     public async Task PendingTagsPoll_FromTheFunnel_IsRecorded()
     {
-        await Songs().GetPendingTagSongs(25, CancellationToken.None);
+        await Songs().GetPendingTagSongs(25, null, null, CancellationToken.None);
         Assert.Equal([ShuffullSignalRules.PendingTagsPoll], _signals.Successes);
     }
 

@@ -12,6 +12,7 @@ using Shuffull.Core.Alerts;
 using Shuffull.Core.Features.Songs.ApplySongTags;
 using Shuffull.Core.Features.Songs.GetLibrarySongs;
 using Shuffull.Core.Features.Songs.GetPendingTagSongs;
+using Shuffull.Core.Features.Songs.HoldTagSongs;
 using Shuffull.Core.Persistence;
 using Shuffull.Core.Services.Alerts;
 using Shuffull.Core.Tests.Infrastructure;
@@ -50,6 +51,8 @@ public class ProducerKeyTest : IDisposable
             .ReturnsAsync(Result.Ok(new PendingTagSongsResponse([], 0)));
         mediator.Setup(m => m.Send(It.IsAny<GetLibrarySongsQuery>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result.Ok(new LibrarySongsPage([], null)));
+        mediator.Setup(m => m.Send(It.IsAny<HoldTagSongsCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Ok());
         mediator.Setup(m => m.Send(It.IsAny<ApplySongTagsCommand>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result.Ok(new ApplySongTagsResponse("song-1", 1, "gpt-5.5")));
         services.AddSingleton(mediator.Object);
@@ -90,6 +93,11 @@ public class ProducerKeyTest : IDisposable
         { "replacement queue", HttpMethod.Get, "api/v1/replacements?status=0", () => null, HttpStatusCode.OK },
         { "pending tags", HttpMethod.Get, "api/v1/songs/pending-tags?limit=25", () => null, HttpStatusCode.OK },
         { "library", HttpMethod.Get, "api/v1/songs/library?limit=50", () => null, HttpStatusCode.OK },
+        {
+            "tag holds", HttpMethod.Post, "api/v1/songs/pending-tags/holds",
+            () => Json("""{"songIds":["song-1"]}"""),
+            HttpStatusCode.OK
+        },
         {
             "apply tags", HttpMethod.Post, "api/v1/songs/song-1/tags",
             () => Json("""{"tags":{"mainGenres":["House"],"subGenres":[],"languages":["Instrumental"],"timePeriod":"2010s"},"tagModel":"gpt-5.5"}"""),

@@ -25,6 +25,7 @@ request bodies, when the API stops binding them.
 | `replacements` | `GET /api/v1/replacements` | funnel |
 | `songs-tags` | `POST /api/v1/songs/{id}/tags` (request body) | funnel sends |
 | `youtube-ratings-ack` | `POST /api/v1/youtube-ratings/ack` (request body) | funnel sends |
+| `songs-pending-tags-holds` | `POST /api/v1/songs/pending-tags/holds` (request body) | funnel sends |
 | `listens-request` | `POST /api/v1/listens` (request body) | app sends (ShuffullApp#57) |
 
 Only the endpoints in the table are pinned. Not covered yet (shuffull-workspace#92): the funnel's

@@ -15,8 +15,14 @@ namespace Shuffull.Core.Features.Songs.GetPendingTagSongs;
 /// everything else the weak one. Deriving matters — a stored "strong" request from a like the user immediately
 /// undid would linger and spend strong-model money on a song they no longer care about. Reading current state
 /// self-corrects, and a Keep that is later Loved upgrades on the next poll with nothing to migrate.</para>
+///
+/// <para><see cref="WeakModel"/> and <see cref="StrongModel"/> are the models the producer actually runs for each
+/// tier. "Behind" is judged against those, so a producer whose tier is weaker than the site's config is never handed
+/// a song it can't write. Each one left out (a producer that predates them, shuffull-workspace#36) falls back to the
+/// site's own config for that tier.</para>
 /// </summary>
-public record GetPendingTagSongsQuery(int Limit) : IRequest<Result<PendingTagSongsResponse>>;
+public record GetPendingTagSongsQuery(int Limit, string? WeakModel = null, string? StrongModel = null)
+    : IRequest<Result<PendingTagSongsResponse>>;
 
 /// <summary>The engine tier a song should be tagged with, derived from current sentiment.</summary>
 public static class TagTiers
