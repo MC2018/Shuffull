@@ -31,7 +31,8 @@ namespace Shuffull.Core.Features.Listens.GetRecap;
 /// between one ending and the next starting; null for an empty year.</param>
 /// <param name="BiggestGrower">The song with the largest rise in minutes from one month to the next.</param>
 /// <param name="SongOfEachSeason">4 seasons, winter first; see <see cref="RecapSeason"/>.</param>
-/// <param name="MostSkipped">The song skipped forward ("skipped") most often; null if nothing was skipped.</param>
+/// <param name="MostSkipped">The song skipped forward ("skipped") most often; null if nothing was skipped. On equal
+/// skips, the song with fewer plays wins: more of its plays were skips.</param>
 public record GetRecapResponse(
     int Year,
     string TimeZone,

@@ -104,8 +104,7 @@ public class GetRecapHandler(ShuffullContext context) : IRequestHandler<GetRecap
             Heatmap: Enumerable.Range(0, 7)
                 .Select(day => (IReadOnlyList<double>)Enumerable.Range(0, 24).Select(hour => heatmap[day, hour]).ToList())
                 .ToList(),
-            TopSongsByMinutes: songs
-                .OrderByDescending(s => s.Minutes).ThenByDescending(s => s.Plays).ThenBy(s => s.SongId, StringComparer.Ordinal)
+            TopSongsByMinutes: RankByMinutes(songs.Select(s => (s.SongId, s.Minutes, s.Plays)))
                 .Take(TopCount).Select(s => catalog.Song(s.SongId, s.Minutes, s.Plays)).ToList(),
             TopSongsByPlays: songs
                 .OrderByDescending(s => s.Plays).ThenByDescending(s => s.Minutes).ThenBy(s => s.SongId, StringComparer.Ordinal)
@@ -133,6 +132,7 @@ public class GetRecapHandler(ShuffullContext context) : IRequestHandler<GetRecap
                 .ToList(),
             MostSkipped: songs
                 .Where(s => s.Skips > 0)
+                // On equal skips, fewer plays wins: more of its plays were skips.
                 .OrderByDescending(s => s.Skips).ThenBy(s => s.Plays).ThenBy(s => s.SongId, StringComparer.Ordinal)
                 .Select(s => new RecapMostSkipped(catalog.Song(s.SongId, s.Minutes, s.Plays), s.Skips))
                 .FirstOrDefault()));
@@ -252,12 +252,17 @@ public class GetRecapHandler(ShuffullContext context) : IRequestHandler<GetRecap
         return best;
     }
 
-    private static RecapSong? TopSongOf(List<SongTotals> songs, int[] months, SongCatalog catalog) => songs
-        .Select(s => (s.SongId, Minutes: months.Sum(m => s.MonthMinutes[m]), Plays: months.Sum(m => s.MonthPlays[m])))
-        .Where(s => s.Plays > 0)
-        .OrderByDescending(s => s.Minutes).ThenByDescending(s => s.Plays).ThenBy(s => s.SongId, StringComparer.Ordinal)
-        .Select(s => catalog.Song(s.SongId, s.Minutes, s.Plays))
-        .FirstOrDefault();
+    private static RecapSong? TopSongOf(List<SongTotals> songs, int[] months, SongCatalog catalog)
+        => RankByMinutes(songs
+                .Select(s => (s.SongId, Minutes: months.Sum(m => s.MonthMinutes[m]), Plays: months.Sum(m => s.MonthPlays[m])))
+                .Where(s => s.Plays > 0))
+            .Select(s => catalog.Song(s.SongId, s.Minutes, s.Plays))
+            .FirstOrDefault();
+
+    /// <summary>Most minutes first, then most plays, then song id: the order of the top list and of each season's song.</summary>
+    private static IOrderedEnumerable<(string SongId, double Minutes, int Plays)> RankByMinutes(
+        IEnumerable<(string SongId, double Minutes, int Plays)> songs) => songs
+        .OrderByDescending(s => s.Minutes).ThenByDescending(s => s.Plays).ThenBy(s => s.SongId, StringComparer.Ordinal);
 
     private sealed record RecapListen(
         string SongId, DateTime StartedAt, DateTime EndedAt, DateTime Local, double Minutes, ListenEndReason EndReason,
