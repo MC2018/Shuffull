@@ -102,8 +102,8 @@ public class DeletePlaylistHandler(ShuffullContext context)
                 await context.UserSongs.Where(us => purgedSongIds.Contains(us.SongId)).ExecuteDeleteAsync(cancellationToken);
                 await context.SongReplacements.Where(sr => purgedSongIds.Contains(sr.SongId)).ExecuteDeleteAsync(cancellationToken);
                 await context.YoutubeRatingRequests.Where(r => purgedSongIds.Contains(r.SongId)).ExecuteDeleteAsync(cancellationToken);
-                // SongImport.SongId is an optional FK with no cascade. Imports don't set it today; clear it anyway
-                // so one stray link can't fail the whole delete.
+                // SongImport.SongId is an optional FK with no cascade, and every completed import sets it (Shuffull#56).
+                // Clear it, so a purged song's import history can't fail the whole delete.
                 await context.SongImports
                     .Where(si => si.SongId != null && purgedSongIds.Contains(si.SongId))
                     .ExecuteUpdateAsync(set => set.SetProperty(si => si.SongId, (string?)null), cancellationToken);
