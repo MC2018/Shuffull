@@ -147,10 +147,8 @@ public class SongsController : ControllerBase
         string songId,
         [FromBody] ApplySongTagsRequest request,
         CancellationToken cancellationToken)
-    {
-        return this.ToActionResult(
+        => this.ToActionResult(
             await _mediator.Send(new ApplySongTagsCommand(songId, request.Tags, request.TagModel, request.TagRevision), cancellationToken));
-    }
 
     /// <summary>
     /// Curator-only: re-tag a bounded batch of stale songs (TagModel weaker than the current strong model).
