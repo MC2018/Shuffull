@@ -13,4 +13,4 @@ namespace Shuffull.Core.Features.Songs.HoldTagSongs;
 /// never arrives costs nothing but time: the song stays on the ladder, which is how a funnel that predates reports
 /// is served.</para>
 /// </summary>
-public record HoldTagSongsCommand(IReadOnlyList<string> SongIds) : IRequest<Result>;
+public record HoldTagSongsCommand(IReadOnlyList<string> SongIds) : IRequest<Result<HoldTagSongsResponse>>;

@@ -19,38 +19,33 @@ namespace Shuffull.Core.Features.Songs.HoldTagSongs;
 /// brought forward, never pushed back. So a late or repeated report can't delay anything.</para>
 /// </summary>
 public class HoldTagSongsHandler(ShuffullContext context, TimeProvider timeProvider)
-    : IRequestHandler<HoldTagSongsCommand, Result>
+    : IRequestHandler<HoldTagSongsCommand, Result<HoldTagSongsResponse>>
 {
-    /// <summary>The most ids one report may carry, matching the queue's page cap.</summary>
-    public const int MaxSongIds = 200;
+    /// <summary>The most ids one report may carry: one full page of the queue (enforced by HoldTagSongsValidator).</summary>
+    public const int MaxSongIds = GetPendingTagSongsHandler.MaxLimit;
 
-    public async Task<Result> Handle(HoldTagSongsCommand request, CancellationToken cancellationToken)
+    public async Task<Result<HoldTagSongsResponse>> Handle(HoldTagSongsCommand request, CancellationToken cancellationToken)
     {
         var ids = request.SongIds.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct().ToList();
         if (ids.Count == 0)
         {
-            return Result.Ok();
-        }
-        if (ids.Count > MaxSongIds)
-        {
-            return Result.Error(new KindedError(ErrorKind.Invalid, $"At most {MaxSongIds} song ids per hold report."));
+            return Result.Ok(new HoldTagSongsResponse(0));
         }
 
         var dueBy = timeProvider.GetUtcNow().UtcDateTime + GetPendingTagSongsHandler.FirstRetryDelay;
         try
         {
-            await context.Songs
+            var held = await context.Songs
                 .Where(s => ids.Contains(s.SongId) && s.NextTagAttemptAt != null)
                 .ExecuteUpdateAsync(set => set
                     .SetProperty(s => s.TagAttempts, 0)
                     .SetProperty(s => s.NextTagAttemptAt, s => s.NextTagAttemptAt < dueBy ? s.NextTagAttemptAt : dueBy),
                     cancellationToken);
+            return Result.Ok(new HoldTagSongsResponse(held));
         }
         catch (Exception ex)
         {
-            return Result.Error(ResultErrors.FromException(ex, $"Could not record the tagging holds: {ex.Message}"));
+            return Result.Error<HoldTagSongsResponse>(ResultErrors.FromException(ex, $"Could not record the tagging holds: {ex.Message}"));
         }
-
-        return Result.Ok();
     }
 }

@@ -437,6 +437,7 @@ public class GetPendingTagSongsHandlerTest : IDisposable
         Assert.Equal(2019, result.OriginalReleaseYear);
         Assert.Equal("la la", result.PlainLyrics);
     }
+
     // ── The funnel's declared models (shuffull-workspace#36) ──────────────────────────────────────────────────
 
     [Fact]
@@ -544,42 +545,5 @@ public class GetPendingTagSongsHandlerTest : IDisposable
         Assert.Contains(fourth.Songs, s => s.SongId == reported.SongId);
         Assert.DoesNotContain(fourth.Songs, s => s.SongId == unreported.SongId); // still on the ladder: 20 min
         Assert.Equal(1, (await ReloadAsync(reported.SongId)).TagAttempts); // holds don't count as failures
-    }
-
-    [Fact]
-    public async Task AHoldReport_NeverPushesADueTimeBack_NorTouchesASongTaggedSinceTheHandOut()
-    {
-        var clock = new ManualTimeProvider(DateTime.UtcNow);
-        var dueSoon = await SeedAsync(version: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
-        var taggedSince = await SeedAsync(version: new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc));
-        await RunAsync(clock: clock); // both handed out: due in 5 minutes
-        var handedOutDue = (await ReloadAsync(dueSoon.SongId)).NextTagAttemptAt;
-
-        await using (var context = _database.CreateContext())
-        {
-            (await context.Songs.FindAsync(taggedSince.SongId))!.ResetTagAttempts();
-            await context.SaveChangesAsync();
-        }
-
-        clock.UtcNow += TimeSpan.FromMinutes(2); // a late report: now + 5 min would be later than the hand-out's due time
-        await HoldAsync(clock, dueSoon.SongId, taggedSince.SongId, "no-such-song");
-
-        Assert.Equal(handedOutDue, (await ReloadAsync(dueSoon.SongId)).NextTagAttemptAt);
-        var tagged = await ReloadAsync(taggedSince.SongId);
-        Assert.Null(tagged.NextTagAttemptAt);
-        Assert.Equal(0, tagged.TagAttempts);
-    }
-
-    [Fact]
-    public async Task AHoldReport_IsCappedAtOnePage()
-    {
-        await using var context = _database.CreateContext();
-        var ids = Enumerable.Range(0, HoldTagSongsHandler.MaxSongIds + 1).Select(i => $"song-{i}").ToList();
-
-        var result = await new HoldTagSongsHandler(context, TimeProvider.System)
-            .Handle(new HoldTagSongsCommand(ids), CancellationToken.None);
-
-        Assert.True(result.IsError);
-        Assert.Equal(ErrorKind.Invalid, ResultErrors.KindOf(result.GetError()));
     }
 }

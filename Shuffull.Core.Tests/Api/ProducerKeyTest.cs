@@ -30,6 +30,7 @@ public class ProducerKeyTest : IDisposable
 
     private readonly DatabaseFixture _database = new();
     private readonly RecordingHealthSignals _signals = new();
+    private GetPendingTagSongsQuery? _pendingQuery;
 
     public void Dispose()
     {
@@ -48,11 +49,12 @@ public class ProducerKeyTest : IDisposable
 
         var mediator = new Mock<IMediator>();
         mediator.Setup(m => m.Send(It.IsAny<GetPendingTagSongsQuery>(), It.IsAny<CancellationToken>()))
+            .Callback<IRequest<Result<PendingTagSongsResponse>>, CancellationToken>((query, _) => _pendingQuery = (GetPendingTagSongsQuery)query)
             .ReturnsAsync(Result.Ok(new PendingTagSongsResponse([], 0)));
         mediator.Setup(m => m.Send(It.IsAny<GetLibrarySongsQuery>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result.Ok(new LibrarySongsPage([], null)));
         mediator.Setup(m => m.Send(It.IsAny<HoldTagSongsCommand>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.Ok());
+            .ReturnsAsync(Result.Ok(new HoldTagSongsResponse(1)));
         mediator.Setup(m => m.Send(It.IsAny<ApplySongTagsCommand>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result.Ok(new ApplySongTagsResponse("song-1", 1, "gpt-5.5")));
         services.AddSingleton(mediator.Object);
@@ -153,6 +155,19 @@ public class ProducerKeyTest : IDisposable
             var response = await host.Client.SendAsync(Request(method, path, content(), key));
             Assert.True(response.StatusCode == HttpStatusCode.Unauthorized, $"{name} with key '{key}': got {response.StatusCode}");
         }
+    }
+
+    [Fact]
+    public async Task TheDeclaredModels_BindFromTheQueryNamesTheFunnelSends()
+    {
+        // A renamed parameter would bind as null, and the site would quietly judge by its own config again.
+        await using var host = await StartAsync();
+
+        var response = await host.Client.SendAsync(Request(HttpMethod.Get,
+            "api/v1/songs/pending-tags?limit=25&weakModel=muse%20spark%2F1.2&strongModel=gpt-5.6-terra", null, Key));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(new GetPendingTagSongsQuery(25, "muse spark/1.2", "gpt-5.6-terra"), _pendingQuery);
     }
 
     [Fact]

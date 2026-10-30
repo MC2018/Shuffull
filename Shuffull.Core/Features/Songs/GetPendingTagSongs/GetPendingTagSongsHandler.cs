@@ -31,7 +31,8 @@ public class GetPendingTagSongsHandler(
     : IRequestHandler<GetPendingTagSongsQuery, Result<PendingTagSongsResponse>>
 {
     private const int DefaultLimit = 25;
-    private const int MaxLimit = 200;
+    /// <summary>The largest page the queue hands out.</summary>
+    public const int MaxLimit = 200;
 
     /// <summary>
     /// The first retry comes sooner than the funnel's 10-minute cycle, so a song the funnel reports as held for an AI
@@ -171,7 +172,8 @@ public class GetPendingTagSongsHandler(
 
         // Count the hand-out as an attempt. The site can't see why the producer fails a song, or whether it
         // reports back at all, so the only safe signal is that it was offered. Writing tags resets the count
-        // (Song.ResetTagAttempts), and so does a reported hold (HoldTagSongs), which is not a failure. Version is untouched: this is queue state, not a change clients need.
+        // (Song.ResetTagAttempts), and so does a reported hold (HoldTagSongs), which is not a failure. Version is
+        // untouched: this is queue state, not a change clients need.
         foreach (var batch in rows.GroupBy(r => r.TagAttempts + 1))
         {
             var ids = batch.Select(r => r.SongId).ToList();
