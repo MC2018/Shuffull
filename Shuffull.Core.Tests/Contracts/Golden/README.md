@@ -1,7 +1,7 @@
 # API contract golden files
 
 What the API puts on the wire for the endpoints below, written by `ApiContractGoldenFilesTest` with the API's real JSON
-options (`AddShuffullControllers`). The test fails when the API's output stops matching these files, and, for the two
+options (`AddShuffullControllers`). The test fails when the API's output stops matching these files, and, for the
 request bodies, when the API stops binding them.
 
 | File | Endpoint | Read by |
@@ -15,6 +15,7 @@ request bodies, when the API stops binding them.
 | `users-me` | `GET /api/v1/users/me` | app |
 | `users-authenticate` | `POST /api/v1/users/authenticate` and `POST /api/v1/users` | app |
 | `songs-keep` | `POST /api/v1/songs/keep` | app |
+| `listens` | `POST /api/v1/listens` | app (ShuffullApp#57) |
 | `songs-retag` | `POST /api/v1/songs/retag` | app |
 | `songs-retag-stale` | `POST /api/v1/songs/retag-stale` | app |
 | `tags` | `GET /api/v1/tags` | app |
@@ -24,9 +25,10 @@ request bodies, when the API stops binding them.
 | `replacements` | `GET /api/v1/replacements` | funnel |
 | `songs-tags` | `POST /api/v1/songs/{id}/tags` (request body) | funnel sends |
 | `youtube-ratings-ack` | `POST /api/v1/youtube-ratings/ack` (request body) | funnel sends |
+| `listens-request` | `POST /api/v1/listens` (request body) | app sends (ShuffullApp#57) |
 
 Only the endpoints in the table are pinned. Not covered yet (shuffull-workspace#92): the funnel's
-`POST /api/v1/song-imports` and `PUT /api/v1/song-lyrics`, and every request body the app sends.
+`POST /api/v1/song-imports` and `PUT /api/v1/song-lyrics`, and every request body the app sends except `listens-request`.
 
 Copies live in the consumers, and their tests parse them:
 

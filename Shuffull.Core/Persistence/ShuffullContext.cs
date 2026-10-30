@@ -30,6 +30,7 @@ public class ShuffullContext : DbContext
     public DbSet<UserSong> UserSongs { get; set; }
     public DbSet<HealthSignal> HealthSignals { get; set; }
     public DbSet<AlertState> AlertStates { get; set; }
+    public DbSet<Listen> Listens { get; set; }
 
     public ShuffullContext(DbContextOptions options) : base(options) { }
 
