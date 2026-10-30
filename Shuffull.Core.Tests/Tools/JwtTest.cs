@@ -121,4 +121,27 @@ public class JwtTest
 
         Assert.Equal("round-trip-user", userId);
     }
+
+    // Both used to construct fine and fail at the first login instead: a NullReferenceException for a missing
+    // section, a zero-length signing key for an unset JWT_SECRET (compose passes it as Jwt__Secret="").
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void JwtHelperAndMiddleware_WithoutASecret_FailAtConstruction(string? secret)
+    {
+        var values = new Dictionary<string, string?>();
+        if (secret != null)
+        {
+            values["Jwt:Secret"] = secret;
+        }
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(values).Build());
+        var provider = services.BuildServiceProvider();
+
+        var helperError = Assert.Throws<InvalidOperationException>(() => new JwtHelper(provider));
+        var middlewareError = Assert.Throws<InvalidOperationException>(() => new JwtMiddleware(_ => Task.CompletedTask, provider));
+        Assert.Contains("Jwt", helperError.Message);
+        Assert.Equal(helperError.Message, middlewareError.Message);
+    }
 }

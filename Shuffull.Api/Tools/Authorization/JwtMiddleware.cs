@@ -24,10 +24,7 @@ public class JwtMiddleware
     public JwtMiddleware(RequestDelegate next, IServiceProvider services)
     {
         _next = next;
-        _configuration = services
-            .GetRequiredService<IConfiguration>()
-            .GetSection(JwtConfiguration.JwtConfigurationSection)
-            .Get<JwtConfiguration>();
+        _configuration = JwtConfiguration.Load(services.GetRequiredService<IConfiguration>());
         _logger = services.GetRequiredService<ILogger<JwtMiddleware>>();
     }
 
