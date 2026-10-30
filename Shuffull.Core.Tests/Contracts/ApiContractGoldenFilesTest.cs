@@ -5,6 +5,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Shuffull.Api.Commands.Listens.RecordListens;
 using Shuffull.Api.Commands.Songs.HoldTagSongs;
+using Shuffull.Api.Commands.Songs.KeepSongs;
+using Shuffull.Api.Commands.Songs.RetagSongs;
+using Shuffull.Api.Commands.Songs.UpdateSong;
+using Shuffull.Api.Commands.Songs.UpdateSongLyrics;
+using Shuffull.Api.Commands.Users.Credentials;
 using Shuffull.Api.Controllers;
 using Shuffull.Api.Extensions;
 using Shuffull.Core.Features.Listens.GetListenStats;
@@ -20,15 +25,20 @@ using Shuffull.Core.Features.Songs.GetSongsChanged;
 using Shuffull.Core.Features.Songs.KeepSongs;
 using Shuffull.Core.Features.Songs.RetagSongs;
 using Shuffull.Core.Features.Songs.RetagStaleSongs;
+using Shuffull.Core.Features.Songs.UpdateSong;
 using Shuffull.Core.Features.Tags.GetAllTags;
 using Shuffull.Core.Features.Users;
 using Shuffull.Core.Features.Users.GetCurrentUser;
 using Shuffull.Core.Features.UserSongs.GetUserSongs;
+using Shuffull.Core.Features.UserSongs.UpdateSongsLastPlayed;
 using Shuffull.Core.Models.Dtos;
 using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Tests.Infrastructure;
+using Shuffull.Metadata.Contracts;
+using Shuffull.Metadata.Enums;
 using Shuffull.Metadata.Models;
 using Shuffull.Shared.Enums;
+using JsonConvert = Newtonsoft.Json.JsonConvert;
 using RatingAckOutcomes = Shuffull.Api.Controllers.YoutubeRatingOutcomes;
 using RetagOutcomes = Shuffull.Core.Features.Songs.RetagSongs.Outcomes;
 
@@ -57,6 +67,9 @@ public class ApiContractGoldenFilesTest
     // A Postgres timestamp carries microseconds, which is why the app reads `version` as a string for its cursor.
     private static readonly DateTime V1 = new DateTime(2026, 10, 1, 12, 34, 56, DateTimeKind.Utc).AddTicks(1234560);
     private static readonly DateTime V2 = new DateTime(2026, 10, 2, 8, 0, 0, DateTimeKind.Utc).AddTicks(10);
+
+    // What the app sends: a JS Date goes out with milliseconds only, so a request time can't carry V1's microseconds.
+    private static readonly DateTime SentAt = new(2026, 10, 1, 12, 34, 56, 123, DateTimeKind.Utc);
 
     private static SongDto FullSong(DateTime version) => new(
         SongId: "song-full",
@@ -106,6 +119,15 @@ public class ApiContractGoldenFilesTest
     {
         // POST /api/v1/songs/list. Carries SongDto; the app re-syncs whole rows from it.
         ["songs-list"] = new GetSongListResponse([FullSong(V1), SparseSong(V2)]),
+        // POST /api/v1/songs/list — a REQUEST body: a bare array of the song ids to fetch.
+        ["songs-list-request"] = new[] { "song-full", "song-sparse" },
+        // PUT /api/v1/songs/{id} — a REQUEST body: the curator's metadata edit (ApiClient.songUpdate).
+        ["songs-update"] = new UpdateSongRequest(
+            Name: "Everybody Wants You",
+            Bpm: 128,
+            Heaviness: 6,
+            Artists: ["Billy Squier"],
+            Tags: [new SongTagEdit("Rock", TagType.Genre), new SongTagEdit("1980s", TagType.TimePeriod)]),
         // GET /api/v1/songs/changed. The app's sync feed and its (Version, SongId) cursor.
         ["songs-changed"] = new GetSongsChangedResponse([FullSong(V1), SparseSong(V2)], EndOfList: false),
         // GET /api/v1/user-songs. LikeStatus is an enum and goes out as its int.
@@ -115,22 +137,38 @@ public class ApiContractGoldenFilesTest
                 new UserSongDto("user-1", "song-sparse", LastPlayed: V2, Version: V2, LikeStatus.Neutral),
             ],
             EndOfList: true),
+        // PUT /api/v1/user-songs — a REQUEST body: the song ids to add to the caller's library.
+        ["user-songs-create"] = new[] { "song-full", "song-sparse" },
+        // POST /api/v1/user-songs/last-played — a REQUEST body. The app sends whole outbox rows; the API reads these two.
+        ["user-songs-last-played"] = new List<SongLastPlayed>
+        {
+            new("song-full", SentAt),
+            new("song-sparse", SentAt.AddMinutes(4)),
+        },
+        // POST /api/v1/user-songs/{id}/like — a REQUEST body: the LikeStatus as a bare int.
+        ["user-songs-like"] = LikeStatus.Like,
         // GET /api/v1/playlists. The app builds its playlist_song rows from songIds, so a rename empties every playlist.
         ["playlists"] = new GetUserPlaylistsResponse(Playlists),
         // POST /api/v1/playlists/list. A different response type with, today, the same shape.
         ["playlists-list"] = new GetPlaylistsResponse(Playlists),
+        // POST /api/v1/playlists/list — a REQUEST body: a bare array of the playlist ids to fetch.
+        ["playlists-list-request"] = new[] { "playlist-full", "playlist-audition" },
         // PUT /api/v1/playlists?name=. The new playlist, synced into the app straight from this response.
         ["playlists-create"] = new CreatePlaylistResponse(Playlists[1] with { Name = "New playlist", IsExploratory = false }),
         // GET /api/v1/users/me. isCurator gates the app's curator screens.
         ["users-me"] = new GetCurrentUserResponse(Curator),
         // POST /api/v1/users/authenticate, and POST /api/v1/users (sign-up) returns the same envelope.
         ["users-authenticate"] = new AuthSessionResponse(Curator, "token-abc", new DateTime(2026, 11, 30, 0, 0, 0, DateTimeKind.Utc)),
+        // POST /api/v1/users/authenticate and POST /api/v1/users — a REQUEST body: both take the same credentials.
+        ["users-authenticate-request"] = new CredentialsRequest("listener", "hash-abc"),
         // POST /api/v1/songs/keep. The app dead-letters anything whose outcome isn't "kept".
         ["songs-keep"] = new KeepSongsResponse(
         [
             new SongKeepResult("song-full", KeepOutcomes.Kept),
             new SongKeepResult("song-sparse", KeepOutcomes.Failed, "Song is not in your library."),
         ]),
+        // POST /api/v1/songs/keep — a REQUEST body: the audition songs the user kept.
+        ["songs-keep-request"] = new KeepSongsRequest(["song-full", "song-sparse"]),
         // POST /api/v1/listens — a REQUEST body: the listen log the app's outbox sends (ShuffullApp#57).
         ["listens-request"] = new RecordListensRequest(
         [
@@ -196,6 +234,12 @@ public class ApiContractGoldenFilesTest
             new SongRetagResult("song-locked", RetagOutcomes.Skipped),
             new SongRetagResult("song-sparse", RetagOutcomes.Failed, "AI is not enabled; cannot enrich songs."),
         ]),
+        // POST /api/v1/songs/retag — a REQUEST body: each song with the tier to re-tag it at.
+        ["songs-retag-request"] = new RetagSongsRequest(
+        [
+            new SongRetagItem("song-full", RetagModels.Strong),
+            new SongRetagItem("song-sparse", RetagModels.Weak),
+        ]),
         // POST /api/v1/songs/retag-stale (curator-only). The app casts this rather than parsing it.
         ["songs-retag-stale"] = new RetagStaleSongsResponse(Enriched: 3, Failed: 1, Remaining: 120, StrongModel: "gpt-5.6-terra"),
         // GET /api/v1/tags. The app stores the type as its TagType number.
@@ -258,6 +302,41 @@ public class ApiContractGoldenFilesTest
             TagRevision: 3),
         // POST /api/v1/songs/pending-tags/holds — a REQUEST body: the songs the funnel held for an AI batch.
         ["songs-pending-tags-holds"] = new HoldTagSongsRequest(["song-full", "song-sparse"]),
+        // POST /api/v1/song-imports — a REQUEST: the multipart `details` part, every field set. The controller reads it
+        // with Newtonsoft, not MVC's binder (see NewtonsoftBound).
+        ["song-imports-details"] = new SongImportDetails(
+            ExternalSongId: "dQw4w9WgXcQ",
+            FileExtension: ".mp3",
+            ExternalPlaylistId: "LL",
+            TargetUserId: "user-1",
+            TargetPlaylistId: "playlist-full",
+            TargetPlaylistName: "Road trip",
+            ExternalSource: ExternalSource.Youtube,
+            GeneratedTags: new GeneratedSongTags(
+                MainGenres: ["Rock"],
+                SubGenres: ["Arena Rock"],
+                Languages: ["English"],
+                TimePeriod: "1980s",
+                Moods: ["Energetic"],
+                Heaviness: 6,
+                Themes: ["Rebellion"]),
+            MarkAsLiked: true,
+            Bpm: 128,
+            Lyrics: new SongLyrics("[00:01.00] First line", "First line", Instrumental: true, "lrclib"),
+            ReplacesSongId: "song-old",
+            Name: "Everybody Wants You",
+            Artists: ["Billy Squier"],
+            TagModel: "gpt-5.6-terra",
+            MeasuredBpm: 126,
+            LoudnessRangeLu: 6.25,
+            CrestFactorDb: 9.5,
+            OnsetsPerSecond: 3.75,
+            OriginalReleaseYear: 1982,
+            Exploratory: true,
+            TagRevision: 3,
+            HookStartPercent: 37.5),
+        // PUT /api/v1/song-lyrics — a REQUEST body: lyrics the funnel found after the song was exported.
+        ["song-lyrics"] = new UpdateSongLyricsRequest("dQw4w9WgXcQ", "[00:01.00] First line", "First line", Instrumental: true, "lrclib"),
         // GET /api/v1/songs/library. The funnel mirrors the site's songs into its duplicate registry from this.
         ["songs-library"] = new LibrarySongsPage(
             [
@@ -283,14 +362,30 @@ public class ApiContractGoldenFilesTest
             new("replacement-1", "song-full", "Everybody Wants You", ["Billy Squier"], "dQw4w9WgXcQ", "Clipped intro", V1),
             new("replacement-2", "song-sparse", "Untitled", [], null, null, V2),
         },
+        // POST /api/v1/replacements — a REQUEST body: the app flags a song's audio. It never sends a note.
+        ["replacements-request"] = new FlagReplacementRequest("song-full", Note: null),
     };
 
     /// <summary>
     /// The request bodies among <see cref="Cases"/>. The funnel writes its bodies with no naming policy, so their keys
-    /// arrive PascalCase or mixed (songs-tags wraps PascalCase tags in a camelCase object), and rely on the API
-    /// binding case-insensitively. The app's (listens-request) arrive camelCase.
+    /// arrive PascalCase or mixed (songs-tags wraps PascalCase tags in a camelCase object, song-lyrics is all
+    /// camelCase), and rely on the API binding case-insensitively. The app's arrive camelCase.
     /// </summary>
-    private static readonly string[] RequestCases = ["listens-request", "songs-tags", "youtube-ratings-ack", "songs-pending-tags-holds"];
+    private static readonly string[] RequestCases =
+    [
+        // The funnel's.
+        "songs-tags", "youtube-ratings-ack", "songs-pending-tags-holds", "song-imports-details", "song-lyrics",
+        // The app's.
+        "listens-request", "users-authenticate-request", "songs-list-request", "playlists-list-request", "user-songs-create",
+        "user-songs-last-played", "user-songs-like", "songs-update", "songs-keep-request", "songs-retag-request",
+        "replacements-request",
+    ];
+
+    /// <summary>
+    /// Requests the API reads with Newtonsoft rather than MVC's System.Text.Json binder: SongImportsController takes
+    /// the import <c>details</c> as a form string and deserializes it itself, with Newtonsoft's defaults.
+    /// </summary>
+    private static readonly HashSet<string> NewtonsoftBound = ["song-imports-details"];
 
     public static TheoryData<string> CaseNames => new(Cases.Keys);
 
@@ -302,7 +397,13 @@ public class ApiContractGoldenFilesTest
             foreach (var name in RequestCases)
             {
                 data.Add(name, false);
-                data.Add(name, true);
+
+                // A body with no keys (a bare id array, the like status) has no PascalCase spelling to test.
+                var body = JsonSerializer.SerializeToNode(Cases[name], Cases[name].GetType(), ApiJsonOptions());
+                if (!JsonNode.DeepEquals(body, PascalCaseNames(body)))
+                {
+                    data.Add(name, true);
+                }
             }
 
             return data;
@@ -339,8 +440,11 @@ public class ApiContractGoldenFilesTest
         var golden = JsonNode.Parse(File.ReadAllText(Path.Combine(GoldenDirectory(), name + ".json")))!;
         var sent = pascalCase ? PascalCaseNames(golden)! : golden;
 
-        var bound = JsonSerializer.Deserialize(sent.ToJsonString(), Cases[name].GetType(), ApiJsonOptions());
-        var roundTripped = JsonNode.Parse(JsonSerializer.Serialize(bound, Cases[name].GetType(), ApiJsonOptions()));
+        var type = Cases[name].GetType();
+        var bound = NewtonsoftBound.Contains(name)
+            ? JsonConvert.DeserializeObject(sent.ToJsonString(), type)
+            : JsonSerializer.Deserialize(sent.ToJsonString(), type, ApiJsonOptions());
+        var roundTripped = JsonNode.Parse(JsonSerializer.Serialize(bound, type, ApiJsonOptions()));
 
         Assert.True(JsonNode.DeepEquals(golden, roundTripped), $"The API bound {sent.ToJsonString()} as {roundTripped}");
     }
