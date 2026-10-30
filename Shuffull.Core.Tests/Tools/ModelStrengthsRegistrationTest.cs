@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Configuration;
+using Shuffull.Core.Tests.Infrastructure;
 using Shuffull.Metadata.Tools;
 
 namespace Shuffull.Core.Tests.Tools;
@@ -20,7 +21,7 @@ public class ModelStrengthsRegistrationTest
     [Fact]
     public void EveryShippedModelName_IsInModelStrengths()
     {
-        var root = RepoRoot();
+        var root = RepoPaths.Root();
         var appsettings = new ConfigurationBuilder()
             .AddJsonFile(Path.Combine(root, "Shuffull.Api", "appsettings.json"), optional: false)
             .Build();
@@ -45,16 +46,4 @@ public class ModelStrengthsRegistrationTest
         let match = Regex.Match(line, @"^\s*([A-Z0-9_]+_MODEL)\s*=\s*(\S*)")
         where match.Success && match.Groups[2].Value.Length > 0
         select (match.Groups[2].Value, $".env.example {match.Groups[1].Value}");
-
-    private static string RepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Shuffull.sln")))
-        {
-            dir = dir.Parent;
-        }
-
-        Assert.NotNull(dir);
-        return dir!.FullName;
-    }
 }

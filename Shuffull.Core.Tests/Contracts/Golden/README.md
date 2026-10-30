@@ -15,4 +15,4 @@ To change a shape on purpose:
 3. Run the app's and the funnel's tests. A consumer test that fails is an installed app or a running funnel that
    would break, so keep the change backward compatible, or ship the consumer first.
 
-`youtube-ratings-ack.json` is a request body (funnel → API); every other file is a response.
+`youtube-ratings-ack.json` and `songs-tags.json` are request bodies (funnel → API); every other file is a response.

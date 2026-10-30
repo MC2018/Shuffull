@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Shuffull.Api.Controllers;
+using Shuffull.Api.Extensions;
+using Shuffull.Core.Features.Songs.GetLibrarySongs;
 using Shuffull.Core.Features.Songs.GetPendingTagSongs;
 using Shuffull.Core.Features.Songs.GetSongList;
 using Shuffull.Core.Features.Songs.GetSongsChanged;
@@ -12,6 +14,8 @@ using Shuffull.Core.Features.Songs.RetagSongs;
 using Shuffull.Core.Features.UserSongs.GetUserSongs;
 using Shuffull.Core.Models.Dtos;
 using Shuffull.Core.Models.Enums;
+using Shuffull.Core.Tests.Infrastructure;
+using Shuffull.Metadata.Models;
 using RatingAckOutcomes = Shuffull.Api.Controllers.Outcomes;
 using RetagOutcomes = Shuffull.Core.Features.Songs.RetagSongs.Outcomes;
 
@@ -57,7 +61,8 @@ public class ApiContractGoldenFilesTest
         Exploratory: false,
         TagsStale: true);
 
-    // Every optional field at its default: what a manual upload with no enrichment looks like.
+    // No enrichment and every nullable field null: an audition import as it first lands (Exploratory set, so the
+    // flag's true value is pinned too).
     private static SongDto SparseSong(DateTime version) => new(
         SongId: "song-sparse",
         Name: "Untitled",
@@ -135,6 +140,26 @@ public class ApiContractGoldenFilesTest
                     FileExtension: ".m4a"),
             ],
             Remaining: 42),
+        // POST /api/v1/songs/{id}/tags — a REQUEST body: the funnel's tag write-back. GeneratedSongTags has no
+        // naming policy on the funnel side, so this is the one shape that crosses PascalCase in practice.
+        ["songs-tags"] = new ApplySongTagsRequest(
+            new GeneratedSongTags(
+                MainGenres: ["Rock"],
+                SubGenres: ["Arena Rock"],
+                Languages: ["English"],
+                TimePeriod: "1980s",
+                Moods: ["Energetic"],
+                Heaviness: 6,
+                Themes: ["Rebellion"]),
+            TagModel: "gpt-5.6-terra",
+            TagRevision: 3),
+        // GET /api/v1/songs/library. The funnel mirrors the site's songs into its duplicate registry from this.
+        ["songs-library"] = new LibrarySongsPage(
+            [
+                new LibrarySong("song-full", "dQw4w9WgXcQ", "Everybody Wants You", ["Billy Squier"], "0f343b0931126a20f133d67c2b018a3b", ".mp3"),
+                new LibrarySong("song-sparse", null, "Untitled", [], "9e107d9d372bb6826bd81d3542a419d6", ".m4a"),
+            ],
+            NextAfterSongId: "song-sparse"),
         // GET /api/v1/youtube-ratings. The funnel's like-parity queue.
         ["youtube-ratings"] = new List<YoutubeRatingDto>
         {
@@ -188,28 +213,17 @@ public class ApiContractGoldenFilesTest
     }
 
     /// <summary>
-    /// The options MVC serializes action results with. Program.cs calls a bare <c>AddControllers()</c>, so these are
-    /// the framework defaults (camelCase, enums as ints, nulls written). If Program.cs ever configures JSON, apply
-    /// the same configuration here.
+    /// The options MVC serializes action results with, from the same <see cref="MvcRegistration"/> Program.cs calls.
+    /// Today those are the framework defaults (camelCase, enums as ints, nulls written).
     /// </summary>
     private static JsonSerializerOptions ApiJsonOptions()
     {
         var services = new ServiceCollection();
-        services.AddControllers();
+        services.AddShuffullControllers();
         using var provider = services.BuildServiceProvider();
         return provider.GetRequiredService<IOptions<JsonOptions>>().Value.JsonSerializerOptions;
     }
 
     /// <summary>The source folder, not the build output: update mode writes back into the repo.</summary>
-    private static string GoldenDirectory()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Shuffull.sln")))
-        {
-            dir = dir.Parent;
-        }
-
-        Assert.NotNull(dir);
-        return Path.Combine(dir!.FullName, "Shuffull.Core.Tests", "Contracts", "Golden");
-    }
+    private static string GoldenDirectory() => Path.Combine(RepoPaths.Root(), "Shuffull.Core.Tests", "Contracts", "Golden");
 }
