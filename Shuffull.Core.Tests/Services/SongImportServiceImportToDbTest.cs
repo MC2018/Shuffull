@@ -134,7 +134,7 @@ public class SongImportServiceImportToDbTest : IDisposable
     }
 
     [Fact]
-    public async Task ImportToDbCoreAsync_NewTagCreatedByAnotherWriterSinceTheSplit_LinksToThatTag()
+    public async Task ImportToDbCoreAsync_NewTagCreatedByAnotherWriterBeforeTheWrite_LinksToThatTag()
     {
         // "Klingon" was new when the import generated its tags, before moving the file. A curator re-tag committed
         // the same name before the import's write: Tags.Name is unique, so inserting it again used to fail the
