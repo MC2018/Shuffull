@@ -16,6 +16,8 @@ request bodies, when the API stops binding them.
 | `users-authenticate` | `POST /api/v1/users/authenticate` and `POST /api/v1/users` | app |
 | `songs-keep` | `POST /api/v1/songs/keep` | app |
 | `songs-retag` | `POST /api/v1/songs/retag` | app |
+| `songs-retag-stale` | `POST /api/v1/songs/retag-stale` | app |
+| `tags` | `GET /api/v1/tags` | app |
 | `songs-pending-tags` | `GET /api/v1/songs/pending-tags` | funnel |
 | `songs-library` | `GET /api/v1/songs/library` | funnel |
 | `youtube-ratings` | `GET /api/v1/youtube-ratings` | funnel |
@@ -23,7 +25,8 @@ request bodies, when the API stops binding them.
 | `songs-tags` | `POST /api/v1/songs/{id}/tags` (request body) | funnel sends |
 | `youtube-ratings-ack` | `POST /api/v1/youtube-ratings/ack` (request body) | funnel sends |
 
-Not covered yet: the app's `GET /api/v1/tags` and the curator-only `POST /api/v1/songs/retag-stale`.
+Only the endpoints in the table are pinned. Not covered yet (shuffull-workspace#92): the funnel's
+`POST /api/v1/song-imports` and `PUT /api/v1/song-lyrics`, and every request body the app sends.
 
 Copies live in the consumers, and their tests parse them:
 

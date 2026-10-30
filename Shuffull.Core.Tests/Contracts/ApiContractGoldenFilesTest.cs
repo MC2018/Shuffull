@@ -14,6 +14,8 @@ using Shuffull.Core.Features.Songs.GetSongList;
 using Shuffull.Core.Features.Songs.GetSongsChanged;
 using Shuffull.Core.Features.Songs.KeepSongs;
 using Shuffull.Core.Features.Songs.RetagSongs;
+using Shuffull.Core.Features.Songs.RetagStaleSongs;
+using Shuffull.Core.Features.Tags.GetAllTags;
 using Shuffull.Core.Features.Users;
 using Shuffull.Core.Features.Users.GetCurrentUser;
 using Shuffull.Core.Features.UserSongs.GetUserSongs;
@@ -21,6 +23,7 @@ using Shuffull.Core.Models.Dtos;
 using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Tests.Infrastructure;
 using Shuffull.Metadata.Models;
+using Shuffull.Shared.Enums;
 using RatingAckOutcomes = Shuffull.Api.Controllers.Outcomes;
 using RetagOutcomes = Shuffull.Core.Features.Songs.RetagSongs.Outcomes;
 
@@ -29,9 +32,10 @@ namespace Shuffull.Core.Tests.Contracts;
 /// <summary>
 /// The wire shapes the app and the funnel depend on (listed in <c>Contracts/Golden/README.md</c>), written with the
 /// API's real JSON options into checked-in files under <c>Contracts/Golden</c>. For the two request bodies the funnel
-/// sends, the API must also bind the file, in camelCase and in the PascalCase the funnel writes. The app (vitest, through its zod schemas) and the funnel (xunit, through its real HTTP
-/// clients) parse copies of the same files, so a field renamed or retyped here fails a test on the consuming side
-/// instead of surfacing in prod as a silently-null column. Same idea as ShuffullApp's hashParity.test.ts.
+/// sends, the API must also bind the file, in camelCase and in PascalCase, since the funnel writes some keys each way.
+/// The app (vitest, through its zod schemas) and the funnel (xunit, through its real HTTP clients) parse copies of the
+/// same files, so a field renamed or retyped here fails a test on the consuming side instead of surfacing in prod as
+/// a silently-null column. Same idea as ShuffullApp's hashParity.test.ts.
 ///
 /// <para>When this test fails, the API's output changed. If that is intended, regenerate with
 /// <c>SHUFFULL_UPDATE_GOLDEN=1 dotnet test --filter ApiContractGoldenFilesTest</c>, copy the files to the
@@ -128,6 +132,15 @@ public class ApiContractGoldenFilesTest
             new SongRetagResult("song-locked", RetagOutcomes.Skipped),
             new SongRetagResult("song-sparse", RetagOutcomes.Failed, "AI is not enabled; cannot enrich songs."),
         ]),
+        // POST /api/v1/songs/retag-stale (curator-only). The app casts this rather than parsing it.
+        ["songs-retag-stale"] = new RetagStaleSongsResponse(Enriched: 3, Failed: 1, Remaining: 120, StrongModel: "gpt-5.6-terra"),
+        // GET /api/v1/tags. The app stores the type as its TagType number.
+        ["tags"] = new GetAllTagsResponse(
+        [
+            new TagDto("tag-rock", "Rock", TagType.Genre),
+            new TagDto("tag-1980s", "1980s", TagType.TimePeriod),
+            new TagDto("tag-english", "English", TagType.Language),
+        ]),
         // GET /api/v1/songs/pending-tags. The funnel's tagging queue.
         ["songs-pending-tags"] = new PendingTagSongsResponse(
             [
@@ -207,8 +220,9 @@ public class ApiContractGoldenFilesTest
     };
 
     /// <summary>
-    /// The request bodies among <see cref="Cases"/>. The funnel writes them with no naming policy, so they arrive
-    /// PascalCase and rely on the API binding case-insensitively.
+    /// The request bodies among <see cref="Cases"/>. The funnel writes them with no naming policy, so their keys
+    /// arrive PascalCase or mixed (songs-tags wraps PascalCase tags in a camelCase object), and rely on the API
+    /// binding case-insensitively.
     /// </summary>
     private static readonly string[] RequestCases = ["songs-tags", "youtube-ratings-ack"];
 
