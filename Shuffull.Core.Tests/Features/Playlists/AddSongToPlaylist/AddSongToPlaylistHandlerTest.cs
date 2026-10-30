@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Nut.Results;
+using Shuffull.Core.Errors;
 using Shuffull.Core.Features.Playlists.AddSongToPlaylist;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Tests.Infrastructure;
@@ -139,6 +140,7 @@ public class AddSongToPlaylistHandlerTest : IDisposable
         // Assert
         Assert.True(result.IsError);
         Assert.Contains("Playlist not found", result.GetError().Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(ErrorKind.NotFound, ResultErrors.KindOf(result.GetError()));
     }
 
     [Fact]
@@ -156,6 +158,7 @@ public class AddSongToPlaylistHandlerTest : IDisposable
         // Assert
         Assert.True(result.IsError);
         Assert.Contains("Song not found", result.GetError().Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(ErrorKind.NotFound, ResultErrors.KindOf(result.GetError()));
     }
 
     [Fact]
@@ -175,6 +178,7 @@ public class AddSongToPlaylistHandlerTest : IDisposable
         // Assert
         Assert.True(result.IsError);
         Assert.Contains("Playlist not found", result.GetError().Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(ErrorKind.NotFound, ResultErrors.KindOf(result.GetError()));
 
         var joinExists = await _database.Context.PlaylistSongs.AsNoTracking()
             .AnyAsync(ps => ps.PlaylistId == playlist.PlaylistId && ps.SongId == song.SongId);

@@ -2,6 +2,7 @@ using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Nut.Results;
+using Shuffull.Core.Errors;
 using Shuffull.Core.Features.Playlists.DeletePlaylist;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Enums;
@@ -72,6 +73,35 @@ public class DeletePlaylistHandlerTest : IDisposable
         public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
         {
             PromoteOnce(command);
+            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+        }
+    }
+
+    /// <summary>Fails the delete's first write with a database error carrying <see cref="SqlState"/>.</summary>
+    private sealed class FailFirstWrite(string sqlState) : DbCommandInterceptor
+    {
+        private sealed class FakeDbException(string sqlState) : DbException("db said no")
+        {
+            public override string SqlState { get; } = sqlState;
+        }
+
+        private void Fail(DbCommand command)
+        {
+            if (command.CommandText.Contains("DELETE FROM") || command.CommandText.Contains("UPDATE \""))
+            {
+                throw new FakeDbException(sqlState);
+            }
+        }
+
+        public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(DbCommand command, CommandEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            Fail(command);
+            return base.NonQueryExecutingAsync(command, eventData, result, cancellationToken);
+        }
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            Fail(command);
             return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
         }
     }
@@ -323,6 +353,26 @@ public class DeletePlaylistHandlerTest : IDisposable
         Assert.False(await _database.Context.Playlists.AsNoTracking().AnyAsync(p => p.PlaylistId == playlist.PlaylistId));
         Assert.True(await _database.Context.Songs.AsNoTracking().AnyAsync(s => s.SongId == song.SongId)); // never purged from a normal list
         Assert.Empty(await _database.Context.SongTombstones.AsNoTracking().ToListAsync());
+    }
+
+    [Theory]
+    [InlineData("08006", ErrorKind.ServerFault)] // connection lost: a 5xx, so the app's outbox retries the delete
+    [InlineData("23503", ErrorKind.Conflict)]    // a constraint the delete trips: a 4xx, since a retry trips it again
+    public async Task Delete_DatabaseError_RollsBack_AndCarriesItsKind(string sqlState, ErrorKind expected)
+    {
+        var user = await SeedUserAsync();
+        var playlist = await SeedPlaylistAsync(user.UserId, isExploratory: true);
+        var song = await SeedSongAsync(exploratory: true);
+        await AddJoinAsync(playlist.PlaylistId, song.SongId);
+
+        using var failingContext = _database.CreateContext(new FailFirstWrite(sqlState));
+        var result = await new DeletePlaylistHandler(failingContext)
+            .Handle(new DeletePlaylistCommand(user.UserId, playlist.PlaylistId), CancellationToken.None);
+
+        Assert.True(result.IsError);
+        Assert.Equal(expected, ResultErrors.KindOf(result.GetError()));
+        Assert.True(await _database.Context.Playlists.AsNoTracking().AnyAsync(p => p.PlaylistId == playlist.PlaylistId));
+        Assert.True(await SongExistsAsync(song.SongId));
     }
 
     [Fact]

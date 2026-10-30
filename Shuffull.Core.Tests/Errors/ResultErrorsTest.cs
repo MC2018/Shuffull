@@ -22,9 +22,15 @@ public class ResultErrorsTest
     [InlineData("23505", ErrorKind.Conflict)]    // unique violation
     [InlineData("23503", ErrorKind.Conflict)]    // foreign key violation
     [InlineData("22001", ErrorKind.Invalid)]     // value too long
+    [InlineData("54000", ErrorKind.Invalid)]     // index row too big: the request's value, every replay
+    [InlineData("42703", ErrorKind.Invalid)]     // undefined column: fails every replay too
     [InlineData("08006", ErrorKind.ServerFault)] // connection failure
     [InlineData("40P01", ErrorKind.ServerFault)] // deadlock
+    [InlineData("40001", ErrorKind.ServerFault)] // serialization failure
+    [InlineData("53300", ErrorKind.ServerFault)] // too many connections
+    [InlineData("55P03", ErrorKind.ServerFault)] // lock wait timed out
     [InlineData("57P01", ErrorKind.ServerFault)] // admin shutdown
+    [InlineData("57014", ErrorKind.ServerFault)] // statement timeout
     [InlineData(null, ErrorKind.ServerFault)]    // a driver error with no SQLSTATE
     public void DatabaseError_IsClassifiedBySqlState(string? sqlState, ErrorKind expected)
     {

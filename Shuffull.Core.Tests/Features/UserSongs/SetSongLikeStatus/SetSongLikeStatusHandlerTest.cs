@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using Nut.Results;
+using Shuffull.Core.Errors;
 using Shuffull.Core.Features.UserSongs.SetSongLikeStatus;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Enums;
@@ -138,6 +139,7 @@ public class SetSongLikeStatusHandlerTest : IDisposable
         // Assert
         Assert.True(result.IsError);
         Assert.Contains("No matching song", result.GetError().Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(ErrorKind.NotFound, ResultErrors.KindOf(result.GetError()));
     }
 
     [Fact]
@@ -156,6 +158,7 @@ public class SetSongLikeStatusHandlerTest : IDisposable
         // Assert
         Assert.True(result.IsError);
         Assert.Contains("No matching song", result.GetError().Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(ErrorKind.NotFound, ResultErrors.KindOf(result.GetError()));
     }
 
     [Theory]

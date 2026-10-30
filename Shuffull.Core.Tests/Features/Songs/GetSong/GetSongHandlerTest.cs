@@ -1,4 +1,5 @@
 using Nut.Results;
+using Shuffull.Core.Errors;
 using Shuffull.Core.Tests.Infrastructure;
 using Shuffull.Core.Features.Songs.GetSong;
 using Shuffull.Core.Models.Database;
@@ -62,6 +63,7 @@ public class GetSongHandlerTest : IDisposable
         // Assert
         Assert.True(result.IsError);
         Assert.Contains("not found", result.GetError().Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(ErrorKind.NotFound, ResultErrors.KindOf(result.GetError()));
     }
 
     [Fact]

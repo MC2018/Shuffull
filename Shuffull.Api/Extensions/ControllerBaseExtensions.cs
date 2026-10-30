@@ -33,11 +33,15 @@ public static class ControllerBaseExtensions
             case ErrorKind.Conflict:
                 return controller.Conflict(body);
             case ErrorKind.ServerFault:
-                // Returned, not thrown, so nothing else logs it.
-                controller.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>()
-                    .CreateLogger(typeof(ControllerBaseExtensions))
-                    .LogError(error, "{Method} {Path} failed on the server: {Error}",
-                        controller.Request.Method, controller.Request.Path, error.Message);
+                // Returned, not thrown, so nothing else logs it. A query cancelled because the caller hung up isn't a
+                // fault worth an error entry; nobody receives this answer anyway.
+                if (!controller.HttpContext.RequestAborted.IsCancellationRequested)
+                {
+                    controller.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>()
+                        .CreateLogger(typeof(ControllerBaseExtensions))
+                        .LogError(error, "{Method} {Path} failed on the server: {Error}",
+                            controller.Request.Method, controller.Request.Path, error.Message);
+                }
                 return controller.StatusCode(StatusCodes.Status500InternalServerError, body);
             default:
                 return controller.BadRequest(body);
