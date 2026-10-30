@@ -580,4 +580,27 @@ public class GetPendingTagSongsHandlerTest : IDisposable
 
         Assert.Equal([retry.SongId, keep.SongId, held[0]], next.Songs.Select(s => s.SongId));
     }
+
+    [Fact]
+    public async Task AHeldSongThatGetsNoSlotForAnHour_TakesItsOldestFirstPlaceBack()
+    {
+        // A page kept full by newer work (failing retries, a stream of Keeps) must not starve a held song for good.
+        var clock = new ManualTimeProvider(DateTime.UtcNow);
+        var old = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var held = await SeedAsync(version: old);
+        Assert.Equal(held.SongId, Assert.Single((await RunAsync(limit: 1, clock: clock)).Get().Songs).SongId);
+        await HoldAsync(clock, held.SongId);
+        var newer = await SeedAsync(version: old.AddDays(1));
+        var newest = await SeedAsync(version: old.AddDays(2));
+
+        // Just held: the newer song goes first.
+        clock.UtcNow += FunnelCycle;
+        Assert.Equal(newer.SongId, Assert.Single((await RunAsync(limit: 1, clock: clock)).Get().Songs).SongId);
+
+        // Unserved for MaxRetryDelay past its due time: oldest first again, ahead of a song never offered.
+        clock.UtcNow += GetPendingTagSongsHandler.MaxRetryDelay;
+        var page = (await RunAsync(limit: 2, clock: clock)).Get();
+        Assert.Equal([held.SongId, newer.SongId], page.Songs.Select(s => s.SongId));
+        Assert.DoesNotContain(newest.SongId, page.Songs.Select(s => s.SongId));
+    }
 }

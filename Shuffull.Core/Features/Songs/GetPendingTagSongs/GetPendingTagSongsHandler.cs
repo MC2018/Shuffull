@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Nut.Results;
 using Shuffull.Core.Alerts;
 using Shuffull.Core.Errors;
+using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Persistence;
 using Shuffull.Core.Services.Alerts;
@@ -41,7 +42,8 @@ public class GetPendingTagSongsHandler(
     /// predates hold reports (shuffull-workspace#36) gets its held songs on that same ladder.
     /// </summary>
     public static readonly TimeSpan FirstRetryDelay = TimeSpan.FromMinutes(5);
-    private static readonly TimeSpan MaxRetryDelay = TimeSpan.FromHours(1);
+    /// <summary>The longest a song sits out between hand-outs, and the longest a held song yields its place.</summary>
+    public static readonly TimeSpan MaxRetryDelay = TimeSpan.FromHours(1);
 
     public async Task<Result<PendingTagSongsResponse>> Handle(GetPendingTagSongsQuery request, CancellationToken cancellationToken)
     {
@@ -144,14 +146,15 @@ public class GetPendingTagSongsHandler(
         // A song the producer reported held comes back every cycle until its batch lands, and is usually among the
         // oldest, so within each group it goes behind everything else, taking only the slots left over. Otherwise 25
         // songs held at once (a strong-model change makes every liked song behind) would fill every page until their
-        // batches land, and a fresh Keep would wait behind them. Only a hold report leaves a song at no attempts with
-        // a due time set (a hand-out counts one, writing tags clears both), so a producer that doesn't report holds
-        // sees the order it always did.
+        // batches land, and a fresh Keep would wait behind them. But only for MaxRetryDelay after it was due: a held
+        // song that got no slot in that time (a page kept full by failing retries, say) takes its oldest-first place
+        // back, so it never waits longer than a failing song does. A producer that doesn't report holds has no held
+        // songs (Song.HeldAndDueAfter), and sees the order it always did.
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var rows = await pending
             .Where(s => s.NextTagAttemptAt == null || s.NextTagAttemptAt <= now)
             .OrderBy(s => upgradeIds.Contains(s.SongId) ? 0 : 1)
-            .ThenBy(s => s.TagAttempts == 0 && s.NextTagAttemptAt != null ? 1 : 0)
+            .ThenBy(Song.HeldAndDueAfter(now - MaxRetryDelay))
             .ThenBy(s => s.Version)
             .Take(limit)
             .Select(s => new

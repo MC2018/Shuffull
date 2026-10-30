@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Shuffull.Api.Commands.Listens.RecordListens;
+using Shuffull.Api.Commands.Songs.HoldTagSongs;
 using Shuffull.Api.Controllers;
 using Shuffull.Api.Extensions;
 using Shuffull.Core.Features.Listens.RecordListens;

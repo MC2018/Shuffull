@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -83,6 +84,15 @@ namespace Shuffull.Core.Models.Database
             TagAttempts = 0;
             NextTagAttemptAt = null;
         }
+
+        /// <summary>
+        /// Songs the producer reported held for an AI batch (HoldTagSongs) and still due after
+        /// <paramref name="dueAfter"/>. Only a hold report leaves a song at no attempts with a due time set: a hand-out
+        /// always counts an attempt, and writing tags clears both (<see cref="ResetTagAttempts"/>). A new writer that
+        /// sets a due time without counting an attempt would make its songs read as held.
+        /// </summary>
+        public static Expression<Func<Song, bool>> HeldAndDueAfter(DateTime dueAfter)
+            => s => s.TagAttempts == 0 && s.NextTagAttemptAt != null && s.NextTagAttemptAt > dueAfter;
 
         // Last-modified timestamp for incremental song sync (mirrors UserSong.Version). Stamped on create and on
         // every mutation (e.g. an in-place replacement), so the app can pull only songs changed since its cursor

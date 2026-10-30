@@ -17,6 +17,9 @@ namespace Shuffull.Core.Features.Songs.HoldTagSongs;
 /// <para>Conditional, like the rating ack: only a song still backing off from a hand-out is touched. One whose tags
 /// were written since (ApplySongTags clears <c>NextTagAttemptAt</c>) is left alone, and a due time is only ever
 /// brought forward, never pushed back. So a late or repeated report can't delay anything.</para>
+///
+/// <para>The state this leaves (no attempts, a due time set) is what the queue reads as held
+/// (<see cref="Models.Database.Song.HeldAndDueAfter"/>), and sorts behind fresh work for a while.</para>
 /// </summary>
 public class HoldTagSongsHandler(ShuffullContext context, TimeProvider timeProvider)
     : IRequestHandler<HoldTagSongsCommand, Result<HoldTagSongsResponse>>

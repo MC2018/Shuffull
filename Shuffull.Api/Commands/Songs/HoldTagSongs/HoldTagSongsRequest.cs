@@ -1,4 +1,4 @@
-namespace Shuffull.Api.Controllers;
+namespace Shuffull.Api.Commands.Songs.HoldTagSongs;
 
 /// <summary>
 /// Producer hold report body: the songs from this cycle's page that were held for an AI batch rather than tagged or
