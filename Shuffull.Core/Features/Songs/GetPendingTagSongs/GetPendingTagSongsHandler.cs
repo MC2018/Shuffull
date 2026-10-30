@@ -42,7 +42,7 @@ public class GetPendingTagSongsHandler(
     /// predates hold reports (shuffull-workspace#36) gets its held songs on that same ladder.
     /// </summary>
     public static readonly TimeSpan FirstRetryDelay = TimeSpan.FromMinutes(5);
-    /// <summary>The longest a song sits out between hand-outs, and the longest a held song yields its place.</summary>
+    /// <summary>The longest a song sits out between hand-outs, and how far back in line a held song rejoins.</summary>
     public static readonly TimeSpan MaxRetryDelay = TimeSpan.FromHours(1);
 
     public async Task<Result<PendingTagSongsResponse>> Handle(GetPendingTagSongsQuery request, CancellationToken cancellationToken)
@@ -144,18 +144,18 @@ public class GetPendingTagSongsHandler(
         // of filling the page.
         //
         // A song the producer reported held comes back every cycle until its batch lands, and is usually among the
-        // oldest, so within each group it goes behind everything else, taking only the slots left over. Otherwise 25
-        // songs held at once (a strong-model change makes every liked song behind) would fill every page until their
-        // batches land, and a fresh Keep would wait behind them. But only for MaxRetryDelay after it was due: a held
-        // song that got no slot in that time (a page kept full by failing retries, say) takes its oldest-first place
-        // back, so it never waits longer than a failing song does. A producer that doesn't report holds has no held
-        // songs (Song.HeldAndDueAfter), and sees the order it always did.
+        // oldest. Kept at its old place, 25 songs held at once (a strong-model change makes every liked song behind)
+        // would fill every page until their batches land, and a fresh Keep would wait behind them. Sent to the very
+        // end, enough newer work would starve it instead. So each hold sends it to the back of the line as of
+        // MaxRetryDelay after it is due again (Song.TagQueuePlace): work asked for within that hour goes first, and
+        // anything newer waits behind it. Neither side can hold the other off for good. A producer that doesn't
+        // report holds has no held songs, and sees the order it always did.
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var rows = await pending
             .Where(s => s.NextTagAttemptAt == null || s.NextTagAttemptAt <= now)
             .OrderBy(s => upgradeIds.Contains(s.SongId) ? 0 : 1)
-            .ThenBy(Song.HeldAndDueAfter(now - MaxRetryDelay))
-            .ThenBy(s => s.Version)
+            .ThenBy(Song.TagQueuePlace(MaxRetryDelay))
+            .ThenBy(s => s.Version) // songs held in one report share a place
             .Take(limit)
             .Select(s => new
             {

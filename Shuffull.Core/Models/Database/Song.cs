@@ -86,13 +86,22 @@ namespace Shuffull.Core.Models.Database
         }
 
         /// <summary>
-        /// Songs the producer reported held for an AI batch (HoldTagSongs) and still due after
-        /// <paramref name="dueAfter"/>. Only a hold report leaves a song at no attempts with a due time set: a hand-out
-        /// always counts an attempt, and writing tags clears both (<see cref="ResetTagAttempts"/>). A new writer that
-        /// sets a due time without counting an attempt would make its songs read as held.
+        /// A song's place in the producer tagging queue, oldest first: when it was last changed (<see cref="Version"/>),
+        /// or, for a song the producer reported held for an AI batch (HoldTagSongs), <paramref name="heldYieldFor"/>
+        /// after it is due again. So a held song rejoins the line at the back, behind work asked for up to that long
+        /// after its hold, and ahead of anything newer.
+        ///
+        /// <para>Only a hold report leaves a song at no attempts with a due time set: a hand-out always counts an
+        /// attempt, and writing tags clears both (<see cref="ResetTagAttempts"/>). A new writer that sets a due time
+        /// without counting an attempt would make its songs sort as held.</para>
         /// </summary>
-        public static Expression<Func<Song, bool>> HeldAndDueAfter(DateTime dueAfter)
-            => s => s.TagAttempts == 0 && s.NextTagAttemptAt != null && s.NextTagAttemptAt > dueAfter;
+        public static Expression<Func<Song, DateTime>> TagQueuePlace(TimeSpan heldYieldFor)
+        {
+            var seconds = heldYieldFor.TotalSeconds;
+            return s => s.TagAttempts == 0 && s.NextTagAttemptAt != null
+                ? s.NextTagAttemptAt.Value.AddSeconds(seconds)
+                : s.Version;
+        }
 
         // Last-modified timestamp for incremental song sync (mirrors UserSong.Version). Stamped on create and on
         // every mutation (e.g. an in-place replacement), so the app can pull only songs changed since its cursor

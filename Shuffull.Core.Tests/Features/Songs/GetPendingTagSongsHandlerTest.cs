@@ -549,7 +549,7 @@ public class GetPendingTagSongsHandlerTest : IDisposable
     }
 
     [Fact]
-    public async Task MoreHeldSongsThanAPage_NeverCrowdOutAFreshKeep_OrADueRetry()
+    public async Task MoreHeldSongsThanAPage_YieldToAFreshKeep_AndADueRetry()
     {
         // Held songs come back every cycle while their batch runs, and are older than anything new. Each cycle the
         // funnel holds the whole page again, as it does while a batch is pending.
@@ -582,25 +582,20 @@ public class GetPendingTagSongsHandlerTest : IDisposable
     }
 
     [Fact]
-    public async Task AHeldSongThatGetsNoSlotForAnHour_TakesItsOldestFirstPlaceBack()
+    public async Task AHeldSong_RejoinsTheLine_AnHourAfterItIsDue()
     {
-        // A page kept full by newer work (failing retries, a stream of Keeps) must not starve a held song for good.
+        // Behind work asked for within that hour, ahead of anything newer, so neither can starve the other.
         var clock = new ManualTimeProvider(DateTime.UtcNow);
-        var old = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-        var held = await SeedAsync(version: old);
+        var held = await SeedAsync(version: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
         Assert.Equal(held.SongId, Assert.Single((await RunAsync(limit: 1, clock: clock)).Get().Songs).SongId);
         await HoldAsync(clock, held.SongId);
-        var newer = await SeedAsync(version: old.AddDays(1));
-        var newest = await SeedAsync(version: old.AddDays(2));
-
-        // Just held: the newer song goes first.
+        var place = clock.UtcNow + GetPendingTagSongsHandler.FirstRetryDelay + GetPendingTagSongsHandler.MaxRetryDelay;
+        var askedJustBefore = await SeedAsync(version: place.AddMinutes(-1));
+        var askedJustAfter = await SeedAsync(version: place.AddMinutes(1));
         clock.UtcNow += FunnelCycle;
-        Assert.Equal(newer.SongId, Assert.Single((await RunAsync(limit: 1, clock: clock)).Get().Songs).SongId);
 
-        // Unserved for MaxRetryDelay past its due time: oldest first again, ahead of a song never offered.
-        clock.UtcNow += GetPendingTagSongsHandler.MaxRetryDelay;
-        var page = (await RunAsync(limit: 2, clock: clock)).Get();
-        Assert.Equal([held.SongId, newer.SongId], page.Songs.Select(s => s.SongId));
-        Assert.DoesNotContain(newest.SongId, page.Songs.Select(s => s.SongId));
+        var page = (await RunAsync(limit: 3, clock: clock)).Get();
+
+        Assert.Equal([askedJustBefore.SongId, held.SongId, askedJustAfter.SongId], page.Songs.Select(s => s.SongId));
     }
 }

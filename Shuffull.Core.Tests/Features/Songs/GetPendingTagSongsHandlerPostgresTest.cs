@@ -188,4 +188,26 @@ public class GetPendingTagSongsHandlerPostgresTest : IAsyncLifetime
         Assert.Null(untouched!.NextTagAttemptAt);
         Assert.Equal(day.AddDays(2), untouched.Version);
     }
+
+    [PostgresFact]
+    public async Task AHeldSong_RejoinsTheLine_AnHourAfterItIsDue()
+    {
+        // The queue's sort key adds an interval to the due time, but only for held songs; pin how Npgsql translates it.
+        var dueAt = DateTime.UtcNow.AddMinutes(-1);
+        var held = await SeedSongAsync(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+        await using (var context = Database.CreateContext())
+        {
+            var h = await context.Songs.FindAsync(held.SongId);
+            h!.TagAttempts = 0;
+            h.NextTagAttemptAt = dueAt;
+            await context.SaveChangesAsync();
+        }
+        var place = dueAt + GetPendingTagSongsHandler.MaxRetryDelay;
+        var askedJustBefore = await SeedSongAsync(place.AddMinutes(-1));
+        var askedJustAfter = await SeedSongAsync(place.AddMinutes(1));
+
+        var page = await RunAsync(limit: 3);
+
+        Assert.Equal([askedJustBefore.SongId, held.SongId, askedJustAfter.SongId], page.Songs.Select(s => s.SongId));
+    }
 }
