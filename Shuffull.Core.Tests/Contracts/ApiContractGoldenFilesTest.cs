@@ -171,7 +171,10 @@ public class ApiContractGoldenFilesTest
             TopArtistsByMinutes: [new RecapArtist("artist-a", "Artist A", 80, 25)],
             TopArtistsByPlays: [new RecapArtist("artist-a", "Artist A", 80, 25)],
             TopGenres: [new RecapGenre("tag-rock", "Rock", 80)],
-            GenresByMonth: [new RecapGenreMonth(1, 10, [new RecapGenreShare("tag-rock", "Rock", 2.5, 25)])],
+            GenresByMonth: Enumerable.Range(1, 12)
+                .Select(month => new RecapGenreMonth(month, month == 1 ? 10 : 0,
+                    [new RecapGenreShare("tag-rock", "Rock", month == 1 ? 2.5 : 0, month == 1 ? 25 : 0)]))
+                .ToList(),
             AuditionMinutes: 12.5,
             KeepRate: new RecapKeepRate(AuditionedSongs: 4, KeptSongs: 1, Percent: 25),
             LongestStreak: new RecapStreak(3, new DateOnly(2026, 11, 2), new DateOnly(2026, 11, 4)),
@@ -182,6 +185,8 @@ public class ApiContractGoldenFilesTest
             [
                 new RecapSeason("winter", new RecapSong("song-full", "Song Full", ["Artist A"], 80, 25)),
                 new RecapSeason("spring", null),
+                new RecapSeason("summer", null),
+                new RecapSeason("autumn", new RecapSong("song-sparse", null, [], 45, 29)),
             ],
             MostSkipped: new RecapMostSkipped(new RecapSong("song-sparse", null, [], 45.5, 30), Skips: 7)),
         // POST /api/v1/songs/retag. Per-item outcomes inside a 200; the app must read them, not the status.

@@ -259,6 +259,138 @@
           "percent": 25
         }
       ]
+    },
+    {
+      "month": 2,
+      "totalMinutes": 0,
+      "genres": [
+        {
+          "tagId": "tag-rock",
+          "name": "Rock",
+          "minutes": 0,
+          "percent": 0
+        }
+      ]
+    },
+    {
+      "month": 3,
+      "totalMinutes": 0,
+      "genres": [
+        {
+          "tagId": "tag-rock",
+          "name": "Rock",
+          "minutes": 0,
+          "percent": 0
+        }
+      ]
+    },
+    {
+      "month": 4,
+      "totalMinutes": 0,
+      "genres": [
+        {
+          "tagId": "tag-rock",
+          "name": "Rock",
+          "minutes": 0,
+          "percent": 0
+        }
+      ]
+    },
+    {
+      "month": 5,
+      "totalMinutes": 0,
+      "genres": [
+        {
+          "tagId": "tag-rock",
+          "name": "Rock",
+          "minutes": 0,
+          "percent": 0
+        }
+      ]
+    },
+    {
+      "month": 6,
+      "totalMinutes": 0,
+      "genres": [
+        {
+          "tagId": "tag-rock",
+          "name": "Rock",
+          "minutes": 0,
+          "percent": 0
+        }
+      ]
+    },
+    {
+      "month": 7,
+      "totalMinutes": 0,
+      "genres": [
+        {
+          "tagId": "tag-rock",
+          "name": "Rock",
+          "minutes": 0,
+          "percent": 0
+        }
+      ]
+    },
+    {
+      "month": 8,
+      "totalMinutes": 0,
+      "genres": [
+        {
+          "tagId": "tag-rock",
+          "name": "Rock",
+          "minutes": 0,
+          "percent": 0
+        }
+      ]
+    },
+    {
+      "month": 9,
+      "totalMinutes": 0,
+      "genres": [
+        {
+          "tagId": "tag-rock",
+          "name": "Rock",
+          "minutes": 0,
+          "percent": 0
+        }
+      ]
+    },
+    {
+      "month": 10,
+      "totalMinutes": 0,
+      "genres": [
+        {
+          "tagId": "tag-rock",
+          "name": "Rock",
+          "minutes": 0,
+          "percent": 0
+        }
+      ]
+    },
+    {
+      "month": 11,
+      "totalMinutes": 0,
+      "genres": [
+        {
+          "tagId": "tag-rock",
+          "name": "Rock",
+          "minutes": 0,
+          "percent": 0
+        }
+      ]
+    },
+    {
+      "month": 12,
+      "totalMinutes": 0,
+      "genres": [
+        {
+          "tagId": "tag-rock",
+          "name": "Rock",
+          "minutes": 0,
+          "percent": 0
+        }
+      ]
     }
   ],
   "auditionMinutes": 12.5,
@@ -307,6 +439,20 @@
     {
       "season": "spring",
       "song": null
+    },
+    {
+      "season": "summer",
+      "song": null
+    },
+    {
+      "season": "autumn",
+      "song": {
+        "songId": "song-sparse",
+        "name": null,
+        "artists": [],
+        "minutes": 45,
+        "plays": 29
+      }
     }
   ],
   "mostSkipped": {

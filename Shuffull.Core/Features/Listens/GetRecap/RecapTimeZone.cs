@@ -13,10 +13,11 @@ public static partial class RecapTimeZone
     /// <summary>Recaps asked for without a zone are computed in UTC.</summary>
     public const string Default = "UTC";
 
-    // Offsets on Earth run from -12:00 to +14:00.
+    // Offsets on Earth run from -12:00 to +14:00; both directions are capped at 14 hours.
     private static readonly TimeSpan MaxOffset = TimeSpan.FromHours(14);
 
-    // The id goes to the OS time zone database, so only the characters IANA ids use, and no "..".
+    // The id goes to the OS time zone database, so only the characters IANA ids use: no dots, no leading slash, so it
+    // can't reach outside the zoneinfo directory.
     [GeneratedRegex(@"^[A-Za-z][A-Za-z0-9_+\-]*(/[A-Za-z0-9_+\-]+)*$")]
     private static partial Regex IanaIdPattern();
 
@@ -51,7 +52,7 @@ public static partial class RecapTimeZone
             return true;
         }
 
-        if (!IanaIdPattern().IsMatch(value) || value.Contains(".."))
+        if (!IanaIdPattern().IsMatch(value))
         {
             return false;
         }

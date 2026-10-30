@@ -78,7 +78,9 @@ public record RecapGenreShare(string TagId, string Name, double Minutes, double 
 /// (<paramref name="AuditionedSongs"/>), how many are kept NOW (<paramref name="KeptSongs"/>): the song still exists
 /// and is no longer exploratory, or the user likes or loves it. A purged song counts as not kept.
 ///
-/// <para><c>Exploratory</c> is one flag per song, not per user: a song another user kept counts as kept here too.</para>
+/// <para><c>Exploratory</c> is one flag per song, not per user: a song another user kept counts as kept here too. So a
+/// past year's rate moves when a song is kept, liked or purged later. Shuffull#101 tracks recording Keeps, and asks the
+/// user to confirm this definition.</para>
 /// </summary>
 /// <param name="Percent">0 to 100; null when nothing was auditioned.</param>
 public record RecapKeepRate(int AuditionedSongs, int KeptSongs, double? Percent);

@@ -217,9 +217,17 @@ public class GetRecapHandler(ShuffullContext context) : IRequestHandler<GetRecap
 
         // Strictly longer, so a tie goes to the earlier session.
         static RecapSession? Longer(RecapSession? best, RecapSession? candidate)
-            => best is null || (candidate is not null && candidate.End - candidate.Start > best.End - best.Start)
-                ? candidate ?? best
-                : best;
+        {
+            if (candidate is null)
+            {
+                return best;
+            }
+            if (best is null)
+            {
+                return candidate;
+            }
+            return candidate.End - candidate.Start > best.End - best.Start ? candidate : best;
+        }
     }
 
     private static RecapGrower? BiggestGrower(List<SongTotals> songs, SongCatalog catalog)
