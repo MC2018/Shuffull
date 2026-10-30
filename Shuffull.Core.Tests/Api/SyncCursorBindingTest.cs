@@ -20,7 +20,7 @@ namespace Shuffull.Core.Tests.Api;
 public class SyncCursorBindingTest
 {
     // Microsecond precision, as Postgres stores it — finer than a JS Date, which is what lost it before.
-    private static readonly DateTime Version = new DateTime(2026, 10, 23, 12, 0, 0, DateTimeKind.Utc).AddTicks(1234560);
+    private static readonly DateTime MicrosecondVersion = new DateTime(2026, 10, 23, 12, 0, 0, DateTimeKind.Utc).AddTicks(1234560);
 
     private readonly Mock<IMediator> _mediator = new();
 
@@ -42,7 +42,7 @@ public class SyncCursorBindingTest
     public async Task SongsChanged_ReturnedVersionAndId_BindBackAsTheExactCursor()
     {
         var queries = new List<GetSongsChangedQuery>();
-        var song = new Song { SongId = "song-0499", Name = "Song", FileExtension = ".mp3", FileHash = "h", Version = Version };
+        var song = new Song { SongId = "song-0499", Name = "Song", FileExtension = ".mp3", FileHash = "h", Version = MicrosecondVersion };
         _mediator
             .Setup(m => m.Send(It.IsAny<GetSongsChangedQuery>(), It.IsAny<CancellationToken>()))
             .Callback<IRequest<Result<GetSongsChangedResponse>>, CancellationToken>((query, _) => queries.Add((GetSongsChangedQuery)query))
@@ -56,8 +56,8 @@ public class SyncCursorBindingTest
 
         Assert.Equal(2, queries.Count);
         Assert.Null(queries[0].AfterId);
-        Assert.Equal(Version, queries[1].AfterDate);
-        Assert.Equal(Version.Ticks, queries[1].AfterDate.Ticks);
+        Assert.Equal(MicrosecondVersion, queries[1].AfterDate);
+        Assert.Equal(MicrosecondVersion.Ticks, queries[1].AfterDate.Ticks);
         Assert.Equal(DateTimeKind.Utc, queries[1].AfterDate.Kind);
         Assert.Equal("song-0499", queries[1].AfterId);
     }
@@ -66,7 +66,7 @@ public class SyncCursorBindingTest
     public async Task UserSongs_ReturnedVersionAndSongId_BindBackAsTheExactCursor()
     {
         var queries = new List<GetUserSongsQuery>();
-        var record = new UserSong { UserId = "u", SongId = "song-0499", LastPlayed = Version, Version = Version };
+        var record = new UserSong { UserId = "u", SongId = "song-0499", LastPlayed = MicrosecondVersion, Version = MicrosecondVersion };
         _mediator
             .Setup(m => m.Send(It.IsAny<GetUserSongsQuery>(), It.IsAny<CancellationToken>()))
             .Callback<IRequest<Result<GetUserSongsResponse>>, CancellationToken>((query, _) => queries.Add((GetUserSongsQuery)query))
@@ -80,7 +80,7 @@ public class SyncCursorBindingTest
 
         Assert.Equal(2, queries.Count);
         Assert.Null(queries[0].AfterId);
-        Assert.Equal(Version.Ticks, queries[1].AfterDate.Ticks);
+        Assert.Equal(MicrosecondVersion.Ticks, queries[1].AfterDate.Ticks);
         Assert.Equal(DateTimeKind.Utc, queries[1].AfterDate.Kind);
         Assert.Equal("song-0499", queries[1].AfterId);
         Assert.Equal("u", queries[1].UserId);

@@ -149,6 +149,31 @@ public class GetUserSongsHandlerTest : IDisposable
     }
 
     [Fact]
+    public async Task Handle_KeysetCursor_SkipsTiedRecordsUpToTheIdAndKeepsLaterVersions()
+    {
+        // Arrange — explicit song ids so a later version can carry a smaller id than the cursor's.
+        var user = await SeedUserAsync();
+        var cursor = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        foreach (var (songId, version) in new[]
+                 {
+                     ("a", cursor), ("b", cursor), ("c", cursor), ("0-later", cursor.AddTicks(10)), ("z-earlier", cursor.AddTicks(-10)),
+                 })
+        {
+            await _database.Context.Songs.AddAsync(new Song { SongId = songId, Name = "Song", FileExtension = ".mp3", FileHash = $"hash-{songId}" });
+            await _database.Context.UserSongs.AddAsync(new UserSong { UserId = user.UserId, SongId = songId, LastPlayed = version, Version = version });
+        }
+        await _database.Context.SaveChangesAsync();
+
+        // Act — the client already has everything up to and including (cursor, "b").
+        var result = await _handler.Handle(new GetUserSongsQuery(user.UserId, cursor, "b"), CancellationToken.None);
+
+        // Assert — the rest of the tie by id, then later versions regardless of id.
+        Assert.True(result.IsOk);
+        Assert.Equal(new[] { "c", "0-later" }, result.Get().UserSongs.Select(us => us.SongId).ToArray());
+        Assert.True(result.Get().EndOfList);
+    }
+
+    [Fact]
     public async Task Handle_WithoutAfterId_KeepsTheLegacyStrictlyAfterCursor()
     {
         // Arrange
@@ -157,10 +182,12 @@ public class GetUserSongsHandlerTest : IDisposable
         await SeedUserSongAsync(user.UserId, cutoff);
         var newer = await SeedUserSongAsync(user.UserId, cutoff.AddTicks(10));
 
-        // Act
-        var result = await _handler.Handle(new GetUserSongsQuery(user.UserId, cutoff), CancellationToken.None);
+        // Act — installed apps send afterDate alone; an empty afterId means the same.
+        var withoutId = await _handler.Handle(new GetUserSongsQuery(user.UserId, cutoff), CancellationToken.None);
+        var emptyId = await _handler.Handle(new GetUserSongsQuery(user.UserId, cutoff, ""), CancellationToken.None);
 
         // Assert — the record at exactly the cursor stays excluded, as installed apps expect.
-        Assert.Equal(new[] { newer.SongId }, result.Get().UserSongs.Select(us => us.SongId).ToArray());
+        Assert.Equal(new[] { newer.SongId }, withoutId.Get().UserSongs.Select(us => us.SongId).ToArray());
+        Assert.Equal(new[] { newer.SongId }, emptyId.Get().UserSongs.Select(us => us.SongId).ToArray());
     }
 }
