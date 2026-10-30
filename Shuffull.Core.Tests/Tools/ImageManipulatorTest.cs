@@ -1,6 +1,5 @@
 using Shuffull.Api.Tools;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
 
 namespace Shuffull.Core.Tests.Tools;
 
@@ -18,19 +17,19 @@ public class ImageManipulatorTest
     [Fact]
     public void GenerateDefaultImage_FillsWithBlack()
     {
-        using var image = (Image<Rgba32>)ImageManipulator.GenerateDefaultImage(4, 4);
+        using var image = ImageManipulator.GenerateDefaultImage(4, 4);
 
-        var pixel = image[0, 0];
-        Assert.Equal(0, pixel.R);
-        Assert.Equal(0, pixel.G);
-        Assert.Equal(0, pixel.B);
-        Assert.Equal(255, pixel.A);
+        var pixel = image.GetPixel(0, 0);
+        Assert.Equal(0, pixel.Red);
+        Assert.Equal(0, pixel.Green);
+        Assert.Equal(0, pixel.Blue);
+        Assert.Equal(255, pixel.Alpha);
     }
 
     [Fact]
     public void ResizeWithPadding_ReturnsCanvasOfTargetSize()
     {
-        using var source = new Image<Rgba32>(800, 400, Color.Red);
+        using var source = Solid(800, 400, SKColors.Red);
 
         using var result = ImageManipulator.ResizeWithPadding(source, 512, 512);
 
@@ -42,26 +41,61 @@ public class ImageManipulatorTest
     public void ResizeWithPadding_PadsWithBlackAroundShorterDimension()
     {
         // A wide source on a square canvas leaves black padding at the top corner.
-        using var source = new Image<Rgba32>(800, 200, Color.Red);
+        using var source = Solid(800, 200, SKColors.Red);
 
-        using var result = (Image<Rgba32>)ImageManipulator.ResizeWithPadding(source, 512, 512);
+        using var result = ImageManipulator.ResizeWithPadding(source, 512, 512);
 
-        var corner = result[0, 0];
-        Assert.Equal(0, corner.R);
-        Assert.Equal(0, corner.G);
-        Assert.Equal(0, corner.B);
+        var corner = result.GetPixel(0, 0);
+        Assert.Equal(0, corner.Red);
+        Assert.Equal(0, corner.Green);
+        Assert.Equal(0, corner.Blue);
     }
 
     [Fact]
     public void ResizeWithPadding_PreservesAspectRatioOfContent()
     {
         // 800x400 (2:1) onto 512x512 -> scaled to 512x256, centered with 128px black bars top and bottom.
-        using var source = new Image<Rgba32>(800, 400, Color.Red);
+        using var source = Solid(800, 400, SKColors.Red);
 
-        using var result = (Image<Rgba32>)ImageManipulator.ResizeWithPadding(source, 512, 512);
+        using var result = ImageManipulator.ResizeWithPadding(source, 512, 512);
 
-        // Center pixel should be the (red) content, not padding.
-        var center = result[256, 256];
-        Assert.True(center.R > center.B);
+        Assert.Equal(SKColors.Red, result.GetPixel(256, 256));
+        Assert.Equal(SKColors.Red, result.GetPixel(256, 130));
+        Assert.Equal(SKColors.Black, result.GetPixel(256, 125));
+        Assert.Equal(SKColors.Black, result.GetPixel(256, 386));
+    }
+
+    [Fact]
+    public void ResizeWithPadding_LeavesTheSourceUntouched()
+    {
+        using var source = Solid(800, 400, SKColors.Red);
+
+        using var result = ImageManipulator.ResizeWithPadding(source, 512, 512);
+
+        Assert.Equal(800, source.Width);
+        Assert.Equal(400, source.Height);
+    }
+
+    [Fact]
+    public void AlbumArt_RoundTripsThroughJpeg()
+    {
+        // SongImportService decodes embedded art, pads it to 512x512 and stores it as JPEG.
+        using var source = Solid(300, 300, SKColors.Blue);
+        using var png = source.Encode(SKEncodedImageFormat.Png, 100);
+        using var decoded = SKBitmap.Decode(png.ToArray());
+
+        using var result = ImageManipulator.ResizeWithPadding(decoded, 512, 512);
+        using var jpeg = result.Encode(SKEncodedImageFormat.Jpeg, 75);
+        using var reread = SKBitmap.Decode(jpeg.ToArray());
+
+        Assert.Equal(512, reread.Width);
+        Assert.True(reread.GetPixel(256, 256).Blue > 200);
+    }
+
+    private static SKBitmap Solid(int width, int height, SKColor color)
+    {
+        var bitmap = new SKBitmap(width, height, SKColorType.Rgba8888, SKAlphaType.Opaque);
+        bitmap.Erase(color);
+        return bitmap;
     }
 }

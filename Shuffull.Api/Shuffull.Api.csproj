@@ -33,7 +33,10 @@
     <PackageReference Include="Konscious.Security.Cryptography.Argon2" Version="1.3.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="OpenAI" Version="2.2.0-beta.4" />
-    <PackageReference Include="SixLabors.ImageSharp" Version="3.2.0" />
+    <!-- SkiaSharp, not ImageSharp: ImageSharp 3.2.0+ refuses a Release build without a Six Labors license key.
+         NoDependencies bundles libSkiaSharp without fontconfig, so the image needs no apt package. -->
+    <PackageReference Include="SkiaSharp" Version="4.154.0" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.154.0" />
     <PackageReference Include="TagLibSharp" Version="2.3.0" />
     <PackageReference Include="Ulid" Version="1.3.4" />
     <!-- Alert email (Shuffull#75); the same client SocialLite uses. -->
