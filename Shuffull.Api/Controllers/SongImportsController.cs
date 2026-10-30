@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
 using Shuffull.Api.Extensions;
 using Shuffull.Api.Services;
+using Shuffull.Api.Tools.Authorization;
 using Shuffull.Metadata.Contracts;
 
 namespace Shuffull.Api.Controllers;
@@ -14,16 +15,15 @@ namespace Shuffull.Api.Controllers;
 /// The folder importer stays in place during the transition; both feed into <see cref="SongImportIntakeService"/>.
 /// </summary>
 [ApiController]
+[ProducerKey]
 [Route("api/v1/song-imports")]
 public class SongImportsController : ControllerBase
 {
     private readonly SongImportIntakeService _intake;
-    private readonly IConfiguration _configuration;
 
-    public SongImportsController(SongImportIntakeService intake, IConfiguration configuration)
+    public SongImportsController(SongImportIntakeService intake)
     {
         _intake = intake;
-        _configuration = configuration;
     }
 
     [HttpPost]
@@ -31,15 +31,8 @@ public class SongImportsController : ControllerBase
     public async Task<IActionResult> Ingest(
         [FromForm] string details,
         IFormFile audio,
-        [FromHeader(Name = "X-Import-Key")] string? importKey,
         CancellationToken cancellationToken)
     {
-        var expectedKey = _configuration["Shuffull:Import:Key"];
-        if (string.IsNullOrEmpty(expectedKey) || importKey != expectedKey)
-        {
-            return Unauthorized();
-        }
-
         if (audio is null || audio.Length == 0)
         {
             return BadRequest("Missing audio file.");

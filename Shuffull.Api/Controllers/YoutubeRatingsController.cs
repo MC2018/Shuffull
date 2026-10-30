@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Shuffull.Api.Tools.Authorization;
 using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Persistence;
 using Shuffull.Core.Alerts;
@@ -14,38 +15,25 @@ namespace Shuffull.Api.Controllers;
 /// acks them. Producer-only (shared secret) — the app never calls this; it just sets like status.
 /// </summary>
 [ApiController]
+[ProducerKey]
 [Route("api/v1/youtube-ratings")]
 public class YoutubeRatingsController : ControllerBase
 {
     private readonly ShuffullContext _context;
-    private readonly IConfiguration _configuration;
     private readonly IHealthSignals _signals;
 
-    public YoutubeRatingsController(ShuffullContext context, IConfiguration configuration, IHealthSignals signals)
+    public YoutubeRatingsController(ShuffullContext context, IHealthSignals signals)
     {
         _context = context;
-        _configuration = configuration;
         _signals = signals;
-    }
-
-    private bool IsAuthorized(string? importKey)
-    {
-        var expectedKey = _configuration["Shuffull:Import:Key"];
-        return !string.IsNullOrEmpty(expectedKey) && importKey == expectedKey;
     }
 
     /// <summary>Producer: pull the rating queue at a given status (defaults to Pending). Shared-secret guarded.</summary>
     [HttpGet]
     public async Task<IActionResult> GetQueue(
         [FromQuery] YoutubeRatingStatus status,
-        [FromHeader(Name = "X-Import-Key")] string? importKey,
         CancellationToken cancellationToken)
     {
-        if (!IsAuthorized(importKey))
-        {
-            return Unauthorized();
-        }
-
         // The funnel's like-sync asks for Pending every 10 minutes; an hour without it alerts (Shuffull#75).
         if (status == YoutubeRatingStatus.Pending)
         {
@@ -80,14 +68,8 @@ public class YoutubeRatingsController : ControllerBase
     [HttpPost("ack")]
     public async Task<IActionResult> Ack(
         [FromBody] YoutubeRatingAckItem[] items,
-        [FromHeader(Name = "X-Import-Key")] string? importKey,
         CancellationToken cancellationToken)
     {
-        if (!IsAuthorized(importKey))
-        {
-            return Unauthorized();
-        }
-
         if (items is null || items.Length == 0)
         {
             return Ok();
@@ -101,7 +83,7 @@ public class YoutubeRatingsController : ControllerBase
             // Unknown outcome strings deliberately fall through to Completed rather than erroring: an older
             // producer sends no outcome at all, and treating that as "applied" preserves the original contract.
             // Only the explicit unratable marker is terminal-without-success.
-            var unratable = string.Equals(ack.Outcome, Outcomes.Unratable, StringComparison.OrdinalIgnoreCase);
+            var unratable = string.Equals(ack.Outcome, YoutubeRatingOutcomes.Unratable, StringComparison.OrdinalIgnoreCase);
             var status = unratable ? YoutubeRatingStatus.Skipped : YoutubeRatingStatus.Completed;
             var applied = FromApiRating(ack.Rating);
 
@@ -147,13 +129,13 @@ public class YoutubeRatingsController : ControllerBase
 
 public record YoutubeRatingDto(string RatingRequestId, string SongId, string VideoId, string Rating);
 
-/// <summary>One producer report. <see cref="Outcome"/> is one of <see cref="Outcomes"/>; null means applied.</summary>
+/// <summary>One producer report. <see cref="Outcome"/> is one of <see cref="YoutubeRatingOutcomes"/>; null means applied.</summary>
 public record YoutubeRatingAckItem(string RatingRequestId, string Rating, string? Outcome = null);
 
 public record YoutubeRatingAckResponse(int Completed, int Skipped = 0);
 
 /// <summary>The stable ack outcome strings on the wire.</summary>
-public static class Outcomes
+public static class YoutubeRatingOutcomes
 {
     /// <summary>The rating was pushed to YouTube successfully.</summary>
     public const string Applied = "applied";

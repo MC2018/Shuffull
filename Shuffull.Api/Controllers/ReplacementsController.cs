@@ -18,12 +18,10 @@ namespace Shuffull.Api.Controllers;
 public class ReplacementsController : ControllerBase
 {
     private readonly ShuffullContext _context;
-    private readonly IConfiguration _configuration;
 
-    public ReplacementsController(ShuffullContext context, IConfiguration configuration)
+    public ReplacementsController(ShuffullContext context)
     {
         _context = context;
-        _configuration = configuration;
     }
 
     /// <summary>App: flag a song for replacement. Global per song — a no-op if one is already open.</summary>
@@ -64,17 +62,11 @@ public class ReplacementsController : ControllerBase
 
     /// <summary>Producer: pull the replacement queue at a given status (shared-secret guarded).</summary>
     [HttpGet]
+    [ProducerKey]
     public async Task<IActionResult> GetQueue(
         [FromQuery] SongReplacementStatus status,
-        [FromHeader(Name = "X-Import-Key")] string? importKey,
         CancellationToken cancellationToken)
     {
-        var expectedKey = _configuration["Shuffull:Import:Key"];
-        if (string.IsNullOrEmpty(expectedKey) || importKey != expectedKey)
-        {
-            return Unauthorized();
-        }
-
         var rows = await _context.SongReplacements
             .Where(r => r.Status == status)
             .OrderBy(r => r.CreatedAt)

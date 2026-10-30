@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Shuffull.Api.Commands.Songs.UpdateSongLyrics;
+using Shuffull.Api.Tools.Authorization;
 using Shuffull.Core.Persistence;
 
 namespace Shuffull.Api.Controllers;
@@ -16,22 +17,15 @@ namespace Shuffull.Api.Controllers;
 /// Shared-secret guarded like the other producer endpoints.
 /// </summary>
 [ApiController]
+[ProducerKey]
 [Route("api/v1/song-lyrics")]
 public class SongLyricsController : ControllerBase
 {
     private readonly ShuffullContext _context;
-    private readonly IConfiguration _configuration;
 
-    public SongLyricsController(ShuffullContext context, IConfiguration configuration)
+    public SongLyricsController(ShuffullContext context)
     {
         _context = context;
-        _configuration = configuration;
-    }
-
-    private bool IsAuthorized(string? importKey)
-    {
-        var expectedKey = _configuration["Shuffull:Import:Key"];
-        return !string.IsNullOrEmpty(expectedKey) && importKey == expectedKey;
     }
 
     /// <summary>
@@ -41,14 +35,8 @@ public class SongLyricsController : ControllerBase
     [HttpPut]
     public async Task<IActionResult> UpdateLyrics(
         [FromBody] UpdateSongLyricsRequest request,
-        [FromHeader(Name = "X-Import-Key")] string? importKey,
         CancellationToken cancellationToken)
     {
-        if (!IsAuthorized(importKey))
-        {
-            return Unauthorized();
-        }
-
         if (string.IsNullOrWhiteSpace(request.ExternalSongId))
         {
             return BadRequest(new { error = "ExternalSongId is required." });

@@ -1,6 +1,5 @@
 using System.Net;
 using MediatR;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Nut.Results;
@@ -20,13 +19,8 @@ namespace Shuffull.Core.Tests.Services.Alerts;
 /// </summary>
 public class AlertRecordingTest : IDisposable
 {
-    private const string ImportKey = "import-key";
-
     private readonly DatabaseFixture _database = new();
     private readonly RecordingHealthSignals _signals = new();
-    private readonly IConfiguration _configuration = new ConfigurationBuilder()
-        .AddInMemoryCollection(new Dictionary<string, string?> { ["Shuffull:Import:Key"] = ImportKey })
-        .Build();
 
     public void Dispose()
     {
@@ -99,37 +93,29 @@ public class AlertRecordingTest : IDisposable
         var mediator = new Mock<IMediator>();
         mediator.Setup(m => m.Send(It.IsAny<GetPendingTagSongsQuery>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result.Ok(new PendingTagSongsResponse([], 0)));
-        return new SongsController(mediator.Object, _configuration, _signals);
+        return new SongsController(mediator.Object, _signals);
     }
 
     [Fact]
     public async Task PendingTagsPoll_FromTheFunnel_IsRecorded()
     {
-        await Songs().GetPendingTagSongs(25, ImportKey, CancellationToken.None);
+        await Songs().GetPendingTagSongs(25, CancellationToken.None);
         Assert.Equal([ShuffullSignalRules.PendingTagsPoll], _signals.Successes);
     }
 
-    [Fact]
-    public async Task PendingTagsPoll_WithAWrongKey_IsNotRecorded()
-    {
-        await Songs().GetPendingTagSongs(25, "wrong", CancellationToken.None);
-        Assert.Empty(_signals.Successes);
-    }
-
-    private YoutubeRatingsController Ratings() => new(_database.CreateContext(), _configuration, _signals);
+    private YoutubeRatingsController Ratings() => new(_database.CreateContext(), _signals);
 
     [Fact]
     public async Task YoutubeRatingsPoll_ForPending_IsRecorded()
     {
-        await Ratings().GetQueue(YoutubeRatingStatus.Pending, ImportKey, CancellationToken.None);
+        await Ratings().GetQueue(YoutubeRatingStatus.Pending, CancellationToken.None);
         Assert.Equal([ShuffullSignalRules.YoutubeRatingsPoll], _signals.Successes);
     }
 
     [Fact]
-    public async Task YoutubeRatingsPoll_ForAnotherStatusOrAWrongKey_IsNotRecorded()
+    public async Task YoutubeRatingsPoll_ForAnotherStatus_IsNotRecorded()
     {
-        await Ratings().GetQueue(YoutubeRatingStatus.Completed, ImportKey, CancellationToken.None);
-        await Ratings().GetQueue(YoutubeRatingStatus.Pending, "wrong", CancellationToken.None);
+        await Ratings().GetQueue(YoutubeRatingStatus.Completed, CancellationToken.None);
         Assert.Empty(_signals.Successes);
     }
 }

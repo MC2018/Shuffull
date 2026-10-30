@@ -1,7 +1,6 @@
 using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
-using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Mvc;
 using Shuffull.Api.Controllers;
 using Shuffull.Core.Models.Database;
@@ -17,12 +16,7 @@ namespace Shuffull.Core.Tests.Api;
 /// </summary>
 public class YoutubeRatingsAckTest : IDisposable
 {
-    private const string ImportKey = "import-key";
-
     private readonly DatabaseFixture _database = new();
-    private readonly IConfiguration _configuration = new ConfigurationBuilder()
-        .AddInMemoryCollection(new Dictionary<string, string?> { ["Shuffull:Import:Key"] = ImportKey })
-        .Build();
 
     public void Dispose()
     {
@@ -100,7 +94,7 @@ public class YoutubeRatingsAckTest : IDisposable
     }
 
     private YoutubeRatingsController Controller(params IInterceptor[] interceptors) =>
-        new(_database.CreateContext(interceptors), _configuration, new RecordingHealthSignals());
+        new(_database.CreateContext(interceptors), new RecordingHealthSignals());
 
     private async Task<YoutubeRatingRequest> ReloadAsync(string id) =>
         await _database.CreateContext().YoutubeRatingRequests.AsNoTracking().SingleAsync(r => r.YoutubeRatingRequestId == id);
@@ -110,7 +104,7 @@ public class YoutubeRatingsAckTest : IDisposable
     {
         var row = await SeedPendingLikeAsync();
 
-        var result = await Controller().Ack([new(row.YoutubeRatingRequestId, "like")], ImportKey, CancellationToken.None);
+        var result = await Controller().Ack([new(row.YoutubeRatingRequestId, "like")], CancellationToken.None);
 
         Assert.Equal(new YoutubeRatingAckResponse(1, 0), Assert.IsType<OkObjectResult>(result).Value);
         Assert.Equal(YoutubeRatingStatus.Completed, (await ReloadAsync(row.YoutubeRatingRequestId)).Status);
@@ -121,7 +115,7 @@ public class YoutubeRatingsAckTest : IDisposable
     {
         var row = await SeedPendingLikeAsync();
 
-        var result = await Controller().Ack([new(row.YoutubeRatingRequestId, "like", Outcomes.Unratable)], ImportKey, CancellationToken.None);
+        var result = await Controller().Ack([new(row.YoutubeRatingRequestId, "like", YoutubeRatingOutcomes.Unratable)], CancellationToken.None);
 
         Assert.Equal(new YoutubeRatingAckResponse(0, 1), Assert.IsType<OkObjectResult>(result).Value);
         Assert.Equal(YoutubeRatingStatus.Skipped, (await ReloadAsync(row.YoutubeRatingRequestId)).Status);
@@ -132,7 +126,7 @@ public class YoutubeRatingsAckTest : IDisposable
     {
         var row = await SeedPendingLikeAsync();
 
-        var result = await Controller().Ack([new(row.YoutubeRatingRequestId, "dislike")], ImportKey, CancellationToken.None);
+        var result = await Controller().Ack([new(row.YoutubeRatingRequestId, "dislike")], CancellationToken.None);
 
         Assert.Equal(new YoutubeRatingAckResponse(0, 0), Assert.IsType<OkObjectResult>(result).Value);
         Assert.Equal(YoutubeRatingStatus.Pending, (await ReloadAsync(row.YoutubeRatingRequestId)).Status);
@@ -144,7 +138,7 @@ public class YoutubeRatingsAckTest : IDisposable
         var row = await SeedPendingLikeAsync();
         var reRate = new ReRateAfterFirstRatingStatement(row.YoutubeRatingRequestId);
 
-        await Controller(reRate).Ack([new(row.YoutubeRatingRequestId, "like")], ImportKey, CancellationToken.None);
+        await Controller(reRate).Ack([new(row.YoutubeRatingRequestId, "like")], CancellationToken.None);
 
         Assert.True(reRate.Fired);
         var saved = await ReloadAsync(row.YoutubeRatingRequestId);

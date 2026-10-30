@@ -67,7 +67,6 @@ builder.Services.AddSingleton<IFileStorageService, LocalFileStorageService>();
 // Shared intake path used by both the folder importer and the HTTP ingestion endpoint (scoped: uses ShuffullContext).
 builder.Services.AddScoped<SongImportIntakeService>();
 builder.Services.AddHostedService<TagImporterService>();
-builder.Services.AddHostedService<DetailedSongImporterService>();
 builder.Services.TryAddAIService(builder.Configuration);
 // Relative model strengths (AI:ModelStrengths -> { "model-name": int }), provider-neutral. Drives the
 // "is this song's TagModel stale vs the current strong model?" decision for re-tagging. Missing section =>
