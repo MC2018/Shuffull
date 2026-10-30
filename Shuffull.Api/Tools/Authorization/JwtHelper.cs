@@ -13,11 +13,7 @@ public class JwtHelper
 
     public JwtHelper(IServiceProvider services)
     {
-        _configuration = services
-            .GetRequiredService<IConfiguration>()
-            .GetSection(JwtConfiguration.JwtConfigurationSection)
-            .Get<JwtConfiguration>()
-            ?? throw new InvalidOperationException("Jwt configuration is not set.");
+        _configuration = JwtConfiguration.Load(services.GetRequiredService<IConfiguration>());
     }
 
     public string GenerateJwtToken(User user, DateTime expiration)
