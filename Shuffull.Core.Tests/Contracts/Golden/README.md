@@ -17,6 +17,7 @@ request bodies, when the API stops binding them.
 | `songs-keep` | `POST /api/v1/songs/keep` | app |
 | `listens` | `POST /api/v1/listens` | app (ShuffullApp#57) |
 | `listens-stats` | `GET /api/v1/listens/stats` | app (ShuffullApp#115) |
+| `recap` | `GET /api/v1/recap/{year}` | app (ShuffullApp#116) |
 | `songs-retag` | `POST /api/v1/songs/retag` | app |
 | `songs-retag-stale` | `POST /api/v1/songs/retag-stale` | app |
 | `tags` | `GET /api/v1/tags` | app |
