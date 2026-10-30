@@ -25,16 +25,7 @@ public class ExternalSongImporterServiceLoopTest
             .Returns(() => Interlocked.Increment(ref scans) == 1
                 ? throw new InvalidOperationException("simulated outage")
                 : Task.FromResult(Result.Ok(new List<string>())));
-        var services = new ServiceCollection()
-            .AddSingleton(fileStorage.Object)
-            .BuildServiceProvider();
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?> { ["Shuffull:Files:ExternalSongImportDirectory"] = "external" })
-            .Build();
-        var importer = new ExternalSongImporterService(services, configuration, NullLogger<ExternalSongImporterService>.Instance)
-        {
-            PollInterval = TimeSpan.FromMilliseconds(10),
-        };
+        var importer = NewImporter(fileStorage.Object, TimeSpan.FromMilliseconds(10));
 
         await importer.StartAsync(CancellationToken.None);
         var deadline = DateTime.UtcNow.AddSeconds(10);
@@ -49,14 +40,43 @@ public class ExternalSongImporterServiceLoopTest
     }
 
     [Fact]
-    public void LoopErrorDelay_DoublesFromThePollIntervalAndCapsAtFiveMinutes()
+    public async Task RunOnceAsync_AFolderThatCannotBeListedBacksOffUntilAScanSucceeds()
     {
-        var interval = TimeSpan.FromSeconds(20);
+        // The real storage service returns an error rather than throwing (an unmounted drop folder, say), so that
+        // path has to back off too, not rescan every poll interval.
+        var listable = false;
+        var fileStorage = new Mock<IFileStorageService>();
+        fileStorage
+            .Setup(x => x.GetFilesAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(() => Task.FromResult(listable
+                ? Result.Ok(new List<string>())
+                : Result.Error<List<string>>("Could not find a part of the path '/data/external_imports'.")));
+        var importer = NewImporter(fileStorage.Object, TimeSpan.FromSeconds(20));
 
-        Assert.Equal(TimeSpan.FromSeconds(20), ExternalSongImporterService.LoopErrorDelay(1, interval));
-        Assert.Equal(TimeSpan.FromSeconds(40), ExternalSongImporterService.LoopErrorDelay(2, interval));
-        Assert.Equal(TimeSpan.FromSeconds(160), ExternalSongImporterService.LoopErrorDelay(4, interval));
-        Assert.Equal(TimeSpan.FromMinutes(5), ExternalSongImporterService.LoopErrorDelay(5, interval));
-        Assert.Equal(TimeSpan.FromMinutes(5), ExternalSongImporterService.LoopErrorDelay(1000, interval));
+        Assert.Equal(TimeSpan.FromSeconds(20), await importer.RunOnceAsync(CancellationToken.None));
+        Assert.Equal(TimeSpan.FromSeconds(40), await importer.RunOnceAsync(CancellationToken.None));
+        Assert.Equal(TimeSpan.FromSeconds(80), await importer.RunOnceAsync(CancellationToken.None));
+        Assert.Equal(TimeSpan.FromSeconds(160), await importer.RunOnceAsync(CancellationToken.None));
+        Assert.Equal(TimeSpan.FromMinutes(5), await importer.RunOnceAsync(CancellationToken.None));
+        Assert.Equal(TimeSpan.FromMinutes(5), await importer.RunOnceAsync(CancellationToken.None));
+
+        listable = true;
+        Assert.Equal(TimeSpan.FromSeconds(20), await importer.RunOnceAsync(CancellationToken.None));
+        listable = false;
+        Assert.Equal(TimeSpan.FromSeconds(20), await importer.RunOnceAsync(CancellationToken.None));
+    }
+
+    private static ExternalSongImporterService NewImporter(IFileStorageService fileStorage, TimeSpan pollInterval)
+    {
+        var services = new ServiceCollection()
+            .AddSingleton(fileStorage)
+            .BuildServiceProvider();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Shuffull:Files:ExternalSongImportDirectory"] = "external" })
+            .Build();
+        return new ExternalSongImporterService(services, configuration, NullLogger<ExternalSongImporterService>.Instance)
+        {
+            PollInterval = pollInterval,
+        };
     }
 }

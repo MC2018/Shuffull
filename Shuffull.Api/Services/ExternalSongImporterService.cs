@@ -22,7 +22,7 @@ namespace Shuffull.Api.Services
         private readonly ILogger<ExternalSongImporterService> _logger;
         private readonly ShuffullFilesConfiguration _fileConfig;
         /// <summary>How long the loop waits between scans of the drop folder. Settable for tests.</summary>
-        internal TimeSpan PollInterval { get; init; } = TimeSpan.FromSeconds(20); // TODO: change to 5 minutes
+        internal TimeSpan PollInterval { get; init; } = TimeSpan.FromSeconds(20);
         private static readonly TimeSpan MaxLoopErrorDelay = TimeSpan.FromMinutes(5);
 
         public ExternalSongImporterService(IServiceProvider services, IConfiguration configuration, ILogger<ExternalSongImporterService> logger)
@@ -34,44 +34,66 @@ namespace Shuffull.Api.Services
 
         protected override async Task ExecuteAsync(CancellationToken cancellationToken)
         {
-            // An exception escaping ExecuteAsync stops the whole API (the host's default BackgroundServiceExceptionBehavior),
-            // so a failed scan (a database or storage blip) must only pause the loop, backing off while it lasts.
-            var consecutiveErrors = 0;
             while (!cancellationToken.IsCancellationRequested)
             {
-                var delay = PollInterval;
                 try
                 {
-                    await ImportSongsAsync(cancellationToken);
-                    consecutiveErrors = 0;
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                {
-                    return;
-                }
-                catch (Exception ex)
-                {
-                    consecutiveErrors++;
-                    delay = LoopErrorDelay(consecutiveErrors, PollInterval);
-                    _logger.LogError(ex, "External song import scan failed ({Count} in a row); retrying in {Delay}", consecutiveErrors, delay);
-                }
-
-                try
-                {
+                    var delay = await RunOnceAsync(cancellationToken);
                     await Task.Delay(delay, cancellationToken);
                 }
-                catch (OperationCanceledException)
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
                     return;
                 }
             }
         }
 
+        private int _consecutiveErrors;
+
+        /// <summary>
+        /// One scan of the drop folder. Returns how long to wait before the next: the poll interval, or a backoff while
+        /// scans keep failing. An exception escaping ExecuteAsync stops the whole API (the host's default
+        /// BackgroundServiceExceptionBehavior), so a failed scan, whether it comes back as an error or throws, only
+        /// pauses the loop.
+        /// </summary>
+        internal async Task<TimeSpan> RunOnceAsync(CancellationToken cancellationToken)
+        {
+            Result scan;
+            Exception? thrown = null;
+            try
+            {
+                scan = await ImportSongsAsync(cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                thrown = ex;
+                scan = Result.Error(ex.Message);
+            }
+
+            if (scan.IsOk)
+            {
+                _consecutiveErrors = 0;
+                return PollInterval;
+            }
+
+            _consecutiveErrors++;
+            var delay = LoopErrorDelay(_consecutiveErrors, PollInterval);
+            _logger.LogError(thrown, "External song import scan failed ({Count} in a row); retrying in {Delay}: {Error}",
+                _consecutiveErrors, delay, scan.GetError());
+            return delay;
+        }
+
         /// <summary>The loop's pause after its Nth consecutive error: the poll interval, doubling, capped at 5 minutes.</summary>
         internal static TimeSpan LoopErrorDelay(int consecutiveErrors, TimeSpan interval) =>
             Backoff.Doubling(interval, consecutiveErrors, MaxLoopErrorDelay);
 
-        private async Task ImportSongsAsync(CancellationToken cancellationToken)
+        /// <summary>Stages every import in the drop folder. An error means the folder couldn't be listed; a file that
+        /// fails to import is logged and left for the next scan.</summary>
+        private async Task<Result> ImportSongsAsync(CancellationToken cancellationToken)
         {
             using var scope = _services.CreateScope();
             var fileStorageService = scope.ServiceProvider.GetRequiredService<IFileStorageService>();
@@ -79,8 +101,7 @@ namespace Shuffull.Api.Services
             var getFilesResult = await fileStorageService.GetFilesAsync(_fileConfig.ExternalSongImportDirectory, cancellationToken: cancellationToken);
             if (getFilesResult.IsError)
             {
-                _logger.LogError("Error getting files for external song import: {Error}", getFilesResult.GetError());
-                return;
+                return Result.Error($"Error getting files for external song import: {getFilesResult.GetError()}");
             }
             var filePaths = getFilesResult.Get();
 
@@ -92,6 +113,7 @@ namespace Shuffull.Api.Services
                     _logger.LogError("Error importing song from external import file '{FilePath}': {Error}", filePath, importSongResult.GetError());
                 }
             }
+            return Result.Ok();
         }
 
         private async Task<Result> ImportSongAsync(string filePath, CancellationToken cancellationToken)
