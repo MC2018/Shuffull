@@ -161,6 +161,9 @@ public class ApiContractGoldenFilesTest
         ["users-authenticate"] = new AuthSessionResponse(Curator, "token-abc", new DateTime(2026, 11, 30, 0, 0, 0, DateTimeKind.Utc)),
         // POST /api/v1/users/authenticate and POST /api/v1/users — a REQUEST body: both take the same credentials.
         ["users-authenticate-request"] = new CredentialsRequest("listener", "hash-abc"),
+        // POST /api/v1/users/me/password — a REQUEST body: the client hash of "username;password" for the current and
+        // the new password. The response is the users-authenticate session.
+        ["users-me-password-request"] = new ChangePasswordRequest("hash-abc", "hash-def"),
         // POST /api/v1/songs/keep. The app dead-letters anything whose outcome isn't "kept".
         ["songs-keep"] = new KeepSongsResponse(
         [
@@ -378,9 +381,9 @@ public class ApiContractGoldenFilesTest
         // The funnel's.
         "songs-tags", "youtube-ratings-ack", "songs-pending-tags-holds", "song-imports-details", "song-lyrics",
         // The app's.
-        "listens-request", "users-authenticate-request", "songs-list-request", "playlists-list-request", "user-songs-create",
-        "user-songs-last-played", "user-songs-like", "songs-update", "songs-keep-request", "songs-retag-request",
-        "replacements-request",
+        "listens-request", "users-authenticate-request", "users-me-password-request", "songs-list-request",
+        "playlists-list-request", "user-songs-create", "user-songs-last-played", "user-songs-like", "songs-update",
+        "songs-keep-request", "songs-retag-request", "replacements-request",
     ];
 
     /// <summary>

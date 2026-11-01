@@ -13,7 +13,7 @@ request bodies, when the API stops binding them.
 | `playlists-list` | `POST /api/v1/playlists/list` | app |
 | `playlists-create` | `PUT /api/v1/playlists` | app |
 | `users-me` | `GET /api/v1/users/me` | app |
-| `users-authenticate` | `POST /api/v1/users/authenticate` and `POST /api/v1/users` | app |
+| `users-authenticate` | `POST /api/v1/users/authenticate`, `POST /api/v1/users` and `POST /api/v1/users/me/password` | app |
 | `songs-keep` | `POST /api/v1/songs/keep` | app |
 | `listens` | `POST /api/v1/listens` | app (ShuffullApp#57) |
 | `listens-stats` | `GET /api/v1/listens/stats` | app (ShuffullApp#115) |
@@ -32,6 +32,7 @@ request bodies, when the API stops binding them.
 | `song-lyrics` | `PUT /api/v1/song-lyrics` (request body) | funnel sends |
 | `listens-request` | `POST /api/v1/listens` (request body) | app sends (ShuffullApp#57) |
 | `users-authenticate-request` | `POST /api/v1/users/authenticate` and `POST /api/v1/users` (request body) | app sends |
+| `users-me-password-request` | `POST /api/v1/users/me/password` (request body; the response is `users-authenticate`) | app sends (ShuffullApp#158) |
 | `songs-list-request` | `POST /api/v1/songs/list` (request body) | app sends |
 | `playlists-list-request` | `POST /api/v1/playlists/list` (request body) | app sends |
 | `user-songs-create` | `PUT /api/v1/user-songs` (request body) | app sends |
