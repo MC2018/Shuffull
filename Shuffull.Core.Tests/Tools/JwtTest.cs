@@ -2,12 +2,18 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Abstractions;
+using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Shuffull.Api.Tools.Authorization;
 using Shuffull.Core.Authentication;
 using Shuffull.Core.Models.Database;
+using Shuffull.Core.Persistence;
 using Shuffull.Core.Tests.Infrastructure;
 
 namespace Shuffull.Core.Tests.Tools;
@@ -233,5 +239,95 @@ public class JwtTest
         Assert.Null(await AuthenticateAsync(database, beforeFirstChange));
         Assert.Null(await AuthenticateAsync(database, betweenChanges));
         Assert.Equal(user.UserId, (await AuthenticateAsync(database, afterSecondChange))?.UserId);
+    }
+
+    /// <summary>
+    /// The status an [Authorize] route answers a request bearing <paramref name="token"/> with, after
+    /// <see cref="JwtMiddleware"/> ran against <paramref name="dbContext"/>; 200 when the filter lets it through.
+    /// </summary>
+    private static async Task<int> AuthorizedStatusAsync(ShuffullContext dbContext, string token)
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Headers.Authorization = $"Bearer {token}";
+        int? status = null;
+        var middleware = new JwtMiddleware(httpContext =>
+        {
+            var filterContext = new AuthorizationFilterContext(
+                new ActionContext(httpContext, new RouteData(), new ActionDescriptor()), new List<IFilterMetadata>());
+            new AuthorizeAttribute().OnAuthorization(filterContext);
+            status = filterContext.Result is JsonResult result ? result.StatusCode : StatusCodes.Status200OK;
+            return Task.CompletedTask;
+        }, CreateServices());
+
+        await middleware.Invoke(context, dbContext);
+
+        Assert.NotNull(status);
+        return status.Value;
+    }
+
+    private static string SignedToken(Claim claim) => new JwtSecurityTokenHandler().WriteToken(new JwtSecurityTokenHandler().CreateToken(new SecurityTokenDescriptor
+    {
+        Subject = new ClaimsIdentity(new[] { claim }),
+        Expires = DateTime.UtcNow.AddHours(1),
+        SigningCredentials = new SigningCredentials(
+            new SymmetricSecurityKey(Encoding.ASCII.GetBytes(TestSecret)), SecurityAlgorithms.HmacSha256Signature),
+    }));
+
+    /// <summary>A context whose Postgres refuses the connection, as it does while restarting or after an OOM kill.</summary>
+    private static ShuffullContext UnreachablePostgres() => new(new DbContextOptionsBuilder<ShuffullContext>()
+        .UseNpgsql("Host=127.0.0.1;Port=1;Database=shuffull;Username=nobody;Password=x;Timeout=2")
+        .Options);
+
+    // Shuffull#108: a 401 has to mean "this session is gone", so the app can log out on it. A database that is down
+    // says nothing about the session, so it must not answer 401 too.
+    [Fact]
+    public async Task Authorize_AnswersAValidToken_With503_WhenTheDatabaseIsDown()
+    {
+        var token = CreateHelper().GenerateJwtToken(MakeUser(), DateTime.UtcNow.AddHours(1));
+        await using var unreachable = UnreachablePostgres();
+
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, await AuthorizedStatusAsync(unreachable, token));
+    }
+
+    [Fact]
+    public async Task Authorize_AnswersABadToken_With401_EvenWhenTheDatabaseIsDown()
+    {
+        var badTokens = new[]
+        {
+            "not-a-jwt",
+            CreateHelper("a-totally-different-secret-key-1234567890").GenerateJwtToken(MakeUser(), DateTime.UtcNow.AddHours(1)),
+            PreStampToken("user-42")[..^2], // a cut signature
+            SignedToken(new Claim("NotTheUserId", "user-42")), // validly signed, but names no user
+        };
+        await using var unreachable = UnreachablePostgres();
+
+        foreach (var token in badTokens)
+        {
+            Assert.Equal(StatusCodes.Status401Unauthorized, await AuthorizedStatusAsync(unreachable, token));
+        }
+        // Expired: validation rejects it before any lookup, so it never reaches the database either.
+        var expired = new JwtSecurityTokenHandler().WriteToken(new JwtSecurityTokenHandler().CreateToken(new SecurityTokenDescriptor
+        {
+            Subject = new ClaimsIdentity(new[] { new Claim("UserId", "user-42") }),
+            NotBefore = DateTime.UtcNow.AddHours(-2),
+            Expires = DateTime.UtcNow.AddHours(-1),
+            SigningCredentials = new SigningCredentials(
+                new SymmetricSecurityKey(Encoding.ASCII.GetBytes(TestSecret)), SecurityAlgorithms.HmacSha256Signature),
+        }));
+        Assert.Equal(StatusCodes.Status401Unauthorized, await AuthorizedStatusAsync(unreachable, expired));
+    }
+
+    [Fact]
+    public async Task Authorize_AnswersAValidTokenForADeletedUser_With401()
+    {
+        using var database = new DatabaseFixture();
+        var user = await SeedUserAsync(database);
+        var token = CreateHelper().GenerateJwtToken(user, DateTime.UtcNow.AddDays(30));
+        Assert.Equal(StatusCodes.Status200OK, await AuthorizedStatusAsync(database.CreateContext(), token));
+
+        database.Context.Users.Remove(user);
+        await database.Context.SaveChangesAsync();
+
+        Assert.Equal(StatusCodes.Status401Unauthorized, await AuthorizedStatusAsync(database.CreateContext(), token));
     }
 }
