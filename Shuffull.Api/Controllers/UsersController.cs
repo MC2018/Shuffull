@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Shuffull.Core.Features.Users.AuthenticateUser;
+using Shuffull.Core.Features.Users.ChangePassword;
 using Shuffull.Core.Features.Users.CreateUser;
 using Shuffull.Core.Features.Users.GetCurrentUser;
 using Shuffull.Core.Models.Database;
@@ -63,5 +64,20 @@ public class UsersController : ControllerBase
         }
 
         return this.ToActionResult(await _mediator.Send(new GetCurrentUserQuery(user.UserId), cancellationToken));
+    }
+
+    // Signs out every other token the user holds (JwtMiddleware checks the security stamp) and returns a fresh session
+    // for this device. A wrong current password is a 400, so the app doesn't log out over a typo.
+    [HttpPost("me/password")]
+    [Authorize]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest body, CancellationToken cancellationToken)
+    {
+        if (HttpContext.Items["User"] is not User user)
+        {
+            return Unauthorized();
+        }
+
+        return this.ToActionResult(await _mediator.Send(
+            new ChangePasswordCommand(user.UserId, body.CurrentUserHash ?? "", body.NewUserHash ?? ""), cancellationToken));
     }
 }

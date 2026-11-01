@@ -16,6 +16,7 @@ namespace Shuffull.Core.Authentication;
 public static class ServerPasswordHash
 {
     private const int SaltBytes = 16;
+    private const int SecurityStampBytes = 16;
 
     // Argon2id settings for the server's hash. They start equal to the client hash's (Hasher.Argon2Hash), which is
     // what every stored hash was made with. Unlike the client's they can change, but only for new hashes: an
@@ -34,6 +35,17 @@ public static class ServerPasswordHash
         var salt = RandomNumberGenerator.GetBytes(SaltBytes);
         user.ServerHashSalt = Convert.ToHexString(salt).ToLowerInvariant();
         user.ServerHash = Hash(clientHash, salt);
+    }
+
+    /// <summary>
+    /// A password change: stores the new hash under a fresh salt and gives <paramref name="user"/> a new
+    /// <see cref="User.SecurityStamp"/>, so every token issued before stops working. <see cref="Set"/> alone keeps the
+    /// stamp, because sign-up and the move to a per-user salt aren't changes of password.
+    /// </summary>
+    public static void Change(User user, string clientHash)
+    {
+        Set(user, clientHash);
+        user.SecurityStamp = Convert.ToHexString(RandomNumberGenerator.GetBytes(SecurityStampBytes)).ToLowerInvariant();
     }
 
     public static bool Verify(User user, string clientHash)

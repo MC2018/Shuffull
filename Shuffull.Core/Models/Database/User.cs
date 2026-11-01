@@ -32,6 +32,15 @@ namespace Shuffull.Core.Models.Database
         public string? ServerHashSalt { get; set; }
 
         /// <summary>
+        /// Random value every auth token carries as its <c>SecurityStamp</c> claim; a token is good only while its
+        /// claim equals this. A password change replaces it, which signs out every token issued before. Null until the
+        /// first change, and a token issued while it is null carries no claim, so tokens from before stamps existed
+        /// keep working. Nothing else sets it: a login, or the re-hash under a per-user salt, leaves it alone.
+        /// </summary>
+        [JsonIgnore]
+        public string? SecurityStamp { get; set; }
+
+        /// <summary>
         /// Grants the <see cref="Authentication.Role.Curator"/> role: may edit shared song metadata to fix
         /// mislabels. Toggled manually in the database; read live on every request (no token reissue), so
         /// granting/revoking takes effect on the user's next call. Defaults to false for all existing rows.
