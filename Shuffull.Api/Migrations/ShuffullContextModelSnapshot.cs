@@ -578,6 +578,9 @@ namespace Shuffull.Api.Migrations
                     b.Property<bool>("IsCurator")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("SecurityStamp")
+                        .HasColumnType("text");
+
                     b.Property<string>("ServerHash")
                         .IsRequired()
                         .HasColumnType("text");

@@ -1,10 +1,14 @@
 using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Text;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Shuffull.Api.Tools.Authorization;
+using Shuffull.Core.Authentication;
 using Shuffull.Core.Models.Database;
+using Shuffull.Core.Tests.Infrastructure;
 
 namespace Shuffull.Core.Tests.Tools;
 
@@ -17,7 +21,7 @@ public class JwtTest
     // 32+ ASCII chars so the HMAC-SHA256 signing key meets the 128-bit minimum.
     private const string TestSecret = "test-secret-key-that-is-long-enough-123456";
 
-    private static JwtHelper CreateHelper(string secret = TestSecret)
+    private static IServiceProvider CreateServices(string secret = TestSecret)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -28,8 +32,11 @@ public class JwtTest
 
         var services = new ServiceCollection();
         services.AddSingleton<IConfiguration>(configuration);
-        return new JwtHelper(services.BuildServiceProvider());
+        services.AddLogging();
+        return services.BuildServiceProvider();
     }
+
+    private static JwtHelper CreateHelper(string secret = TestSecret) => new(CreateServices(secret));
 
     private static User MakeUser(string userId = "user-42")
         => new() { UserId = userId, Username = "tester", Version = DateTime.UtcNow, ServerHash = "hash" };
@@ -143,5 +150,88 @@ public class JwtTest
         var middlewareError = Assert.Throws<InvalidOperationException>(() => new JwtMiddleware(_ => Task.CompletedTask, provider));
         Assert.Contains("Jwt", helperError.Message);
         Assert.Equal(helperError.Message, middlewareError.Message);
+    }
+
+    /// <summary>Runs <see cref="JwtMiddleware"/> on a request bearing <paramref name="token"/>; returns the user it attached.</summary>
+    private static async Task<User?> AuthenticateAsync(DatabaseFixture database, string token)
+    {
+        var middleware = new JwtMiddleware(_ => Task.CompletedTask, CreateServices());
+        var context = new DefaultHttpContext();
+        context.Request.Headers.Authorization = $"Bearer {token}";
+
+        await middleware.Invoke(context, database.CreateContext());
+
+        return context.Items["User"] as User;
+    }
+
+    private static async Task<User> SeedUserAsync(DatabaseFixture database)
+    {
+        var user = MakeUser(Guid.NewGuid().ToString());
+        ServerPasswordHash.Set(user, "old-hash");
+        database.Context.Users.Add(user);
+        await database.Context.SaveChangesAsync();
+        return user;
+    }
+
+    private static async Task ChangePasswordAsync(DatabaseFixture database, User user, string newHash)
+    {
+        ServerPasswordHash.Change(user, newHash);
+        await database.Context.SaveChangesAsync();
+    }
+
+    /// <summary>What the API issued before security stamps: a token whose only claim is the user id.</summary>
+    private static string PreStampToken(string userId)
+    {
+        var handler = new JwtSecurityTokenHandler();
+        return handler.WriteToken(handler.CreateToken(new SecurityTokenDescriptor
+        {
+            Subject = new ClaimsIdentity(new[] { new Claim("UserId", userId) }),
+            Expires = DateTime.UtcNow.AddDays(30),
+            SigningCredentials = new SigningCredentials(
+                new SymmetricSecurityKey(Encoding.ASCII.GetBytes(TestSecret)), SecurityAlgorithms.HmacSha256Signature),
+        }));
+    }
+
+    [Fact]
+    public void GenerateJwtToken_WithoutAStamp_CarriesNoStampClaim()
+    {
+        var token = new JwtSecurityTokenHandler().ReadJwtToken(CreateHelper().GenerateJwtToken(MakeUser(), DateTime.UtcNow.AddHours(1)));
+
+        Assert.DoesNotContain(token.Claims, claim => claim.Type == JwtHelper.SecurityStampClaim);
+    }
+
+    // The deploy itself must not sign anyone out: every token already in an app has no stamp, and neither does
+    // any user until they change their password.
+    [Fact]
+    public async Task Middleware_AcceptsATokenFromBeforeStamps_WhileThePasswordIsUnchanged()
+    {
+        using var database = new DatabaseFixture();
+        var user = await SeedUserAsync(database);
+
+        var attached = await AuthenticateAsync(database, PreStampToken(user.UserId));
+
+        Assert.Equal(user.UserId, attached?.UserId);
+    }
+
+    [Fact]
+    public async Task Middleware_RejectsEveryEarlierToken_AfterAPasswordChange()
+    {
+        using var database = new DatabaseFixture();
+        var helper = CreateHelper();
+        var user = await SeedUserAsync(database);
+        var preStampToken = PreStampToken(user.UserId);
+        var beforeFirstChange = helper.GenerateJwtToken(user, DateTime.UtcNow.AddDays(30));
+
+        await ChangePasswordAsync(database, user, "second-hash");
+        var betweenChanges = helper.GenerateJwtToken(user, DateTime.UtcNow.AddDays(30));
+        Assert.NotNull(await AuthenticateAsync(database, betweenChanges));
+
+        await ChangePasswordAsync(database, user, "third-hash");
+        var afterSecondChange = helper.GenerateJwtToken(user, DateTime.UtcNow.AddDays(30));
+
+        Assert.Null(await AuthenticateAsync(database, preStampToken));
+        Assert.Null(await AuthenticateAsync(database, beforeFirstChange));
+        Assert.Null(await AuthenticateAsync(database, betweenChanges));
+        Assert.Equal(user.UserId, (await AuthenticateAsync(database, afterSecondChange))?.UserId);
     }
 }

@@ -69,8 +69,17 @@ public class JwtMiddleware
             });
 
             var jwtToken = (JwtSecurityToken)tokenValidation.SecurityToken;
-            var userId = jwtToken.Claims.First(x => x.Type == "UserId").Value;
-            httpContext.Items["User"] = await dbContext.Users.Where(x => x.UserId == userId).AsNoTracking().FirstAsync();
+            var userId = jwtToken.Claims.First(x => x.Type == JwtHelper.UserIdClaim).Value;
+            var user = await dbContext.Users.Where(x => x.UserId == userId).AsNoTracking().FirstAsync();
+
+            // A password change since the token was issued replaced the stamp, so the token no longer counts.
+            if (!JwtHelper.StampMatches(jwtToken, user))
+            {
+                _logger.LogInformation("Token for user {UserId} predates their last password change; request will be treated as unauthenticated.", userId);
+                return;
+            }
+
+            httpContext.Items["User"] = user;
         }
         catch (Exception ex)
         {

@@ -36,6 +36,17 @@ public static class ServerPasswordHash
         user.ServerHash = Hash(clientHash, salt);
     }
 
+    /// <summary>
+    /// A password change: stores the new hash under a fresh salt and gives <paramref name="user"/> a new
+    /// <see cref="User.SecurityStamp"/>, so every token issued before stops working. <see cref="Set"/> alone keeps the
+    /// stamp, because sign-up and the move to a per-user salt aren't changes of password.
+    /// </summary>
+    public static void Change(User user, string clientHash)
+    {
+        Set(user, clientHash);
+        user.SecurityStamp = Convert.ToHexString(RandomNumberGenerator.GetBytes(SaltBytes)).ToLowerInvariant();
+    }
+
     public static bool Verify(User user, string clientHash)
     {
         var salt = user.ServerHashSalt == null ? LegacySharedSalt : Convert.FromHexString(user.ServerHashSalt);

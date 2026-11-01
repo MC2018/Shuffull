@@ -120,6 +120,8 @@ public class AuthenticateUserHandlerTest : IDisposable
         Assert.NotNull(saved.ServerHashSalt);
         Assert.NotEqual(legacyHash, saved.ServerHash);
         Assert.True(ServerPasswordHash.Verify(saved, "client-hash"));
+        // Same password, so not a change: the user's other devices stay signed in.
+        Assert.Null(saved.SecurityStamp);
 
         // The re-hashed account still logs in, and still refuses a wrong password.
         Assert.True((await _handler.Handle(new AuthenticateUserCommand("alice", "client-hash"), CancellationToken.None)).IsOk);
