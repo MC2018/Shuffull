@@ -1,9 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
-using Shuffull.Api.Extensions;
 using Shuffull.Metadata.Contracts;
 using Shuffull.Metadata.Enums;
 using JsonConvert = Newtonsoft.Json.JsonConvert;
@@ -108,14 +104,8 @@ public class SongRequestContractTest
     private static JsonNode Canonical(object value) =>
         JsonNode.Parse(JsonSerializer.Serialize(value, value.GetType(), ApiJsonOptions()))!;
 
-    private static JsonSerializerOptions ApiJsonOptions() => Api.Value;
+    // Built once: the golden test's helper builds a service provider on every call.
+    private static readonly Lazy<JsonSerializerOptions> Api = new(ApiContractGoldenFilesTest.ApiJsonOptions);
 
-    // The options MVC writes and binds with, as in ApiContractGoldenFilesTest.
-    private static readonly Lazy<JsonSerializerOptions> Api = new(() =>
-    {
-        var services = new ServiceCollection();
-        services.AddShuffullControllers();
-        using var provider = services.BuildServiceProvider();
-        return provider.GetRequiredService<IOptions<JsonOptions>>().Value.JsonSerializerOptions;
-    });
+    private static JsonSerializerOptions ApiJsonOptions() => Api.Value;
 }

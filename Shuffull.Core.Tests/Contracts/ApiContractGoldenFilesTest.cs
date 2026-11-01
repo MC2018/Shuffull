@@ -472,7 +472,7 @@ public class ApiContractGoldenFilesTest
     /// The options MVC serializes action results and binds request bodies with, from the same <see cref="MvcRegistration"/> Program.cs calls.
     /// Today those are the framework defaults (camelCase, enums as ints, nulls written).
     /// </summary>
-    private static JsonSerializerOptions ApiJsonOptions()
+    internal static JsonSerializerOptions ApiJsonOptions()
     {
         var services = new ServiceCollection();
         services.AddShuffullControllers();
