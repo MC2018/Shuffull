@@ -3,11 +3,11 @@ using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using Nut.Results;
-using Shuffull.Core.Models.Database;
 using Shuffull.Core.Features.Users;
 using Shuffull.Core.Features.Users.AuthenticateUser;
 using Shuffull.Core.Features.Users.ChangePassword;
 using Shuffull.Core.Features.Users.CreateUser;
+using Shuffull.Core.Models.Database;
 
 namespace Shuffull.Core.Tests.Api;
 
