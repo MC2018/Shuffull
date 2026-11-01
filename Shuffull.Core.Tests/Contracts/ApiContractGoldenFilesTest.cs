@@ -335,7 +335,8 @@ public class ApiContractGoldenFilesTest
             OriginalReleaseYear: 1982,
             Exploratory: true,
             TagRevision: 3,
-            HookStartPercent: 37.5),
+            HookStartPercent: 37.5,
+            SongRequestId: "song-request-1"),
         // PUT /api/v1/song-lyrics — a REQUEST body: lyrics the funnel found after the song was exported.
         ["song-lyrics"] = new UpdateSongLyricsRequest("dQw4w9WgXcQ", "[00:01.00] First line", "First line", Instrumental: true, "lrclib"),
         // GET /api/v1/songs/library. The funnel mirrors the site's songs into its duplicate registry from this.
