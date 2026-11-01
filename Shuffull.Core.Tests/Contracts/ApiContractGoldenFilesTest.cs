@@ -375,7 +375,7 @@ public class ApiContractGoldenFilesTest
             new("request-1", "dQw4w9WgXcQ", "Everybody Wants You", ["Billy Squier"], 230, "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
                 SongRequestStatus.Completed, FailureReason: null, "song-full", "Requests · week of 2026-09-28", V1, V1),
         },
-        // POST /api/v1/song-requests. The new (or re-queued, or instantly completed) request; a 409 carries the open one.
+        // POST /api/v1/song-requests. The new (or re-queued, or instantly completed) request.
         ["song-requests-create"] = new SongRequestDto("request-3", "9bZkp7q19f0", "Gangnam Style", ["PSY"], 252, null,
             SongRequestStatus.Pending, FailureReason: null, SongId: null, "Requests · week of 2026-09-28", V1, V1),
         // POST /api/v1/song-requests — a REQUEST body: the search result the user picked.

@@ -1,9 +1,12 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using Nut.Results;
 using Shuffull.Api.Services;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Features.Playlists.DeletePlaylist;
 using Shuffull.Core.Models.Enums;
+using Shuffull.Core.Features.SongRequests;
 using Shuffull.Core.Tests.Infrastructure;
 using static Shuffull.Core.Tests.Infrastructure.SongImportHarness;
 using Shuffull.Shared.Tools;
@@ -92,11 +95,42 @@ public class SongImportDuplicateLinkTest : IDisposable
     private Task<SongImport> RunImportAsync(SongImport songImport, byte[] audio) =>
         SongImportHarness.RunImportAsync(_database, songImport, audio);
 
-    private async Task<Result> LinkAsync(SongImport songImport)
+    private async Task<Result> LinkAsync(SongImport songImport, ILogger? logger = null)
     {
         using var context = _database.CreateContext();
-        return await SongImportService.LinkDuplicateCoreAsync(context, "song-1", songImport);
+        return await SongImportService.LinkDuplicateCoreAsync(context, "song-1", songImport, logger ?? NullLogger.Instance);
     }
+
+    /// <summary>Keeps the warnings, to see a request the import couldn't complete reported.</summary>
+    private sealed class WarningLog : ILogger
+    {
+        public List<string> Warnings { get; } = [];
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == LogLevel.Warning)
+            {
+                Warnings.Add(formatter(state, exception));
+            }
+        }
+    }
+
+    private async Task<SongRequest> SeedRequestAsync(string id, string userId, SongRequestStatus status = SongRequestStatus.Downloading)
+    {
+        var request = new SongRequest
+        {
+            SongRequestId = id, UserId = userId, ExternalSongId = "yt-1", Title = "Everybody Wants You",
+            TargetPlaylistName = SongRequestRules.PlaylistName(SongVersion), Status = status,
+            CreatedAt = SongVersion, UpdatedAt = SongVersion,
+        };
+        _database.Context.SongRequests.Add(request);
+        await _database.Context.SaveChangesAsync();
+        return request;
+    }
+
+    private Task<SongRequest> ReadRequestAsync(string id) =>
+        _database.CreateContext().SongRequests.AsNoTracking().SingleAsync(r => r.SongRequestId == id);
 
     private Task<Song> ReadSongAsync() => _database.CreateContext().Songs.AsNoTracking().SingleAsync(s => s.SongId == "song-1");
 
@@ -314,9 +348,68 @@ public class SongImportDuplicateLinkTest : IDisposable
         var userB = await SeedUserAsync("b");
         using var context = _database.CreateContext();
 
-        var result = await SongImportService.LinkDuplicateCoreAsync(context, "gone", NewImport(userB.UserId));
+        var result = await SongImportService.LinkDuplicateCoreAsync(context, "gone", NewImport(userB.UserId), NullLogger.Instance);
 
         Assert.True(result.IsError);
         Assert.False(await _database.CreateContext().UserSongs.AnyAsync());
+    }
+    [Fact]
+    public async Task LinkDuplicateCoreAsync_ForAnOpenSongRequest_CompletesIt_InAnAuditionPlaylist()
+    {
+        var userA = await SeedUserAsync("a");
+        var userB = await SeedUserAsync("b");
+        await SeedOwnedSongAsync(userA.UserId);
+        var request = await SeedRequestAsync("request-b", userB.UserId);
+        var log = new WarningLog();
+
+        // Not marked exploratory by the producer: the request alone makes the weekly playlist an audition one.
+        var import = NewImport(userB.UserId, playlistName: request.TargetPlaylistName);
+        import.SongRequestId = request.SongRequestId;
+        Assert.True((await LinkAsync(import, log)).IsOk);
+
+        var done = await ReadRequestAsync(request.SongRequestId);
+        Assert.Equal(SongRequestStatus.Completed, done.Status);
+        Assert.Equal("song-1", done.SongId);
+        using var read = _database.CreateContext();
+        var playlist = await read.Playlists.AsNoTracking().SingleAsync(p => p.UserId == userB.UserId && p.Name == request.TargetPlaylistName);
+        Assert.True(playlist.IsExploratory);
+        Assert.Empty(log.Warnings);
+    }
+
+    [Fact]
+    public async Task LinkDuplicateCoreAsync_WithAnotherUsersRequestId_LinksTheSong_LeavesTheRequest_AndWarns()
+    {
+        var userA = await SeedUserAsync("a");
+        var userB = await SeedUserAsync("b");
+        await SeedOwnedSongAsync(userA.UserId);
+        var request = await SeedRequestAsync("request-a", userA.UserId);
+        var log = new WarningLog();
+
+        var import = NewImport(userB.UserId);
+        import.SongRequestId = request.SongRequestId;
+        Assert.True((await LinkAsync(import, log)).IsOk);
+
+        var untouched = await ReadRequestAsync(request.SongRequestId);
+        Assert.Equal(SongRequestStatus.Downloading, untouched.Status);
+        Assert.Null(untouched.SongId);
+        Assert.True(await _database.CreateContext().UserSongs.AnyAsync(us => us.UserId == userB.UserId && us.SongId == "song-1"));
+        Assert.Contains("request-a", Assert.Single(log.Warnings));
+    }
+
+    [Fact]
+    public async Task LinkDuplicateCoreAsync_ForACancelledRequest_LeavesItCancelled_WithoutAWarning()
+    {
+        var userA = await SeedUserAsync("a");
+        await SeedOwnedSongAsync(userA.UserId);
+        var userB = await SeedUserAsync("b");
+        var request = await SeedRequestAsync("request-b", userB.UserId, SongRequestStatus.Cancelled);
+        var log = new WarningLog();
+
+        var import = NewImport(userB.UserId);
+        import.SongRequestId = request.SongRequestId;
+        Assert.True((await LinkAsync(import, log)).IsOk);
+
+        Assert.Equal(SongRequestStatus.Cancelled, (await ReadRequestAsync(request.SongRequestId)).Status);
+        Assert.Empty(log.Warnings);
     }
 }

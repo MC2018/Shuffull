@@ -1,15 +1,26 @@
+using System.Net;
+using System.Net.Http.Json;
+using FluentValidation;
+using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Abstractions;
-using Microsoft.AspNetCore.Routing;
-using Shuffull.Api.Tools;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Moq;
+using Nut.Results;
 using Shuffull.Api.Commands.SongRequests;
 using Shuffull.Api.Controllers;
+using Shuffull.Api.Tools.Authorization;
+using Shuffull.Core.Behaviors;
 using Shuffull.Core.Features.SongRequests;
+using Shuffull.Core.Features.SongRequests.CreateSongRequest;
+using Shuffull.Core.Features.SongRequests.GetMySongRequests;
+using Shuffull.Core.Features.SongRequests.GetSongRequestQueue;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Dtos;
 using Shuffull.Core.Models.Enums;
+using Shuffull.Core.Persistence;
 using Shuffull.Core.Tests.Infrastructure;
 using Shuffull.Metadata.Contracts;
 using Shuffull.Metadata.Enums;
@@ -27,9 +38,30 @@ public class SongRequestsControllerTest : IDisposable
     private static readonly DateTime Now = new(2026, 11, 4, 12, 0, 0, DateTimeKind.Utc);
     private const string WeekPlaylist = "Requests · week of 2026-11-02";
     private readonly DatabaseFixture _database = new();
+    private readonly ServiceProvider _provider;
+    private readonly List<IServiceScope> _scopes = [];
+
+    public SongRequestsControllerTest()
+    {
+        // The real pipeline, as in Program.cs: validators run before each handler.
+        var coreAssembly = typeof(ValidationBehavior<,>).Assembly;
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddScoped(_ => _database.CreateContext());
+        services.AddSingleton<TimeProvider>(new ManualTimeProvider(Now));
+        services.AddValidatorsFromAssemblies([coreAssembly]);
+        services.AddMediatR(cfg =>
+        {
+            cfg.RegisterServicesFromAssemblies(coreAssembly);
+            cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
+        });
+        _provider = services.BuildServiceProvider();
+    }
 
     public void Dispose()
     {
+        _scopes.ForEach(scope => scope.Dispose());
+        _provider.Dispose();
         _database.Dispose();
         GC.SuppressFinalize(this);
     }
@@ -60,9 +92,14 @@ public class SongRequestsControllerTest : IDisposable
 
     private SongRequestsController Controller(User? user = null)
     {
-        var controller = new SongRequestsController(_database.CreateContext(), new ManualTimeProvider(Now))
+        var scope = _provider.CreateScope();
+        _scopes.Add(scope);
+        var controller = new SongRequestsController(scope.ServiceProvider.GetRequiredService<IMediator>())
         {
-            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext { RequestServices = scope.ServiceProvider },
+            },
         };
         if (user is not null)
         {
@@ -245,10 +282,9 @@ public class SongRequestsControllerTest : IDisposable
         var user = await SeedUserAsync("a");
         var first = await CreateOkAsync(user, "yt-new");
 
-        var conflict = Assert.IsType<ConflictObjectResult>(await Controller(user).Create(Ask("yt-new"), CancellationToken.None));
+        Assert.IsType<ConflictObjectResult>(await Controller(user).Create(Ask("yt-new"), CancellationToken.None));
 
-        Assert.Equal(first.SongRequestId, Assert.IsType<SongRequestDto>(conflict.Value).SongRequestId);
-        Assert.Equal(1, await _database.CreateContext().SongRequests.CountAsync());
+        Assert.Equal(first.SongRequestId, (await _database.CreateContext().SongRequests.SingleAsync()).SongRequestId);
 
         // Another user asking for the same song is a separate request.
         var other = await SeedUserAsync("b");
@@ -273,6 +309,28 @@ public class SongRequestsControllerTest : IDisposable
 
         await SetStatusAsync(first.SongRequestId, SongRequestStatus.Cancelled);
         Assert.Equal(SongRequestStatus.Pending, (await CreateOkAsync(user, "yt-new")).Status);
+    }
+
+    [Fact]
+    public async Task WeeklyPlaylistIndex_AllowsOneRequestsPlaylistPerUserAndWeek_ButLeavesOtherNamesAlone()
+    {
+        var user = await SeedUserAsync("a");
+        var other = await SeedUserAsync("b");
+        Playlist NewPlaylist(string id, string userId, string name) => new()
+        {
+            PlaylistId = id, UserId = userId, Name = name, PercentUntilReplayable = 0.9m, Version = Now,
+        };
+
+        using (var context = _database.CreateContext())
+        {
+            context.Playlists.AddRange(NewPlaylist("p1", user.UserId, WeekPlaylist), NewPlaylist("p2", other.UserId, WeekPlaylist),
+                NewPlaylist("p3", user.UserId, "Mix"), NewPlaylist("p4", user.UserId, "Mix"));
+            await context.SaveChangesAsync();
+        }
+
+        using var racing = _database.CreateContext();
+        racing.Playlists.Add(NewPlaylist("p5", user.UserId, WeekPlaylist));
+        await Assert.ThrowsAsync<DbUpdateException>(() => racing.SaveChangesAsync());
     }
 
     [Fact]
@@ -308,42 +366,79 @@ public class SongRequestsControllerTest : IDisposable
     public async Task Create_PastTheOpenRequestLimit_IsRefused()
     {
         var user = await SeedUserAsync("a");
-        for (var i = 0; i < SongRequestsController.MaxOpenPerUser; i++)
+        for (var i = 0; i < CreateSongRequestHandler.MaxOpenPerUser; i++)
         {
             await CreateOkAsync(user, $"yt-{i}");
         }
 
-        var refused = Assert.IsType<ObjectResult>(await Controller(user).Create(Ask("yt-one-more"), CancellationToken.None));
-        Assert.Equal(StatusCodes.Status429TooManyRequests, refused.StatusCode);
+        Assert.IsType<ConflictObjectResult>(await Controller(user).Create(Ask("yt-one-more"), CancellationToken.None));
+        Assert.Equal(CreateSongRequestHandler.MaxOpenPerUser, await _database.CreateContext().SongRequests.CountAsync());
     }
 
-    [Fact]
-    public async Task Create_WithoutATitle_IsABadRequest()
+    public static TheoryData<string, CreateSongRequestRequest> BadRequests => new()
+    {
+        { "blank title", Ask() with { Title = " " } },
+        { "no artists list", Ask() with { Artists = null } },
+        { "a blank artist", Ask() with { Artists = ["Billy Squier", " "] } },
+        { "a negative duration", Ask() with { DurationSeconds = -1 } },
+        { "an id too long", Ask(new string('x', 65)) },
+        { "an id with a space", Ask("yt 1") },
+        { "an id that is an option", Ask("--exec=rm") },
+        { "an id that is a url", Ask("https://www.youtube.com/watch?v=dQw4w9WgXcQ") },
+        { "an http thumbnail", Ask() with { ThumbnailUrl = "http://example.test/thumb.jpg" } },
+        { "a relative thumbnail", Ask() with { ThumbnailUrl = "/thumb.jpg" } },
+        { "a script thumbnail", Ask() with { ThumbnailUrl = "javascript:alert(1)" } },
+    };
+
+    [Theory]
+    [MemberData(nameof(BadRequests))]
+    public async Task Create_WithABadField_IsABadRequest_AndWritesNothing(string name, CreateSongRequestRequest request)
     {
         var user = await SeedUserAsync("a");
 
-        Assert.IsType<BadRequestObjectResult>(await Controller(user).Create(Ask() with { Title = " " }, CancellationToken.None));
-        Assert.IsType<BadRequestObjectResult>(await Controller(user).Create(Ask() with { Artists = null }, CancellationToken.None));
-        Assert.IsType<BadRequestObjectResult>(await Controller(user).Create(Ask(new string('x', 65)), CancellationToken.None));
+        var result = await Controller(user).Create(request, CancellationToken.None);
+
+        Assert.True(result is BadRequestObjectResult, $"{name}: got {result.GetType().Name}");
+        Assert.Equal(0, await _database.CreateContext().SongRequests.CountAsync());
     }
 
     [Fact]
-    public async Task Cancel_APendingRequest_CancelsIt_ButNotOneTheProducerClaimed_OrAnotherUsers()
+    public async Task Create_WithoutAThumbnail_IsFine()
+    {
+        var user = await SeedUserAsync("a");
+
+        var dto = Assert.IsType<SongRequestDto>(Assert.IsType<OkObjectResult>(
+            await Controller(user).Create(Ask() with { ThumbnailUrl = null, Artists = [] }, CancellationToken.None)).Value);
+
+        Assert.Null(dto.ThumbnailUrl);
+        Assert.Empty(dto.Artists);
+    }
+
+    [Fact]
+    public async Task Cancel_APendingRequest_CancelsIt_ButNotOneTheProducerClaimed_AFailedOne_OrAnotherUsers()
     {
         var user = await SeedUserAsync("a");
         var other = await SeedUserAsync("b");
         var pending = await CreateOkAsync(user, "yt-1");
         var claimed = await CreateOkAsync(user, "yt-2");
         await AckAsync(new(claimed.SongRequestId, SongRequestAckStatus.Accepted));
+        var failed = await CreateOkAsync(user, "yt-3");
+        await SetStatusAsync(failed.SongRequestId, SongRequestStatus.Failed, "Video unavailable");
 
         Assert.IsType<NotFoundObjectResult>(await Controller(other).Cancel(pending.SongRequestId, CancellationToken.None));
         Assert.Equal(SongRequestStatus.Pending, (await ReloadAsync(pending.SongRequestId)).Status);
 
-        Assert.IsType<NoContentResult>(await Controller(user).Cancel(pending.SongRequestId, CancellationToken.None));
+        var cancelled = Assert.IsType<SongRequestDto>(Assert.IsType<OkObjectResult>(
+            await Controller(user).Cancel(pending.SongRequestId, CancellationToken.None)).Value);
+        Assert.Equal(SongRequestStatus.Cancelled, cancelled.Status);
         Assert.Equal(SongRequestStatus.Cancelled, (await ReloadAsync(pending.SongRequestId)).Status);
 
         Assert.IsType<ConflictObjectResult>(await Controller(user).Cancel(claimed.SongRequestId, CancellationToken.None));
         Assert.Equal(SongRequestStatus.Accepted, (await ReloadAsync(claimed.SongRequestId)).Status);
+
+        // A Failed request may still be completed by a producer that keeps trying, so it isn't cancelled either.
+        Assert.IsType<ConflictObjectResult>(await Controller(user).Cancel(failed.SongRequestId, CancellationToken.None));
+        Assert.Equal(SongRequestStatus.Failed, (await ReloadAsync(failed.SongRequestId)).Status);
     }
 
     [Fact]
@@ -359,22 +454,56 @@ public class SongRequestsControllerTest : IDisposable
         Assert.Equal(mine.SongRequestId, Assert.Single(list).SongRequestId);
     }
 
-    [Theory]
-    [InlineData("", nameof(SongRequestsController.GetMine))]
-    [InlineData("?status=Pending", nameof(SongRequestsController.GetQueue))]
-    [InlineData("?status=0", nameof(SongRequestsController.GetQueue))]
-    public void Get_WithAStatus_IsTheProducersQueue_AndWithoutOne_TheUsersList(string query, string expected)
+    private static Task<ApiTestHost> StartHostAsync(User? signedInAs) => ApiTestHost.StartAsync(services =>
     {
-        var http = new DefaultHttpContext();
-        http.Request.QueryString = new QueryString(query);
-        var route = new RouteContext(http);
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { [ProducerKeyAttribute.ConfigKey] = "import-key" }).Build());
+        var mediator = new Mock<IMediator>();
+        mediator.Setup(m => m.Send(It.IsAny<GetMySongRequestsQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Ok<IReadOnlyList<SongRequestDto>>([]));
+        mediator.Setup(m => m.Send(It.IsAny<GetSongRequestQueueQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Ok<IReadOnlyList<PendingSongRequestDto>>([]));
+        services.AddSingleton(mediator.Object);
+    }, signedInAs);
 
-        var chosen = new[] { nameof(SongRequestsController.GetMine), nameof(SongRequestsController.GetQueue) }
-            .Where(name => typeof(SongRequestsController).GetMethod(name)!
-                .GetCustomAttributes(typeof(QueryParameterAttribute), false).Cast<QueryParameterAttribute>()
-                .All(selector => selector.IsValidForRequest(route, new ActionDescriptor())));
+    [Fact]
+    public async Task Get_WithoutAStatus_IsTheUsersList_AndWithOne_TheProducersQueue()
+    {
+        var user = new User { UserId = "user-a", Username = "a", Version = Now, ServerHash = "server-hash" };
+        await using var signedIn = await StartHostAsync(user);
+        await using var anonymous = await StartHostAsync(signedInAs: null);
 
-        Assert.Equal(expected, Assert.Single(chosen));
+        // Signed in, no status: the user's own list.
+        Assert.Equal(HttpStatusCode.OK, (await signedIn.Client.GetAsync("api/v1/song-requests")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.Client.GetAsync("api/v1/song-requests")).StatusCode);
+
+        // With a status it is the producer's queue, which a signed-in user without the key can't read.
+        Assert.Equal(HttpStatusCode.Unauthorized, (await signedIn.Client.GetAsync("api/v1/song-requests?status=Pending")).StatusCode);
+        var producer = new HttpRequestMessage(HttpMethod.Get, "api/v1/song-requests?status=Pending");
+        producer.Headers.Add(ProducerKeyAttribute.HeaderName, "import-key");
+        Assert.Equal(HttpStatusCode.OK, (await anonymous.Client.SendAsync(producer)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Create_OverHttp_BindsTheAppsBody()
+    {
+        var user = new User { UserId = "user-a", Username = "a", Version = Now, ServerHash = "server-hash" };
+        CreateSongRequestCommand? sent = null;
+        await using var host = await ApiTestHost.StartAsync(services =>
+        {
+            var mediator = new Mock<IMediator>();
+            mediator.Setup(m => m.Send(It.IsAny<CreateSongRequestCommand>(), It.IsAny<CancellationToken>()))
+                .Callback<IRequest<Result<SongRequestDto>>, CancellationToken>((command, _) => sent = (CreateSongRequestCommand)command)
+                .ReturnsAsync(Result.Error<SongRequestDto>("stop here"));
+            services.AddSingleton(mediator.Object);
+        }, user);
+
+        var response = await host.Client.PostAsJsonAsync("api/v1/song-requests", Ask());
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.NotNull(sent);
+        Assert.Equal(("user-a", "yt-1", "Everybody Wants You", 230), (sent.UserId, sent.ExternalSongId, sent.Title, sent.DurationSeconds));
+        Assert.Equal(["Billy Squier"], sent.Artists!);
     }
 
     [Theory]

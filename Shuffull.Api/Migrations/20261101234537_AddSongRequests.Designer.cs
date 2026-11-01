@@ -12,7 +12,7 @@ using Shuffull.Core.Persistence;
 namespace Shuffull.Api.Migrations
 {
     [DbContext(typeof(ShuffullContext))]
-    [Migration("20261101232853_AddSongRequests")]
+    [Migration("20261101234537_AddSongRequests")]
     partial class AddSongRequests
     {
         /// <inheritdoc />
@@ -207,6 +207,11 @@ namespace Shuffull.Api.Migrations
                     b.HasIndex("PlaylistId");
 
                     b.HasIndex("UserId");
+
+                    b.HasIndex("UserId", "Name")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Playlists_UserId_Name_SongRequests")
+                        .HasFilter("\"Name\" LIKE 'Requests · week of %'");
 
                     b.ToTable("Playlists");
                 });

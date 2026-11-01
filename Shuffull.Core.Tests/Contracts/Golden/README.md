@@ -26,7 +26,7 @@ request bodies, when the API stops binding them.
 | `youtube-ratings` | `GET /api/v1/youtube-ratings` | funnel |
 | `replacements` | `GET /api/v1/replacements` | funnel |
 | `song-requests` | `GET /api/v1/song-requests` | app |
-| `song-requests-create` | `POST /api/v1/song-requests` (also the body of its 409) | app |
+| `song-requests-create` | `POST /api/v1/song-requests`, and `DELETE /api/v1/song-requests/{id}` (the cancelled request) | app |
 | `song-requests-pending` | `GET /api/v1/song-requests?status=Pending` | funnel (YoutubeFunnel#21) |
 | `song-requests-ack-response` | `POST /api/v1/song-requests/ack` | funnel (YoutubeFunnel#21) |
 | `songs-tags` | `POST /api/v1/songs/{id}/tags` (request body) | funnel sends |

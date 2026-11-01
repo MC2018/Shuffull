@@ -24,7 +24,7 @@ public static class SongRequestRules
 
     /// <summary>
     /// The states an ack of <paramref name="ack"/> may move a request out of. A request already AT that status is
-    /// included, so a re-sent ack applies (Shuffull.Metadata FUNNEL_INTEGRATION.md, "Song requests"). Empty for
+    /// included, so a re-sent ack applies. Empty for
     /// <see cref="SongRequestAckStatus.Unknown"/> and any undefined value, which are refused.
     /// <list type="bullet">
     /// <item><c>Accepted</c> follows only <c>Pending</c>: it is the producer's claim, and the one ack that finds out a
@@ -47,6 +47,13 @@ public static class SongRequestRules
     public static SongRequestStatus ToStatus(SongRequestAckStatus ack) => (SongRequestStatus)(int)ack;
 
     /// <summary>
+    /// What every weekly requests playlist's name starts with. A filtered unique index on Playlists (ShuffullContext)
+    /// allows one such playlist per user and name, so the instant path and an import racing to create the week's
+    /// playlist can't make two: the loser fails, and its retry finds the winner's.
+    /// </summary>
+    public const string PlaylistNamePrefix = "Requests · week of ";
+
+    /// <summary>
     /// The user's requests playlist for the week containing <paramref name="utcNow"/>: <c>"Requests · week of
     /// 2026-11-02"</c>, named for that week's Monday, in UTC. The API owns this name. The instant path and the
     /// producer's import (which passes it through from the request) both resolve the playlist by it, so they can't
@@ -57,6 +64,6 @@ public static class SongRequestRules
         var date = utcNow.Date;
         var sinceMonday = ((int)date.DayOfWeek + 6) % 7;
         var monday = date.AddDays(-sinceMonday);
-        return $"Requests · week of {monday.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}";
+        return $"{PlaylistNamePrefix}{monday.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}";
     }
 }

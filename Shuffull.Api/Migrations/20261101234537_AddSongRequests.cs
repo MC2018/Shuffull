@@ -41,6 +41,13 @@ namespace Shuffull.Api.Migrations
                 });
 
             migrationBuilder.CreateIndex(
+                name: "IX_Playlists_UserId_Name_SongRequests",
+                table: "Playlists",
+                columns: new[] { "UserId", "Name" },
+                unique: true,
+                filter: "\"Name\" LIKE 'Requests · week of %'");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_SongRequests_Status_CreatedAt",
                 table: "SongRequests",
                 columns: new[] { "Status", "CreatedAt" });
@@ -63,6 +70,10 @@ namespace Shuffull.Api.Migrations
         {
             migrationBuilder.DropTable(
                 name: "SongRequests");
+
+            migrationBuilder.DropIndex(
+                name: "IX_Playlists_UserId_Name_SongRequests",
+                table: "Playlists");
 
             migrationBuilder.DropColumn(
                 name: "SongRequestId",

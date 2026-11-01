@@ -6,7 +6,7 @@ namespace Shuffull.Core.Models.Database;
 
 /// <summary>
 /// A user asking for a song the library doesn't have (Shuffull#57). The row is the user's intent, written in its own
-/// transaction by SongRequestsController.Create. The producer polls the <see cref="SongRequestStatus.Pending"/> rows with its
+/// transaction by CreateSongRequestHandler. The producer polls the <see cref="SongRequestStatus.Pending"/> rows with its
 /// shared secret, acks its progress conditionally, and completes the request by importing the song with
 /// <c>SongImportDetails.SongRequestId</c> set: the same durable row + poll + ack shape as <see cref="YoutubeRatingRequest"/>.
 ///

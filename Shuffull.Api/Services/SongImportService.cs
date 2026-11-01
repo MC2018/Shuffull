@@ -578,7 +578,7 @@ public partial class SongImportService : BackgroundService
     {
         using var scope = _services.CreateScope();
         using var dbContext = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
-        return await ImportToDbCoreAsync(dbContext, song, existingArtists, newArtists, wantedTags, userId, playlistId, playlistName, likeStatus, songRequestId, cancellationToken);
+        return await ImportToDbCoreAsync(dbContext, song, existingArtists, newArtists, wantedTags, userId, playlistId, playlistName, likeStatus, songRequestId, _logger, cancellationToken);
     }
 
     /// <summary>
@@ -587,7 +587,7 @@ public partial class SongImportService : BackgroundService
     /// half can be unit-tested against an in-memory <see cref="ShuffullContext"/> without the background host.
     /// Behavior is identical to the original inline body.
     /// </summary>
-    internal static async Task<Result> ImportToDbCoreAsync(ShuffullContext dbContext, Song song, List<Artist> existingArtists, List<Artist> newArtists, List<Tag> wantedTags, string userId, string? playlistId, string? playlistName, LikeStatus likeStatus, string? songRequestId, CancellationToken cancellationToken = default!)
+    internal static async Task<Result> ImportToDbCoreAsync(ShuffullContext dbContext, Song song, List<Artist> existingArtists, List<Artist> newArtists, List<Tag> wantedTags, string userId, string? playlistId, string? playlistName, LikeStatus likeStatus, string? songRequestId, ILogger logger, CancellationToken cancellationToken = default!)
     {
         using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
@@ -595,8 +595,9 @@ public partial class SongImportService : BackgroundService
         // like is the user's decision to keep it, and an Exploratory flag would leave it purge-eligible until some
         // later, optional job cleared it. The import's audition INTENT is still what decides a new target
         // playlist's status below, so one liked song can't turn a whole audition playlist into an ordinary one.
-        // ImportTargets.LinkAsync applies the same rule to an existing song a duplicate import links.
-        var importedForAudition = song.Exploratory;
+        // ImportTargets.LinkAsync applies the same rule to an existing song a duplicate import links. A requested song
+        // is an audition too: its weekly requests playlist is an audition playlist whichever path creates it.
+        var importedForAudition = song.Exploratory || songRequestId is not null;
         if (song.Exploratory && likeStatus.RetainsSong())
         {
             song.Exploratory = false;
@@ -637,7 +638,7 @@ public partial class SongImportService : BackgroundService
         await ImportTargets.LinkAsync(dbContext, song, userId, playlistId, playlistName, importedForAudition, likeStatus, cancellationToken);
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        await SongRequestCompletion.CompleteAsync(dbContext, songRequestId, userId, song.SongId, DateTime.UtcNow, cancellationToken);
+        await SongRequestCompletion.CompleteAsync(dbContext, songRequestId, userId, song.SongId, DateTime.UtcNow, logger, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Result.Ok();
     }
@@ -646,7 +647,7 @@ public partial class SongImportService : BackgroundService
     {
         using var scope = _services.CreateScope();
         using var dbContext = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
-        return await LinkDuplicateCoreAsync(dbContext, songId, songImport, cancellationToken);
+        return await LinkDuplicateCoreAsync(dbContext, songId, songImport, _logger, cancellationToken);
     }
 
     /// <summary>
@@ -655,7 +656,7 @@ public partial class SongImportService : BackgroundService
     /// alone; a liked import only promotes it out of Exploratory. Split out from <see cref="LinkDuplicateAsync"/>,
     /// which owns the DI scope, so it can be tested against an in-memory <see cref="ShuffullContext"/>.
     /// </summary>
-    internal static async Task<Result> LinkDuplicateCoreAsync(ShuffullContext dbContext, string songId, SongImport songImport, CancellationToken cancellationToken = default!)
+    internal static async Task<Result> LinkDuplicateCoreAsync(ShuffullContext dbContext, string songId, SongImport songImport, ILogger logger, CancellationToken cancellationToken = default!)
     {
         using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
@@ -666,13 +667,19 @@ public partial class SongImportService : BackgroundService
         }
 
         var likeStatus = ImportedLikeStatus(songImport);
-        await ImportTargets.LinkAsync(dbContext, song, songImport.UserId, songImport.PlaylistId, songImport.TargetPlaylistName, songImport.Exploratory, likeStatus, cancellationToken);
+        await ImportTargets.LinkAsync(dbContext, song, songImport.UserId, songImport.PlaylistId, songImport.TargetPlaylistName, ImportedForAudition(songImport), likeStatus, cancellationToken);
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        await SongRequestCompletion.CompleteAsync(dbContext, songImport.SongRequestId, songImport.UserId, song.SongId, DateTime.UtcNow, cancellationToken);
+        await SongRequestCompletion.CompleteAsync(dbContext, songImport.SongRequestId, songImport.UserId, song.SongId, DateTime.UtcNow, logger, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Result.Ok();
     }
+
+    /// <summary>
+    /// The import's audition intent, which decides a newly created target playlist's status. A requested song counts,
+    /// so the weekly requests playlist is an audition playlist whether the instant path or an import creates it.
+    /// </summary>
+    private static bool ImportedForAudition(SongImport songImport) => songImport.Exploratory || songImport.SongRequestId is not null;
 
     /// <summary>
     /// Overwrites an existing song (<see cref="SongImport.ReplacesSongId"/>) in place with the freshly-imported
@@ -779,13 +786,13 @@ public partial class SongImportService : BackgroundService
         if (linkImportTarget)
         {
             var likeStatus = ImportedLikeStatus(songImport);
-            await ImportTargets.LinkAsync(dbContext, song, songImport.UserId, songImport.PlaylistId, songImport.TargetPlaylistName, songImport.Exploratory, likeStatus, cancellationToken);
+            await ImportTargets.LinkAsync(dbContext, song, songImport.UserId, songImport.PlaylistId, songImport.TargetPlaylistName, ImportedForAudition(songImport), likeStatus, cancellationToken);
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
         // A refreshed duplicate (linkImportTarget) can be the song a request asked for. A curator's replacement never
         // carries a request id, so this is a no-op for it.
-        await SongRequestCompletion.CompleteAsync(dbContext, songImport.SongRequestId, songImport.UserId, song.SongId, DateTime.UtcNow, cancellationToken);
+        await SongRequestCompletion.CompleteAsync(dbContext, songImport.SongRequestId, songImport.UserId, song.SongId, DateTime.UtcNow, _logger, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Result.Ok((oldFileHash, oldFileExtension));
     }

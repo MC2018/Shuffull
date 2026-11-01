@@ -205,6 +205,11 @@ namespace Shuffull.Api.Migrations
 
                     b.HasIndex("UserId");
 
+                    b.HasIndex("UserId", "Name")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Playlists_UserId_Name_SongRequests")
+                        .HasFilter("\"Name\" LIKE 'Requests · week of %'");
+
                     b.ToTable("Playlists");
                 });
 

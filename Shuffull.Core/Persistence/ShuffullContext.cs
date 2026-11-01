@@ -63,6 +63,14 @@ public class ShuffullContext : DbContext
             .HasFilter($"\"Status\" IN ({string.Join(", ", SongRequestRules.Open.Select(s => (int)s))})")
             .HasDatabaseName("IX_SongRequests_UserId_ExternalSongId_Open");
 
+        // One weekly requests playlist per user and week, so the instant path and an import can't both create it
+        // (see SongRequestRules.PlaylistNamePrefix). Filtered to those names only: other playlists may share a name.
+        modelBuilder.Entity<Playlist>()
+            .HasIndex(p => new { p.UserId, p.Name })
+            .IsUnique()
+            .HasFilter($"\"Name\" LIKE '{SongRequestRules.PlaylistNamePrefix}%'")
+            .HasDatabaseName("IX_Playlists_UserId_Name_SongRequests");
+
         modelBuilder.Entity<Tag>()
             .HasDiscriminator<TagType>("Type")
             .HasValue<Genre>(TagType.Genre)
