@@ -261,8 +261,17 @@ public class JwtTest
 
         await middleware.Invoke(context, dbContext);
 
-        return status!.Value;
+        Assert.NotNull(status);
+        return status.Value;
     }
+
+    private static string SignedToken(Claim claim) => new JwtSecurityTokenHandler().WriteToken(new JwtSecurityTokenHandler().CreateToken(new SecurityTokenDescriptor
+    {
+        Subject = new ClaimsIdentity(new[] { claim }),
+        Expires = DateTime.UtcNow.AddHours(1),
+        SigningCredentials = new SigningCredentials(
+            new SymmetricSecurityKey(Encoding.ASCII.GetBytes(TestSecret)), SecurityAlgorithms.HmacSha256Signature),
+    }));
 
     /// <summary>A context whose Postgres refuses the connection, as it does while restarting or after an OOM kill.</summary>
     private static ShuffullContext UnreachablePostgres() => new(new DbContextOptionsBuilder<ShuffullContext>()
@@ -288,6 +297,7 @@ public class JwtTest
             "not-a-jwt",
             CreateHelper("a-totally-different-secret-key-1234567890").GenerateJwtToken(MakeUser(), DateTime.UtcNow.AddHours(1)),
             PreStampToken("user-42")[..^2], // a cut signature
+            SignedToken(new Claim("NotTheUserId", "user-42")), // validly signed, but names no user
         };
         await using var unreachable = UnreachablePostgres();
 
