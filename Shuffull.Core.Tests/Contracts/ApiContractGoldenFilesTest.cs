@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Shuffull.Api.Commands.Listens.RecordListens;
+using Shuffull.Api.Commands.SongRequests;
 using Shuffull.Api.Commands.Songs.HoldTagSongs;
 using Shuffull.Api.Commands.Songs.KeepSongs;
 using Shuffull.Api.Commands.Songs.RetagSongs;
@@ -366,6 +367,35 @@ public class ApiContractGoldenFilesTest
         },
         // POST /api/v1/replacements — a REQUEST body: the app flags a song's audio. It never sends a note.
         ["replacements-request"] = new FlagReplacementRequest("song-full", Note: null),
+        // GET /api/v1/song-requests. The app's list of the user's requests: one waiting, one the library had.
+        ["song-requests"] = new List<SongRequestDto>
+        {
+            new("request-2", "9bZkp7q19f0", "Gangnam Style", [], DurationSeconds: null, ThumbnailUrl: null,
+                SongRequestStatus.Failed, "Video unavailable", SongId: null, "Requests · week of 2026-09-28", V2, V2),
+            new("request-1", "dQw4w9WgXcQ", "Everybody Wants You", ["Billy Squier"], 230, "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+                SongRequestStatus.Completed, FailureReason: null, "song-full", "Requests · week of 2026-09-28", V1, V1),
+        },
+        // POST /api/v1/song-requests. The new (or re-queued, or instantly completed) request; a 409 carries the open one.
+        ["song-requests-create"] = new SongRequestDto("request-3", "9bZkp7q19f0", "Gangnam Style", ["PSY"], 252, null,
+            SongRequestStatus.Pending, FailureReason: null, SongId: null, "Requests · week of 2026-09-28", V1, V1),
+        // POST /api/v1/song-requests — a REQUEST body: the search result the user picked.
+        ["song-requests-create-request"] = new CreateSongRequestRequest("dQw4w9WgXcQ", "Everybody Wants You", ["Billy Squier"], 230,
+            "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg"),
+        // GET /api/v1/song-requests?status=Pending. The funnel's request queue (YoutubeFunnel#21).
+        ["song-requests-pending"] = new List<PendingSongRequestDto>
+        {
+            new("request-3", "user-1", "9bZkp7q19f0", "Gangnam Style", ["PSY"], 252, "https://i.ytimg.com/vi/9bZkp7q19f0/hqdefault.jpg",
+                "Requests · week of 2026-09-28"),
+            new("request-4", "user-1", "kJQP7kiw5Fk", "Untitled", [], null, null, "Requests · week of 2026-09-28"),
+        },
+        // POST /api/v1/song-requests/ack — a REQUEST body: the funnel's progress on each request.
+        ["song-requests-ack"] = new[]
+        {
+            new SongRequestAckDto("request-3", SongRequestAckStatus.Accepted),
+            new SongRequestAckDto("request-4", SongRequestAckStatus.Failed, "Video unavailable"),
+        },
+        // POST /api/v1/song-requests/ack. Which acks moved their request.
+        ["song-requests-ack-response"] = new SongRequestAckResponse(["request-3"], ["request-4"]),
     };
 
     /// <summary>
@@ -377,10 +407,11 @@ public class ApiContractGoldenFilesTest
     [
         // The funnel's.
         "songs-tags", "youtube-ratings-ack", "songs-pending-tags-holds", "song-imports-details", "song-lyrics",
+        "song-requests-ack",
         // The app's.
         "listens-request", "users-authenticate-request", "songs-list-request", "playlists-list-request", "user-songs-create",
         "user-songs-last-played", "user-songs-like", "songs-update", "songs-keep-request", "songs-retag-request",
-        "replacements-request",
+        "replacements-request", "song-requests-create-request",
     ];
 
     /// <summary>

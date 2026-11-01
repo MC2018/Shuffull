@@ -57,6 +57,21 @@ public class SongImportServiceLoopTest : IDisposable
     }
 
     [Fact]
+    public async Task NextDueImport_TakesARequestedSongFirst()
+    {
+        var requested = NewSongImport("requested", Now.AddMinutes(-1));
+        requested.SongRequestId = "request-1";
+        _database.Context.SongImports.AddRange(
+            NewSongImport("oldest", Now.AddMinutes(-30)),
+            requested,
+            NewSongImport("middle", Now.AddMinutes(-10)));
+        await _database.Context.SaveChangesAsync();
+
+        // A user is waiting on the requested song; the bulk queue behind it keeps its order.
+        Assert.Equal(new[] { "requested", "oldest", "middle" }, await DueIdsAsync(Now));
+    }
+
+    [Fact]
     public async Task NextDueImport_SkipsARowWaitingOutItsBackoff_UntilItIsDue()
     {
         var failing = NewSongImport("failing", Now.AddHours(-1));

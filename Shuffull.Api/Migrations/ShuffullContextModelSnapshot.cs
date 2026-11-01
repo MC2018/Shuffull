@@ -418,6 +418,9 @@ namespace Shuffull.Api.Migrations
                     b.Property<string>("SongId")
                         .HasColumnType("text");
 
+                    b.Property<string>("SongRequestId")
+                        .HasColumnType("text");
+
                     b.Property<int>("State")
                         .HasColumnType("integer");
 
@@ -472,6 +475,70 @@ namespace Shuffull.Api.Migrations
                     b.HasIndex("Status");
 
                     b.ToTable("SongReplacements");
+                });
+
+            modelBuilder.Entity("Shuffull.Core.Models.Database.SongRequest", b =>
+                {
+                    b.Property<string>("SongRequestId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ArtistsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("DurationSeconds")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ExternalSongId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("SongId")
+                        .HasColumnType("text");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TargetPlaylistName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ThumbnailUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("SongRequestId");
+
+                    b.HasIndex("Status", "CreatedAt");
+
+                    b.HasIndex("UserId", "CreatedAt");
+
+                    b.HasIndex("UserId", "ExternalSongId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_SongRequests_UserId_ExternalSongId_Open")
+                        .HasFilter("\"Status\" IN (0, 1, 2, 3, 4)");
+
+                    b.ToTable("SongRequests");
                 });
 
             modelBuilder.Entity("Shuffull.Core.Models.Database.SongTag", b =>

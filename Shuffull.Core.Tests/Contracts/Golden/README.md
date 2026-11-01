@@ -25,9 +25,14 @@ request bodies, when the API stops binding them.
 | `songs-library` | `GET /api/v1/songs/library` | funnel |
 | `youtube-ratings` | `GET /api/v1/youtube-ratings` | funnel |
 | `replacements` | `GET /api/v1/replacements` | funnel |
+| `song-requests` | `GET /api/v1/song-requests` | app |
+| `song-requests-create` | `POST /api/v1/song-requests` (also the body of its 409) | app |
+| `song-requests-pending` | `GET /api/v1/song-requests?status=Pending` | funnel (YoutubeFunnel#21) |
+| `song-requests-ack-response` | `POST /api/v1/song-requests/ack` | funnel (YoutubeFunnel#21) |
 | `songs-tags` | `POST /api/v1/songs/{id}/tags` (request body) | funnel sends |
 | `youtube-ratings-ack` | `POST /api/v1/youtube-ratings/ack` (request body) | funnel sends |
 | `songs-pending-tags-holds` | `POST /api/v1/songs/pending-tags/holds` (request body) | funnel sends |
+| `song-requests-ack` | `POST /api/v1/song-requests/ack` (request body) | funnel sends (YoutubeFunnel#21) |
 | `song-imports-details` | `POST /api/v1/song-imports` (the multipart `details` part, read with Newtonsoft) | funnel sends |
 | `song-lyrics` | `PUT /api/v1/song-lyrics` (request body) | funnel sends |
 | `listens-request` | `POST /api/v1/listens` (request body) | app sends (ShuffullApp#57) |
@@ -41,6 +46,7 @@ request bodies, when the API stops binding them.
 | `songs-keep-request` | `POST /api/v1/songs/keep` (request body) | app sends |
 | `songs-retag-request` | `POST /api/v1/songs/retag` (request body) | app sends |
 | `replacements-request` | `POST /api/v1/replacements` (request body) | app sends |
+| `song-requests-create-request` | `POST /api/v1/song-requests` (request body) | app sends (ShuffullApp#107) |
 
 Only the endpoints in the table are pinned. Calls that send no body are not: playlist create, add song, remove song and
 delete, and `songs/retag-stale`, which carry only route and query values (shuffull-workspace#92).

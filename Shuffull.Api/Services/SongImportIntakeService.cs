@@ -111,6 +111,7 @@ public class SongImportIntakeService
                 MarkAsLiked = details.MarkAsLiked,
                 TargetPlaylistName = details.TargetPlaylistName,
                 ReplacesSongId = details.ReplacesSongId,
+                SongRequestId = string.IsNullOrWhiteSpace(details.SongRequestId) ? null : details.SongRequestId,
                 LastUpdatedAt = DateTime.UtcNow,
             };
 
