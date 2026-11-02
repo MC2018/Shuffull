@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.EntityFrameworkCore;
@@ -7,15 +8,18 @@ using Shuffull.Core.Models.Database;
 using Shuffull.Core.Features.Playlists.DeletePlaylist;
 using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Features.SongRequests;
+using Shuffull.Core.Features.Songs.GetPendingTagSongs;
 using Shuffull.Core.Tests.Infrastructure;
 using static Shuffull.Core.Tests.Infrastructure.SongImportHarness;
 using Shuffull.Core.Tools;
+using Shuffull.Metadata.Tools;
 
 namespace Shuffull.Core.Tests.Services;
 
 /// <summary>
 /// A duplicate import still links the song it matched to the user and playlist it was for (MC2018/Shuffull#56).
-/// The existing song's audio, tags and metadata are left alone; a liked import only promotes it out of Exploratory.
+/// The existing song's audio, tags and metadata are left alone; a liked import, or one that isn't an audition, only
+/// promotes it out of Exploratory.
 /// </summary>
 public class SongImportDuplicateLinkTest : IDisposable
 {
@@ -134,6 +138,8 @@ public class SongImportDuplicateLinkTest : IDisposable
 
     private Task<Song> ReadSongAsync() => _database.CreateContext().Songs.AsNoTracking().SingleAsync(s => s.SongId == "song-1");
 
+    private Task<Song> ReadSongByExternalIdAsync() => _database.CreateContext().Songs.AsNoTracking().SingleAsync(s => s.ExternalSongId == "yt-1");
+
     [Fact]
     public async Task ImportNext_DuplicateForAnotherUser_LinksTheExistingSongAndCompletesTheImport()
     {
@@ -221,17 +227,97 @@ public class SongImportDuplicateLinkTest : IDisposable
     }
 
     [Fact]
-    public async Task LinkDuplicateCoreAsync_NeutralDuplicateOfAnAuditionSong_LeavesItExploratory()
+    public async Task LinkDuplicateCoreAsync_NeutralAuditionDuplicateOfAnAuditionSong_LeavesItExploratory()
     {
         var userA = await SeedUserAsync("a");
         var userB = await SeedUserAsync("b");
         await SeedOwnedSongAsync(userA.UserId, exploratory: true);
 
-        Assert.True((await LinkAsync(NewImport(userB.UserId))).IsOk);
+        Assert.True((await LinkAsync(NewImport(userB.UserId, exploratory: true))).IsOk);
 
         var song = await ReadSongAsync();
         Assert.True(song.Exploratory);
         Assert.Equal(SongVersion, song.Version);
+    }
+
+    [Fact]
+    public async Task LinkDuplicateCoreAsync_RequestedDuplicateOfAnAuditionSong_LeavesItExploratory()
+    {
+        // A request is an audition, whatever the producer's flag says.
+        var userA = await SeedUserAsync("a");
+        var userB = await SeedUserAsync("b");
+        await SeedOwnedSongAsync(userA.UserId, exploratory: true);
+        var request = await SeedRequestAsync("request-b", userB.UserId);
+        var import = NewImport(userB.UserId, playlistName: request.TargetPlaylistName);
+        import.SongRequestId = request.SongRequestId;
+
+        Assert.True((await LinkAsync(import)).IsOk);
+
+        Assert.True((await ReadSongAsync()).Exploratory);
+    }
+
+    [Fact]
+    public async Task LinkDuplicateCoreAsync_NonAuditionDuplicateOfAnAuditionSong_PromotesIt()
+    {
+        // A Standard funnel source or a manual upload wants the song kept (YoutubeFunnel#90), even for a user who
+        // already has it.
+        var userA = await SeedUserAsync("a");
+        await SeedOwnedSongAsync(userA.UserId, exploratory: true);
+
+        Assert.True((await LinkAsync(NewImport(userA.UserId, playlistId: "playlist-A's mix"))).IsOk);
+
+        var song = await ReadSongAsync();
+        Assert.False(song.Exploratory);
+        Assert.True(song.Version > SongVersion);
+        // Nothing else moves: tags, the user's own like and the playlist stay as they were.
+        Assert.Equal("gpt-5.6-terra", song.TagModel);
+        using var read = _database.CreateContext();
+        Assert.Equal(LikeStatus.Like, (await read.UserSongs.AsNoTracking().SingleAsync()).LikeStatus);
+        Assert.Equal(SongVersion, (await read.Playlists.AsNoTracking().SingleAsync()).Version);
+    }
+
+    [Fact]
+    public async Task ImportNext_BumpedStandardVideo_ReachesItsOwnUserInTheirPlaylist_QueuedForTagging()
+    {
+        // YoutubeFunnel#90: a request bumps a Standard-tier video off the main lane. The request lane imports it for
+        // the requester (an audition, which creates the song), then for the video's own target with the main lane's
+        // tier. That second import is a duplicate link, and it must leave the main lane's user with a kept song that
+        // pending-tags hands out, not an untagged audition.
+        var owner = await SeedUserAsync("owner");
+        var requester = await SeedUserAsync("requester");
+        var request = await SeedRequestAsync("request-r", requester.UserId);
+        var requested = NewImport(requester.UserId, playlistName: request.TargetPlaylistName, exploratory: true);
+        requested.SongRequestId = request.SongRequestId;
+        await RunImportAsync(requested, AudioBytes);
+        Assert.True((await ReadSongByExternalIdAsync()).Exploratory);
+
+        var own = await RunImportAsync(NewImport(owner.UserId, playlistName: "Mix · week of 2026-11-02"), AudioBytes);
+
+        Assert.Equal(SongImportState.Completed, own.State);
+        var song = await ReadSongByExternalIdAsync();
+        Assert.Equal(song.SongId, own.SongId);
+        Assert.False(song.Exploratory);
+        Assert.Null(song.TagModel);
+        using var read = _database.CreateContext();
+        var mix = await read.Playlists.AsNoTracking().SingleAsync(p => p.UserId == owner.UserId);
+        Assert.Equal("Mix · week of 2026-11-02", mix.Name);
+        Assert.False(mix.IsExploratory);
+        Assert.True(await read.PlaylistSongs.AnyAsync(ps => ps.PlaylistId == mix.PlaylistId && ps.SongId == song.SongId));
+        Assert.True(await read.UserSongs.AnyAsync(us => us.UserId == owner.UserId && us.SongId == song.SongId));
+        Assert.Equal(SongRequestStatus.Completed, (await ReadRequestAsync(request.SongRequestId)).Status);
+
+        var strengths = new ModelStrengths(new Dictionary<string, int> { ["weak-model"] = 10, ["strong-model"] = 30 });
+        var aiConfig = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["AI:Tiers:Weak"] = "OpenAI",
+            ["AI:Tiers:Strong"] = "OpenAI",
+            ["AI:OpenAI:WeakModelName"] = "weak-model",
+            ["AI:OpenAI:StrongModelName"] = "strong-model",
+        }).Build();
+        var pendingTags = new GetPendingTagSongsHandler(read, strengths, aiConfig, new RecordingHealthSignals(), TimeProvider.System);
+
+        var pending = await pendingTags.Handle(new GetPendingTagSongsQuery(25, null, null), CancellationToken.None);
+        Assert.Equal(song.SongId, Assert.Single(pending.Get().Songs).SongId);
     }
 
     [Fact]

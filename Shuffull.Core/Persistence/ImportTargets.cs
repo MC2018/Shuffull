@@ -17,7 +17,8 @@ public static class ImportTargets
     /// so a song that already exists (a duplicate import) is linked without doubling anything up. A playlist or
     /// UserSong that gains the song gets a fresh Version, so clients sync it.
     /// </summary>
-    /// <param name="importedForAudition">The import's audition intent; decides a newly created playlist's status.</param>
+    /// <param name="importedForAudition">The import's audition intent; decides a newly created playlist's status. An
+    /// import without it promotes an existing audition song out of Exploratory.</param>
     public static async Task LinkAsync(ShuffullContext dbContext, Song song, string userId, string? playlistId, string? playlistName, bool importedForAudition, LikeStatus likeStatus, CancellationToken cancellationToken = default!)
     {
         // Resolve the target playlist: prefer an existing one by id; otherwise, if a name was provided,
@@ -95,6 +96,16 @@ public static class ImportTargets
                 song.Exploratory = false;
                 song.Version = DateTime.UtcNow;
             }
+        }
+
+        // An import that isn't an audition (a Standard or Premium funnel source, a manual upload) is a decision to keep
+        // the song, whoever else has it. Left Exploratory it would never be tagged, since pending-tags hands out only
+        // kept songs. The case that needs this is the request lane's own-target import for a bumped video
+        // (YoutubeFunnel#90). Like the like rule above, this only ever promotes.
+        if (song.Exploratory && !importedForAudition)
+        {
+            song.Exploratory = false;
+            song.Version = DateTime.UtcNow;
         }
     }
 }
