@@ -17,8 +17,9 @@ namespace Shuffull.Core.Alerts.Checks;
 /// (it fetches the queue and never claims from it).</item>
 /// </list>
 /// Silence alone isn't alerted, unlike the other funnel polls: with nothing Pending there is nothing to be late for,
-/// and the producer that polls may not be deployed yet. Only Pending counts. Accepted, Downloading and Retrying are the
-/// producer's own progress, and Failed is the producer saying it gave up, which the user retries from the app.
+/// and the producer that polls may not be deployed yet. Only Pending counts. Failed is the producer saying it gave up,
+/// which the user retries from the app. Accepted, Downloading and Retrying are the producer's own progress; one it claims
+/// and then loses is not watched yet (Shuffull#115).
 ///
 /// <para>Silence is measured from the later of the last poll and <c>trackingSinceUtc</c>, the API's start, as in
 /// <see cref="SignalAlertCheck"/>: no poll could arrive while the API was down. Ages are read from <c>UpdatedAt</c>,
