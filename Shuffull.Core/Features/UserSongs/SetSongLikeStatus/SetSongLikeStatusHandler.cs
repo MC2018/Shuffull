@@ -6,7 +6,7 @@ using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Persistence.Repositories;
 using Shuffull.Core.Persistence.Specifications.UserSongs;
 using Shuffull.Core.Persistence.Specifications.YoutubeRatings;
-using Shuffull.Shared.Tools;
+using Shuffull.Core.Tools;
 
 namespace Shuffull.Core.Features.UserSongs.SetSongLikeStatus;
 

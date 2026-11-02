@@ -9,7 +9,7 @@ using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Features.SongRequests;
 using Shuffull.Core.Tests.Infrastructure;
 using static Shuffull.Core.Tests.Infrastructure.SongImportHarness;
-using Shuffull.Shared.Tools;
+using Shuffull.Core.Tools;
 
 namespace Shuffull.Core.Tests.Services;
 

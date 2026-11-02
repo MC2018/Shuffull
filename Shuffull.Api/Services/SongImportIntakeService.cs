@@ -1,6 +1,6 @@
 using Newtonsoft.Json;
 using Nut.Results;
-using Shuffull.Shared.Tools;
+using Shuffull.Core.Tools;
 using Shuffull.Api.Configuration;
 using Shuffull.Api.Services.FileStorage;
 using Shuffull.Api.Tools.SongParsing;

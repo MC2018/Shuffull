@@ -2,7 +2,7 @@ using Nut.Results;
 using Shuffull.Core.Features.Tags.GetAllTags;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Tests.Infrastructure;
-using Shuffull.Shared.Enums;
+using Shuffull.Core.Models.Enums;
 
 namespace Shuffull.Core.Tests.Features.Tags.GetAllTags;
 

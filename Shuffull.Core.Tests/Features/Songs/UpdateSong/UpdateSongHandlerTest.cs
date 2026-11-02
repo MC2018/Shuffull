@@ -4,7 +4,7 @@ using Shuffull.Core.Errors;
 using Shuffull.Core.Features.Songs.UpdateSong;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Tests.Infrastructure;
-using Shuffull.Shared.Enums;
+using Shuffull.Core.Models.Enums;
 
 namespace Shuffull.Core.Tests.Features.Songs.UpdateSong;
 

@@ -9,7 +9,7 @@ using Shuffull.Core.Models.Database;
 using Shuffull.Core.Persistence;
 using Shuffull.Core.Tests.Infrastructure;
 using Shuffull.Metadata.Models;
-using Shuffull.Shared.Tools;
+using Shuffull.Core.Tools;
 
 namespace Shuffull.Core.Tests.Services;
 

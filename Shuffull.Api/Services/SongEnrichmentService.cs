@@ -8,7 +8,7 @@ using Shuffull.Core.Models.Files;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Persistence;
 using Shuffull.Core.Services;
-using Shuffull.Shared.Tools;
+using Shuffull.Core.Tools;
 using System.Text.RegularExpressions;
 
 namespace Shuffull.Api.Services;

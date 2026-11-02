@@ -6,7 +6,7 @@ using Shuffull.Core.Persistence;
 using Shuffull.Core.Persistence.Repositories;
 using Shuffull.Core.Persistence.Specifications.Artists;
 using Shuffull.Core.Persistence.Specifications.Songs;
-using Shuffull.Shared.Tools;
+using Shuffull.Core.Tools;
 
 namespace Shuffull.Core.Features.Songs.UpdateSong;
 

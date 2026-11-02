@@ -15,3 +15,7 @@ data/
 **/appsettings.Staging.json
 .env
 .env.production
+
+# The legacy Windows client and its EF 3.1 data layer; the API image references neither.
+Shuffull.Windows/
+Shuffull.Shared/

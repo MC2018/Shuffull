@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Shuffull.Core.Features.SongRequests;
 using Shuffull.Core.Models.Database;
-using Shuffull.Shared.Enums;
+using Shuffull.Core.Models.Enums;
 
 namespace Shuffull.Core.Persistence;
 

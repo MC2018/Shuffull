@@ -1,4 +1,4 @@
-using Shuffull.Shared.Tools;
+using Shuffull.Core.Tools;
 
 namespace Shuffull.Core.Tests.Tools;
 

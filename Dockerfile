@@ -4,11 +4,10 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /source
 
 # Copy only the project files first so `restore` is cached unless a .csproj changes.
-# Shuffull.Api references Core, Shared and Metadata (Core in turn references Shared + Metadata);
-# the WPF Shuffull.Windows project is never referenced here and is therefore never restored/built.
+# Shuffull.Api references Core and Metadata (Core in turn references Metadata). The legacy Windows client
+# (Shuffull.Windows + Shuffull.Shared) is never referenced here, and .dockerignore keeps it out of the context.
 COPY Shuffull.Api/Shuffull.Api.csproj         Shuffull.Api/
 COPY Shuffull.Core/Shuffull.Core.csproj       Shuffull.Core/
-COPY Shuffull.Shared/Shuffull.Shared.csproj   Shuffull.Shared/
 COPY Shuffull.Metadata/Shuffull.Metadata.csproj Shuffull.Metadata/
 # linux-x64 only: without a RID, SkiaSharp's native libraries for every platform (~120MB) land in /app.
 RUN dotnet restore "Shuffull.Api/Shuffull.Api.csproj" -r linux-x64

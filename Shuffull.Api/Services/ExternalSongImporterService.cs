@@ -1,11 +1,10 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using Nut.Results;
-using Shuffull.Shared.Tools;
+using Shuffull.Core.Tools;
 using Shuffull.Api.Configuration;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Persistence;
-using Shuffull.Core.Tools;
 using Shuffull.Metadata.Contracts;
 using Shuffull.Metadata.Enums;
 using Shuffull.Api.Services.FileStorage;

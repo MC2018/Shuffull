@@ -1,5 +1,5 @@
 using Shuffull.Metadata.Models;
-using Shuffull.Shared.Tools;
+using Shuffull.Core.Tools;
 using Shuffull.Core.Models.Database;
 
 namespace Shuffull.Core.Models.Files;

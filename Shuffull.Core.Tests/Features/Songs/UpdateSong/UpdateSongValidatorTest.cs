@@ -1,6 +1,6 @@
 using FluentValidation.TestHelper;
 using Shuffull.Core.Features.Songs.UpdateSong;
-using Shuffull.Shared.Enums;
+using Shuffull.Core.Models.Enums;
 
 namespace Shuffull.Core.Tests.Features.Songs.UpdateSong;
 

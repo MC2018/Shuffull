@@ -7,7 +7,7 @@ using Shuffull.Core.Tests.Infrastructure;
 using Shuffull.Metadata.Models;
 using Shuffull.Metadata.Services.AI;
 using Shuffull.Metadata.Tools;
-using Shuffull.Shared.Tools;
+using Shuffull.Core.Tools;
 
 namespace Shuffull.Core.Tests.Features.Songs;
 
