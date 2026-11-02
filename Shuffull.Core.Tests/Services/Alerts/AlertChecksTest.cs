@@ -352,9 +352,9 @@ public class AlertChecksTest : IDisposable
     [Fact]
     public async Task SongRequests_NothingPending_IsQuietEvenWithNoPoller()
     {
-        // Prod before the funnel polls: no signal row at all. Only Pending counts, so the producer's own states don't.
-        await SeedSongRequestAsync(SongRequestStatus.Accepted, Now.AddDays(-3));
-        await SeedSongRequestAsync(SongRequestStatus.Retrying, Now.AddDays(-3));
+        // Prod before the funnel polls: no signal row at all. Settled requests and fresh claims say nothing about it.
+        await SeedSongRequestAsync(SongRequestStatus.Accepted, Now.AddMinutes(-5));
+        await SeedSongRequestAsync(SongRequestStatus.Retrying, Now.AddMinutes(-1));
         await SeedSongRequestAsync(SongRequestStatus.Failed, Now.AddDays(-3));
         await SeedSongRequestAsync(SongRequestStatus.Completed, Now.AddDays(-3));
         await SeedSongRequestAsync(SongRequestStatus.Cancelled, Now.AddDays(-3));
@@ -392,5 +392,117 @@ public class AlertChecksTest : IDisposable
         await SeedSongRequestAsync(SongRequestStatus.Pending, updatedAt: Now.AddMinutes(-10), createdAt: Now.AddDays(-5));
 
         Assert.Empty(await EvaluateAsync(SongRequests()));
+    }
+
+    [Fact]
+    public async Task SongRequests_ClaimedRequestsWithNoProgress_Alert()
+    {
+        await SeedSignalAsync(ShuffullSignalRules.SongRequestsPoll, s => s.RecordSuccess(Now.AddMinutes(-1)));
+        await SeedSongRequestAsync(SongRequestStatus.Accepted, Now.AddHours(-7));
+        await SeedSongRequestAsync(SongRequestStatus.Downloading, Now.AddDays(-2));
+        await SeedSongRequestAsync(SongRequestStatus.Retrying, Now.AddHours(-6));
+        await SeedSongRequestAsync(SongRequestStatus.Downloading, Now.AddHours(-5)); // inside the window
+
+        var finding = Assert.Single(await EvaluateAsync(SongRequests()));
+        Assert.Equal("song-requests:no-progress", finding.Key);
+        Assert.Equal(2, finding.Level);
+        Assert.Equal(ShuffullSignalRules.Daily, finding.RemindEvery);
+        Assert.Contains("3 song request(s)", finding.Subject);
+        Assert.Contains("(1 Accepted, 1 Downloading, 1 Retrying)", finding.Body);
+        Assert.Contains($"since {Now.AddDays(-2):yyyy-MM-dd HH:mm} UTC", finding.Body);
+        Assert.Contains("last polled", finding.Body);
+        Assert.Contains("most likely lost", finding.Body);
+        Assert.Contains(": Downloading since", finding.Body);
+        Assert.DoesNotContain("more.", finding.Body);
+    }
+
+    [Fact]
+    public async Task SongRequests_NoProgress_ListsTheOldestTen()
+    {
+        await SeedSignalAsync(ShuffullSignalRules.SongRequestsPoll, s => s.RecordSuccess(Now.AddMinutes(-1)));
+        for (var i = 0; i < 12; i++)
+        {
+            await SeedSongRequestAsync(SongRequestStatus.Accepted, Now.AddHours(-7 - i));
+        }
+
+        var finding = Assert.Single(await EvaluateAsync(SongRequests()));
+        Assert.Equal(10, finding.Body.Split('\n').Count(l => l.StartsWith("- ", StringComparison.Ordinal)));
+        Assert.Contains($"Accepted since {Now.AddHours(-18):yyyy-MM-dd HH:mm} UTC", finding.Body);
+        Assert.DoesNotContain($"Accepted since {Now.AddHours(-7):yyyy-MM-dd HH:mm} UTC", finding.Body);
+        Assert.Contains("…and 2 more.", finding.Body);
+    }
+
+    [Fact]
+    public async Task SongRequests_ClaimedRequestsInsideTheWindow_AreQuiet()
+    {
+        await SeedSignalAsync(ShuffullSignalRules.SongRequestsPoll, s => s.RecordSuccess(Now.AddMinutes(-1)));
+        await SeedSongRequestAsync(SongRequestStatus.Downloading, Now.AddHours(-5));
+        // Settled ones are never watched, however old.
+        await SeedSongRequestAsync(SongRequestStatus.Failed, Now.AddDays(-3));
+        await SeedSongRequestAsync(SongRequestStatus.Completed, Now.AddDays(-3));
+        await SeedSongRequestAsync(SongRequestStatus.Cancelled, Now.AddDays(-3));
+
+        Assert.Empty(await EvaluateAsync(SongRequests()));
+    }
+
+    [Fact]
+    public async Task SongRequests_NoProgressWindow_IsConfigurable()
+    {
+        await SeedSignalAsync(ShuffullSignalRules.SongRequestsPoll, s => s.RecordSuccess(Now.AddMinutes(-1)));
+        await SeedSongRequestAsync(SongRequestStatus.Accepted, Now.AddHours(-2));
+
+        Assert.Empty(await EvaluateAsync(SongRequests()));
+        var finding = Assert.Single(await EvaluateAsync(new SongRequestBacklogCheck(_database.CreateContext(), LongAgo,
+            noProgressAfter: TimeSpan.FromHours(1))));
+        Assert.Equal("song-requests:no-progress", finding.Key);
+        Assert.Contains("in 1 h", finding.Body);
+    }
+
+    [Fact]
+    public async Task SongRequests_NoProgressDuringAnApiOutage_DoesNotCount()
+    {
+        // No ack could land while the API was down: the window runs from its start, not from the last ack.
+        await SeedSignalAsync(ShuffullSignalRules.SongRequestsPoll, s => s.RecordSuccess(Now.AddMinutes(-1)));
+        await SeedSongRequestAsync(SongRequestStatus.Downloading, Now.AddDays(-2));
+
+        Assert.Empty(await EvaluateAsync(SongRequests(startedUtc: Now.AddHours(-5))));
+        Assert.Single(await EvaluateAsync(SongRequests(startedUtc: Now.AddHours(-6))));
+    }
+
+    [Fact]
+    public async Task SongRequests_NotPolled_SuppressesNoProgress()
+    {
+        // The producer is down, so its claimed requests not moving is the same fault: one alert, not two.
+        await SeedSignalAsync(ShuffullSignalRules.SongRequestsPoll, s => s.RecordSuccess(Now.AddHours(-8)));
+        await SeedSongRequestAsync(SongRequestStatus.Pending, Now.AddMinutes(-40));
+        await SeedSongRequestAsync(SongRequestStatus.Accepted, Now.AddHours(-8));
+
+        Assert.Equal("song-requests:not-polled", Assert.Single(await EvaluateAsync(SongRequests())).Key);
+    }
+
+    [Fact]
+    public async Task SongRequests_ProducerDownWithNothingPending_StillAlertsNoProgress()
+    {
+        // not-polled needs something Pending, so with only claimed requests left no-progress is the alert that fires.
+        await SeedSignalAsync(ShuffullSignalRules.SongRequestsPoll, s => s.RecordSuccess(Now.AddHours(-8)));
+        await SeedSongRequestAsync(SongRequestStatus.Accepted, Now.AddHours(-8));
+
+        var finding = Assert.Single(await EvaluateAsync(SongRequests()));
+        Assert.Equal("song-requests:no-progress", finding.Key);
+        Assert.Contains("last polled", finding.Body);
+        Assert.Contains("isn't polling", finding.Body);
+        Assert.DoesNotContain("most likely lost", finding.Body);
+    }
+
+    [Fact]
+    public async Task SongRequests_StuckAndNoProgress_FireTogether()
+    {
+        // Claiming and the download lane break separately, so each keeps its own alert.
+        await SeedSignalAsync(ShuffullSignalRules.SongRequestsPoll, s => s.RecordSuccess(Now.AddMinutes(-1)));
+        await SeedSongRequestAsync(SongRequestStatus.Pending, Now.AddHours(-3));
+        await SeedSongRequestAsync(SongRequestStatus.Retrying, Now.AddHours(-7));
+
+        var keys = (await EvaluateAsync(SongRequests())).Select(f => f.Key).OrderBy(k => k, StringComparer.Ordinal);
+        Assert.Equal(["song-requests:no-progress", "song-requests:stuck"], keys);
     }
 }

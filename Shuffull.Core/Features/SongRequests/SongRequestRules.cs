@@ -23,6 +23,18 @@ public static class SongRequestRules
     ];
 
     /// <summary>
+    /// The states a request the producer has claimed moves through before it completes or fails. Only an ack moves a
+    /// request out of them (<see cref="AckMayFollow"/>), so the API watches them for a producer that lost one
+    /// (<c>SongRequestBacklogCheck</c>).
+    /// </summary>
+    public static readonly SongRequestStatus[] Claimed =
+    [
+        SongRequestStatus.Accepted,
+        SongRequestStatus.Downloading,
+        SongRequestStatus.Retrying,
+    ];
+
+    /// <summary>
     /// The states an ack of <paramref name="ack"/> may move a request out of. A request already AT that status is
     /// included, so a re-sent ack applies. Empty for
     /// <see cref="SongRequestAckStatus.Unknown"/> and any undefined value, which are refused.
