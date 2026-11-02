@@ -393,6 +393,7 @@ public class AlertChecksTest : IDisposable
 
         Assert.Empty(await EvaluateAsync(SongRequests()));
     }
+
     [Fact]
     public async Task SongRequests_ClaimedRequestsWithNoProgress_Alert()
     {
@@ -410,6 +411,25 @@ public class AlertChecksTest : IDisposable
         Assert.Contains("(1 Accepted, 1 Downloading, 1 Retrying)", finding.Body);
         Assert.Contains($"since {Now.AddDays(-2):yyyy-MM-dd HH:mm} UTC", finding.Body);
         Assert.Contains("last polled", finding.Body);
+        Assert.Contains("most likely lost", finding.Body);
+        Assert.Contains(": Downloading since", finding.Body);
+        Assert.DoesNotContain("more.", finding.Body);
+    }
+
+    [Fact]
+    public async Task SongRequests_NoProgress_ListsTheOldestTen()
+    {
+        await SeedSignalAsync(ShuffullSignalRules.SongRequestsPoll, s => s.RecordSuccess(Now.AddMinutes(-1)));
+        for (var i = 0; i < 12; i++)
+        {
+            await SeedSongRequestAsync(SongRequestStatus.Accepted, Now.AddHours(-7 - i));
+        }
+
+        var finding = Assert.Single(await EvaluateAsync(SongRequests()));
+        Assert.Equal(10, finding.Body.Split('\n').Count(l => l.StartsWith("- ", StringComparison.Ordinal)));
+        Assert.Contains($"Accepted since {Now.AddHours(-18):yyyy-MM-dd HH:mm} UTC", finding.Body);
+        Assert.DoesNotContain($"Accepted since {Now.AddHours(-7):yyyy-MM-dd HH:mm} UTC", finding.Body);
+        Assert.Contains("…and 2 more.", finding.Body);
     }
 
     [Fact]
@@ -470,6 +490,8 @@ public class AlertChecksTest : IDisposable
         var finding = Assert.Single(await EvaluateAsync(SongRequests()));
         Assert.Equal("song-requests:no-progress", finding.Key);
         Assert.Contains("last polled", finding.Body);
+        Assert.Contains("isn't polling", finding.Body);
+        Assert.DoesNotContain("most likely lost", finding.Body);
     }
 
     [Fact]

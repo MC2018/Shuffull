@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Nut.Results;
+using Shuffull.Core.Features.SongRequests;
 using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Persistence;
 using Shuffull.Core.Services.Alerts;
@@ -51,14 +52,6 @@ public sealed class SongRequestBacklogCheck(
     /// </summary>
     public static readonly TimeSpan DefaultNoProgressAfter = TimeSpan.FromHours(6);
 
-    /// <summary>The states the producer moves a request through after claiming it, before it completes or fails.</summary>
-    public static readonly SongRequestStatus[] Claimed =
-    [
-        SongRequestStatus.Accepted,
-        SongRequestStatus.Downloading,
-        SongRequestStatus.Retrying,
-    ];
-
     public TimeSpan PollSilentAfter { get; } = pollSilentAfter ?? DefaultPollSilentAfter;
     public TimeSpan PendingTooLong { get; } = pendingTooLong ?? DefaultPendingTooLong;
     public TimeSpan NoProgressAfter { get; } = noProgressAfter ?? DefaultNoProgressAfter;
@@ -108,7 +101,7 @@ public sealed class SongRequestBacklogCheck(
             }
         }
 
-        var noProgress = await NoProgressAsync(nowUtc, polled, cancellationToken);
+        var noProgress = await NoProgressAsync(nowUtc, nowUtc - silentSince >= PollSilentAfter, polled, cancellationToken);
         if (noProgress != null)
         {
             findings.Add(noProgress);
@@ -117,7 +110,7 @@ public sealed class SongRequestBacklogCheck(
         return Result.Ok<IReadOnlyList<AlertFinding>>(findings);
     }
 
-    private async Task<AlertFinding?> NoProgressAsync(DateTime nowUtc, string polled, CancellationToken cancellationToken)
+    private async Task<AlertFinding?> NoProgressAsync(DateTime nowUtc, bool producerSilent, string polled, CancellationToken cancellationToken)
     {
         // No ack could arrive while the API was down, so a request isn't late until the window has passed since it started.
         if (nowUtc - trackingSinceUtc < NoProgressAfter)
@@ -126,7 +119,8 @@ public sealed class SongRequestBacklogCheck(
         }
 
         var before = nowUtc - NoProgressAfter;
-        var stalled = db.SongRequests.AsNoTracking().Where(r => Claimed.Contains(r.Status) && r.UpdatedAt <= before);
+        var claimed = SongRequestRules.Claimed;
+        var stalled = db.SongRequests.AsNoTracking().Where(r => claimed.Contains(r.Status) && r.UpdatedAt <= before);
         var oldest = await stalled.MinAsync(r => (DateTime?)r.UpdatedAt, cancellationToken);
         if (oldest == null)
         {
@@ -138,15 +132,28 @@ public sealed class SongRequestBacklogCheck(
             .ToListAsync(cancellationToken);
         var count = byStatus.Sum(s => s.Count);
         var breakdown = string.Join(", ", byStatus.OrderBy(s => s.Status).Select(s => $"{s.Count} {s.Status}"));
+        var sample = await stalled.OrderBy(r => r.UpdatedAt).ThenBy(r => r.SongRequestId)
+            .Select(r => new { r.SongRequestId, r.ExternalSongId, r.Status, r.UpdatedAt })
+            .Take(10)
+            .ToListAsync(cancellationToken);
+        var lines = string.Join("\n", sample.Select(r =>
+            $"- {r.ExternalSongId} (request {r.SongRequestId}): {r.Status} since {r.UpdatedAt:yyyy-MM-dd HH:mm} UTC"));
+        var more = count > sample.Count ? $"\n…and {count - sample.Count} more." : string.Empty;
+
+        // With nothing Pending, not-polled can't fire, so this is the alert a down producer raises. Point at that first.
+        var hint = producerSilent
+            ? "The producer isn't polling, so it is most likely down or can't reach the API: is the funnel running, on " +
+              "shuffull-ingest-net, and is its ImportKey still right?"
+            : "The funnel's request lane finishes or fails a request within minutes, so these were most likely lost: a " +
+              "funnel bug, a reset Video row, or an ack the API refused (the funnel's log says which).";
 
         return new AlertFinding("song-requests:no-progress", 2, $"{count} song request(s) stopped making progress",
             $"{count} song request(s) the producer claimed haven't moved in {NoProgressAfter.TotalHours:0.#} h ({breakdown}); " +
             $"the oldest since {oldest.Value:yyyy-MM-dd HH:mm} UTC ({SignalAlertCheck.Ago(nowUtc - oldest.Value)}).\n" +
             $"{polled}.\n\n" +
-            "The funnel's request lane finishes or fails a request within minutes, so these were most likely lost: a " +
-            "funnel bug, a reset Video row, or an ack the API refused (the funnel's log says which). Until the funnel acks " +
-            "them they stay open: the user can't request them again, and they count against the open-request cap. Look up " +
-            "each Video row by its ExternalSongId in the funnel DB; diagnose-prod skill.",
+            $"{hint} Until the funnel acks them they stay open: the user can't request them again, and they count " +
+            "against the open-request cap. Look up each Video row by its id in the funnel DB; diagnose-prod skill.\n\n" +
+            $"{lines}{more}",
             ShuffullSignalRules.Daily);
     }
 }
