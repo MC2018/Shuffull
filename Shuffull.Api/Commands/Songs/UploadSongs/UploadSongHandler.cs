@@ -1,6 +1,6 @@
 using Nut.Results;
 using Shuffull.Core.Errors;
-using Shuffull.Shared.Tools;
+using Shuffull.Core.Tools;
 using Shuffull.Api.Configuration;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Persistence;

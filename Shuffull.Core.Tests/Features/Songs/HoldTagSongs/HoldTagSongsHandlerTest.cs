@@ -3,7 +3,7 @@ using Shuffull.Core.Features.Songs.GetPendingTagSongs;
 using Shuffull.Core.Features.Songs.HoldTagSongs;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Tests.Infrastructure;
-using Shuffull.Shared.Tools;
+using Shuffull.Core.Tools;
 
 namespace Shuffull.Core.Tests.Features.Songs.HoldTagSongs;
 

@@ -8,7 +8,7 @@ using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Dtos;
 using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Persistence;
-using Shuffull.Shared.Tools;
+using Shuffull.Core.Tools;
 
 namespace Shuffull.Core.Features.SongRequests.CreateSongRequest;
 

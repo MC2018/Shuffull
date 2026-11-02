@@ -1,6 +1,6 @@
 using Nut.Results;
 using Shuffull.Core.Models.Database;
-using Shuffull.Shared.Enums;
+using Shuffull.Core.Models.Enums;
 
 namespace Shuffull.Core.Models.Dtos;
 

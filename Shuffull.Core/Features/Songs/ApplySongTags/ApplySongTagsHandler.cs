@@ -7,7 +7,6 @@ using Shuffull.Core.Persistence;
 using Shuffull.Core.Tools;
 using Shuffull.Core.Models.Files;
 using Shuffull.Metadata.Tools;
-using Shuffull.Shared.Tools;
 
 namespace Shuffull.Core.Features.Songs.ApplySongTags;
 

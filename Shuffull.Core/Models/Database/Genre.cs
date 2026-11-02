@@ -1,4 +1,4 @@
-﻿using Shuffull.Shared.Enums;
+﻿using Shuffull.Core.Models.Enums;
 
 namespace Shuffull.Core.Models.Database;
 

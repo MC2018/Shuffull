@@ -43,7 +43,6 @@ using Shuffull.Core.Tests.Infrastructure;
 using Shuffull.Metadata.Contracts;
 using Shuffull.Metadata.Enums;
 using Shuffull.Metadata.Models;
-using Shuffull.Shared.Enums;
 using JsonConvert = Newtonsoft.Json.JsonConvert;
 using RatingAckOutcomes = Shuffull.Api.Controllers.YoutubeRatingOutcomes;
 using RetagOutcomes = Shuffull.Core.Features.Songs.RetagSongs.Outcomes;

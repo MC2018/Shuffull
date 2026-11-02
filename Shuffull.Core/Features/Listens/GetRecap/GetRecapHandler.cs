@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using Nut.Results;
 using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Persistence;
-using Shuffull.Shared.Enums;
 
 namespace Shuffull.Core.Features.Listens.GetRecap;
 

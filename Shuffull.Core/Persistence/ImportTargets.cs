@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Enums;
-using Shuffull.Shared.Tools;
+using Shuffull.Core.Tools;
 
 namespace Shuffull.Core.Persistence;
 

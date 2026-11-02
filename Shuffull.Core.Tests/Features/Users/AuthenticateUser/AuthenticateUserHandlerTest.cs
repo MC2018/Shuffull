@@ -6,7 +6,7 @@ using Shuffull.Core.Features.Users.AuthenticateUser;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Tests.Infrastructure;
 using Shuffull.Core.Tests.Tools;
-using Shuffull.Shared.Tools;
+using Shuffull.Core.Tools;
 
 namespace Shuffull.Core.Tests.Features.Users.AuthenticateUser;
 

@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Shuffull.Shared.Tools;
+using Shuffull.Core.Tools;
 using Shuffull.Api.Tools.Authorization;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Enums;

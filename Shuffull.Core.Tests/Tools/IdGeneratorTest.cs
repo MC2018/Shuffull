@@ -1,4 +1,4 @@
-using Shuffull.Shared.Tools;
+using Shuffull.Core.Tools;
 
 namespace Shuffull.Core.Tests.Tools;
 
@@ -27,6 +27,18 @@ public class IdGeneratorTest
         Assert.Equal(26, id.Length);
         // Crockford base32 (lowercased) excludes i, l, o, u.
         Assert.Matches("^[0-9a-hjkmnp-tv-z]+$", id);
+    }
+
+    [Fact]
+    public void Generate_ReturnsAUlidStampedWithTheCurrentTime()
+    {
+        // Ids are stored and synced to the app, so the format stays a lowercased, time-stamped ULID.
+        var before = DateTimeOffset.UtcNow.AddSeconds(-1);
+        var id = IdGenerator.Generate();
+
+        var time = Ulid.Parse(id).Time;
+        Assert.InRange(time, before, DateTimeOffset.UtcNow.AddSeconds(1));
+        Assert.Equal(id, Ulid.Parse(id).ToString().ToLowerInvariant());
     }
 
     [Fact]

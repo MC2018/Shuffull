@@ -2,7 +2,6 @@ using Microsoft.Extensions.Configuration;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Tools;
 using Shuffull.Metadata.Tools;
-using Shuffull.Shared.Tools;
 
 namespace Shuffull.Core.Tests.Tools;
 
