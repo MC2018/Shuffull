@@ -38,6 +38,26 @@ public class HasherTest
         Assert.Throws<ArgumentException>(() => Hasher.Argon2Hash(string.Empty));
     }
 
+    // Pinned outputs. Argon2Hash is the client's credential hash (the app computes the same), and ShaHash names
+    // stored media files, so both must stay byte-identical across refactors: a change here would lock every user
+    // out or orphan every file. The values were computed with Shuffull.Shared's Hasher before it moved into Core.
+    [Theory]
+    [InlineData("password", "bfe522df2c9dce7e7fe8cfe6d9caafec")]
+    [InlineData("alice;correct-horse", "2fabb692114c16b024415092716f451c")]
+    [InlineData("ünïcødé;pässwörd", "0cb67321fe54d8e66a82bf202ad2ebb4")]
+    public void Argon2Hash_MatchesPinnedValue(string input, string expected)
+    {
+        Assert.Equal(expected, Hasher.Argon2Hash(input));
+    }
+
+    [Theory]
+    [InlineData("some file content", "b05ffa4eea8fb5609d576a68c1066be3f99e4dc53d365a0ac2a78259b2dd91f9")]
+    [InlineData("ünïcødé", "5713bed303ece8e42dd4838ae3d04fcd246c7ceb4468bdf39aa433fafdccff77")]
+    public void ShaHash_MatchesPinnedValue(string content, string expected)
+    {
+        Assert.Equal(expected, Hasher.ShaHash(Encoding.UTF8.GetBytes(content)));
+    }
+
     [Fact]
     public void ShaHash_IsDeterministicForSameBytes()
     {

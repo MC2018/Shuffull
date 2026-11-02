@@ -30,6 +30,18 @@ public class IdGeneratorTest
     }
 
     [Fact]
+    public void Generate_ReturnsAUlidStampedWithTheCurrentTime()
+    {
+        // Ids are stored and synced to the app, so the format stays a lowercased, time-stamped ULID.
+        var before = DateTimeOffset.UtcNow.AddSeconds(-1);
+        var id = IdGenerator.Generate();
+
+        var time = Ulid.Parse(id).Time;
+        Assert.InRange(time, before, DateTimeOffset.UtcNow.AddSeconds(1));
+        Assert.Equal(id, Ulid.Parse(id).ToString().ToLowerInvariant());
+    }
+
+    [Fact]
     public void Generate_ProducesUniqueValues()
     {
         var ids = Enumerable.Range(0, 1000).Select(_ => IdGenerator.Generate()).ToList();
