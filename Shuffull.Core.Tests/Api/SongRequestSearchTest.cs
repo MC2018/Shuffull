@@ -131,6 +131,49 @@ public class SongRequestSearchTest : IDisposable
         Assert.Equal([Key], sent.Headers.GetValues(SourceSearchClient.KeyHeader));
     }
 
+    // Shuffull#117: the app plays a song the caller already has instead of requesting it, which would add it to this
+    // week's requests playlist again. So each library result names its song, and says whether the caller has it.
+    [Fact]
+    public async Task Search_NamesTheLibrarySong_AndWhetherTheCallerHasIt_PreferringTheCallersOwnCopy()
+    {
+        var user = await SeedUserAsync("a");
+        var other = await SeedUserAsync("b");
+        Song SongFor(string songId, string externalSongId) => new()
+        {
+            SongId = songId, Name = songId, FileExtension = ".mp3", FileHash = $"hash-{songId}", ExternalSongId = externalSongId, Version = Now,
+        };
+        _database.Context.Songs.AddRange(
+            SongFor("song-owned", "owned"),
+            SongFor("song-others", "others"),
+            SongFor("song-unowned", "unowned"),
+            // Two uploads of one source id: the caller has the second, so that one is named.
+            SongFor("song-dup-1", "dup"), SongFor("song-dup-2", "dup"),
+            // Two the caller has neither of: the lowest id, the one a request links.
+            SongFor("song-pair-2", "pair"), SongFor("song-pair-1", "pair"));
+        _database.Context.UserSongs.AddRange(
+            new UserSong { UserId = user.UserId, SongId = "song-owned", LastPlayed = Now, Version = Now },
+            new UserSong { UserId = other.UserId, SongId = "song-others", LastPlayed = Now, Version = Now },
+            new UserSong { UserId = user.UserId, SongId = "song-dup-2", LastPlayed = Now, Version = Now });
+        await _database.Context.SaveChangesAsync();
+
+        var producer = FakeProducer.Answering(new List<SourceSearchResultDto>
+        {
+            Result("owned"), Result("others"), Result("unowned"), Result("dup"), Result("pair"), Result("missing"),
+        });
+        await using var host = await StartAsync(producer, Configured(), user);
+
+        var response = await host.Client.GetAsync("/api/v1/song-requests/search?q=billy&limit=10");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var results = (await response.Content.ReadFromJsonAsync<List<SongRequestSearchResultDto>>())!;
+        Assert.Equal(
+            [
+                ("owned", true, "song-owned", true), ("others", true, "song-others", false), ("unowned", true, "song-unowned", false),
+                ("dup", true, "song-dup-2", true), ("pair", true, "song-pair-1", false), ("missing", false, null, false),
+            ],
+            results.Select(r => (r.ExternalSongId, r.InLibrary, r.SongId, r.InUserLibrary)));
+    }
+
     [Fact]
     public async Task Search_ReadsAPascalCaseAnswer_AndAMissingArtistListAsEmpty()
     {

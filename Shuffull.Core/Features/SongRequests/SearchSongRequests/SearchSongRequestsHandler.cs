@@ -13,6 +13,8 @@ namespace Shuffull.Core.Features.SongRequests.SearchSongRequests;
 /// <c>InLibrary</c> when a song with its <c>ExternalSongId</c> exists, <c>AlreadyRequested</c> when the caller has an
 /// open request for it (<see cref="SongRequestRules.Open"/>, the same rule that refuses a second request). A result
 /// with no id or title can't be requested, so it is dropped, and so is a repeated id.
+/// <para><c>SongId</c> names the library song and <c>InUserLibrary</c> says whether the caller has it. When several songs
+/// share the id, the caller's own comes first, then the lowest <c>SongId</c>, which is the one a request would link.</para>
 /// </summary>
 public class SearchSongRequestsHandler(ShuffullContext context, ISourceSearchClient sourceSearch)
     : IRequestHandler<SearchSongRequestsQuery, Result<IReadOnlyList<SongRequestSearchResultDto>>>
@@ -39,18 +41,24 @@ public class SearchSongRequestsHandler(ShuffullContext context, ISourceSearchCli
         var open = SongRequestRules.Open;
         try
         {
-            var inLibrary = (await context.Songs.AsNoTracking()
+            var library = (await context.Songs.AsNoTracking()
                 .Where(s => s.ExternalSongId != null && ids.Contains(s.ExternalSongId))
-                .Select(s => s.ExternalSongId!)
-                .ToListAsync(cancellationToken)).ToHashSet();
+                .OrderBy(s => s.SongId)
+                .Select(s => new { ExternalSongId = s.ExternalSongId!, s.SongId, Owned = s.UserSongs.Any(us => us.UserId == request.UserId) })
+                .ToListAsync(cancellationToken))
+                .GroupBy(s => s.ExternalSongId)
+                .ToDictionary(g => g.Key, g => g.FirstOrDefault(s => s.Owned) ?? g.First());
             var requested = (await context.SongRequests.AsNoTracking()
                 .Where(r => r.UserId == request.UserId && ids.Contains(r.ExternalSongId) && open.Contains(r.Status))
                 .Select(r => r.ExternalSongId)
                 .ToListAsync(cancellationToken)).ToHashSet();
 
-            return Result.Ok<IReadOnlyList<SongRequestSearchResultDto>>(results.Select(r => new SongRequestSearchResultDto(
-                r.ExternalSongId, r.Title, r.Artists ?? [], r.Album, r.DurationSeconds, r.ThumbnailUrl, r.IsExplicit,
-                inLibrary.Contains(r.ExternalSongId), requested.Contains(r.ExternalSongId))).ToList());
+            return Result.Ok<IReadOnlyList<SongRequestSearchResultDto>>(results.Select(r =>
+            {
+                var song = library.GetValueOrDefault(r.ExternalSongId);
+                return new SongRequestSearchResultDto(r.ExternalSongId, r.Title, r.Artists ?? [], r.Album, r.DurationSeconds,
+                    r.ThumbnailUrl, r.IsExplicit, song != null, requested.Contains(r.ExternalSongId), song?.SongId, song?.Owned == true);
+            }).ToList());
         }
         catch (Exception ex)
         {

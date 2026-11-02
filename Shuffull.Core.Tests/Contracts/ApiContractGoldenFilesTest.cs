@@ -403,16 +403,19 @@ public class ApiContractGoldenFilesTest
         },
         // POST /api/v1/song-requests/ack. Which acks moved their request.
         ["song-requests-ack-response"] = new SongRequestAckResponse(["request-3"], ["request-4"]),
-        // GET /api/v1/song-requests/search. The app's search: one the library has, one the user already asked for,
-        // and a sparse one (the source often has no album or duration).
+        // GET /api/v1/song-requests/search. The app's search: one the user has, one the library has but the user
+        // doesn't, one the user already asked for, and a sparse one (the source often has no album or duration).
         ["song-requests-search"] = new List<SongRequestSearchResultDto>
         {
             new("dQw4w9WgXcQ", "Everybody Wants You", ["Billy Squier"], "Emotions in Motion", 230,
-                "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg", IsExplicit: false, InLibrary: true, AlreadyRequested: false),
+                "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg", IsExplicit: false, InLibrary: true, AlreadyRequested: false,
+                SongId: "song-1", InUserLibrary: true),
+            new("fJ9rUzIMcZQ", "Bohemian Rhapsody", ["Queen"], "A Night at the Opera", 354, ThumbnailUrl: null, IsExplicit: false,
+                InLibrary: true, AlreadyRequested: false, SongId: "song-2", InUserLibrary: false),
             new("9bZkp7q19f0", "Gangnam Style", ["PSY"], Album: null, 252, ThumbnailUrl: null, IsExplicit: true,
-                InLibrary: false, AlreadyRequested: true),
+                InLibrary: false, AlreadyRequested: true, SongId: null, InUserLibrary: false),
             new("kJQP7kiw5Fk", "Untitled", [], Album: null, DurationSeconds: null, ThumbnailUrl: null, IsExplicit: false,
-                InLibrary: false, AlreadyRequested: false),
+                InLibrary: false, AlreadyRequested: false, SongId: null, InUserLibrary: false),
         },
         // GET /api/v1/capabilities. The optional features this server has set up.
         ["capabilities"] = new CapabilitiesResponse(SongRequests: true),
