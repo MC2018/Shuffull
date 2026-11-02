@@ -8,8 +8,8 @@ using Shuffull.Metadata.Contracts;
 namespace Shuffull.Api.Services.SourceSearch;
 
 /// <summary>
-/// Relays a song search to the producer: <c>GET {BaseUrl}/api/source-search?q=&amp;limit=</c> with the
-/// <see cref="KeyHeader"/> header, answered by a JSON array of <see cref="SourceSearchResultDto"/> (YoutubeFunnel#21).
+/// Relays a song search to the producer: <c>GET {BaseUrl}/api/source-search</c> with <c>q</c> and <c>limit</c> query
+/// parameters and the <see cref="KeyHeader"/> header, answered by a JSON array of <see cref="SourceSearchResultDto"/> (YoutubeFunnel#21).
 /// The golden files <c>source-search-request</c> and <c>source-search</c> pin both sides. A typed HttpClient, so the
 /// timeout and the handler come from <see cref="SourceSearchServiceCollectionExtensions"/>.
 ///

@@ -2,7 +2,9 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Nut.Results;
 using Shuffull.Api.Commands.Listens.RecordListens;
 using Shuffull.Api.Commands.SongRequests;
 using Shuffull.Api.Commands.Songs.HoldTagSongs;
@@ -11,8 +13,8 @@ using Shuffull.Api.Commands.Songs.RetagSongs;
 using Shuffull.Api.Commands.Songs.UpdateSong;
 using Shuffull.Api.Commands.Songs.UpdateSongLyrics;
 using Shuffull.Api.Commands.Users.Credentials;
-using Shuffull.Api.Controllers;
 using Shuffull.Api.Configuration;
+using Shuffull.Api.Controllers;
 using Shuffull.Api.Extensions;
 using Shuffull.Api.Services.SourceSearch;
 using Shuffull.Core.Features.Capabilities.GetCapabilities;
@@ -42,7 +44,6 @@ using Shuffull.Metadata.Contracts;
 using Shuffull.Metadata.Enums;
 using Shuffull.Metadata.Models;
 using Shuffull.Shared.Enums;
-using Microsoft.Extensions.Logging.Abstractions;
 using JsonConvert = Newtonsoft.Json.JsonConvert;
 using RatingAckOutcomes = Shuffull.Api.Controllers.YoutubeRatingOutcomes;
 using RetagOutcomes = Shuffull.Core.Features.Songs.RetagSongs.Outcomes;
@@ -439,7 +440,11 @@ public class ApiContractGoldenFilesTest
         var config = new SongRequestsConfiguration { BaseUrl = "http://youtubefunnel.web-api:8080", Key = "search-key" };
         using var httpClient = new HttpClient(capture) { BaseAddress = config.BaseUri };
         var client = new SourceSearchClient(httpClient, config, NullLogger<SourceSearchClient>.Instance);
-        client.SearchAsync("Everybody Wants You", 10, CancellationToken.None).GetAwaiter().GetResult();
+        var searched = client.SearchAsync("Everybody Wants You", 10, CancellationToken.None).GetAwaiter().GetResult();
+        if (searched.IsError)
+        {
+            throw searched.GetError();
+        }
 
         var sent = capture.Sent!;
         return new OutboundRequest(sent.Method.Method, sent.RequestUri!.PathAndQuery,

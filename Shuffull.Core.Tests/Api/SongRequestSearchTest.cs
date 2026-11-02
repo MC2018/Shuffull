@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Shuffull.Api.Services.SourceSearch;
 using Shuffull.Core.Behaviors;
 using Shuffull.Core.Features.Capabilities.GetCapabilities;
+using Shuffull.Core.Features.SongRequests.SearchSongRequests;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Dtos;
 using Shuffull.Core.Models.Enums;
@@ -42,7 +43,8 @@ public class SongRequestSearchTest : IDisposable
         ["Shuffull:SongRequests:Key"] = Key,
     };
 
-    private Task<ApiTestHost> StartAsync(FakeProducer producer, Dictionary<string, string?> settings, User? signedInAs)
+    private Task<ApiTestHost> StartAsync(FakeProducer producer, Dictionary<string, string?> settings, User? signedInAs,
+        SourceSearchRateLimiter? rateLimiter = null)
     {
         var coreAssembly = typeof(ValidationBehavior<,>).Assembly;
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
@@ -56,6 +58,10 @@ public class SongRequestSearchTest : IDisposable
                 cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
             });
             services.AddSingleton<ILoggerProvider>(_logs);
+            if (rateLimiter != null)
+            {
+                services.AddSingleton(rateLimiter);
+            }
             services.AddSourceSearch(configuration).ConfigurePrimaryHttpMessageHandler(() => producer);
         }, signedInAs);
     }
@@ -163,6 +169,60 @@ public class SongRequestSearchTest : IDisposable
         Assert.Contains(_logs.Messages, m => m.Contains("took longer than"));
     }
 
+    [Fact]
+    public async Task Search_WhenTheProducerCantBeReached_AnswersSearchUnavailable()
+    {
+        var user = await SeedUserAsync("a");
+        var producer = new FakeProducer((_, _) => throw new HttpRequestException("Connection refused (producer.test:80)"));
+        await using var host = await StartAsync(producer, Configured(), user);
+
+        var response = await host.Client.GetAsync("/api/v1/song-requests/search?q=billy");
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Equal(SourceSearchClient.UnavailableMessage, await ErrorOf(response));
+    }
+
+    [Fact]
+    public async Task Search_WhenTheAnswerIsTooBig_AnswersSearchUnavailable()
+    {
+        var user = await SeedUserAsync("a");
+        var huge = $"[{{\"externalSongId\":\"x\",\"title\":\"{new string('a', (int)SourceSearchServiceCollectionExtensions.MaxResponseBytes)}\"}}]";
+        var producer = new FakeProducer((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(huge, Encoding.UTF8, "application/json"),
+        }));
+        await using var host = await StartAsync(producer, Configured(), user);
+
+        var response = await host.Client.GetAsync("/api/v1/song-requests/search?q=billy");
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Search_PastTheCallersBurst_IsA429_WithNoCall_WhileOtherUsersCanStillSearch()
+    {
+        var user = await SeedUserAsync("a");
+        var other = await SeedUserAsync("b");
+        var producer = FakeProducer.Answering(new List<SourceSearchResultDto>());
+        using var rateLimiter = new SourceSearchRateLimiter(burst: 2, perSearch: TimeSpan.FromHours(1));
+        await using var host = await StartAsync(producer, Configured(), user, rateLimiter);
+        await using var otherHost = await StartAsync(producer, Configured(), other, rateLimiter);
+
+        var statuses = new List<HttpStatusCode>();
+        for (var i = 0; i < 3; i++)
+        {
+            statuses.Add((await host.Client.GetAsync("/api/v1/song-requests/search?q=billy")).StatusCode);
+        }
+        var limited = await host.Client.GetAsync("/api/v1/song-requests/search?q=billy");
+        var otherUser = await otherHost.Client.GetAsync("/api/v1/song-requests/search?q=billy");
+
+        Assert.Equal([HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.TooManyRequests], statuses);
+        Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
+        Assert.Equal(SourceSearchRateLimiter.LimitedMessage, await ErrorOf(limited));
+        Assert.Equal(HttpStatusCode.OK, otherUser.StatusCode);
+        Assert.Equal(3, producer.Requests.Count);
+    }
+
     public static TheoryData<HttpStatusCode, string> Failures => new()
     {
         { HttpStatusCode.InternalServerError, "[]" },
@@ -239,8 +299,10 @@ public class SongRequestSearchTest : IDisposable
     [InlineData("q=%20%20")]
     [InlineData("q=billy&limit=0")]
     [InlineData("q=billy&limit=26")]
-    public async Task Search_WithNoTextOrALimitOutOfRange_IsA400_WithNoCall(string query)
+    [InlineData("q=TOO_LONG")]
+    public async Task Search_WithNoTextTooMuchTextOrALimitOutOfRange_IsA400_WithNoCall(string query)
     {
+        query = query.Replace("TOO_LONG", new string('a', SearchSongRequestsValidator.MaxQueryLength + 1));
         var user = await SeedUserAsync("a");
         var producer = FakeProducer.Answering(new List<SourceSearchResultDto>());
         await using var host = await StartAsync(producer, Configured(), user);

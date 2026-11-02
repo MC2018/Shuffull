@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Shuffull.Api.Configuration;
 using Shuffull.Core.Services;
 
@@ -10,13 +11,15 @@ public static class SourceSearchServiceCollectionExtensions
 
     /// <summary>
     /// The producer's song search (<see cref="SourceSearchClient"/>) from <c>Shuffull:SongRequests</c>. Registered
-    /// whether or not it is configured: unconfigured, it answers every search as unavailable without a call.
+    /// whether or not it is configured: unconfigured, it answers every search as unavailable without a call. Also the
+    /// per-user <see cref="SourceSearchRateLimiter"/>, unless one is registered already.
     /// </summary>
     public static IHttpClientBuilder AddSourceSearch(this IServiceCollection services, IConfiguration configuration)
     {
         var config = configuration.GetSection(SongRequestsConfiguration.SongRequestsConfigurationSection).Get<SongRequestsConfiguration>()
             ?? new SongRequestsConfiguration();
         services.AddSingleton(config);
+        services.TryAddSingleton(new SourceSearchRateLimiter());
 
         return services.AddHttpClient<ISourceSearchClient, SourceSearchClient>(client =>
             {

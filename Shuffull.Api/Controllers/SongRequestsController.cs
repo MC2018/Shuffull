@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Shuffull.Api.Commands.SongRequests;
 using Shuffull.Api.Extensions;
+using Shuffull.Api.Services.SourceSearch;
 using Shuffull.Api.Tools;
 using Shuffull.Api.Tools.Authorization;
 using Shuffull.Core.Features.SongRequests;
@@ -45,16 +46,22 @@ public class SongRequestsController : ControllerBase
     /// <summary>
     /// App: search the source for songs to request, relayed to the producer. Each result says whether the library has
     /// it and whether the caller already asked for it. 503 when the producer is down, slow or not set up
-    /// (<c>GET /api/v1/capabilities</c> tells the app beforehand). See <see cref="SearchSongRequestsHandler"/>.
+    /// (<c>GET /api/v1/capabilities</c> tells the app beforehand), 429 past the caller's
+    /// <see cref="SourceSearchRateLimiter"/>. See <see cref="SearchSongRequestsHandler"/>.
     /// </summary>
     [HttpGet("search")]
     [Authorize]
-    public async Task<IActionResult> Search([FromQuery] string? q, [FromQuery] int limit = DefaultSearchLimit,
-        CancellationToken cancellationToken = default)
+    public async Task<IActionResult> Search([FromServices] SourceSearchRateLimiter rateLimiter, [FromQuery] string? q,
+        [FromQuery] int limit = DefaultSearchLimit, CancellationToken cancellationToken = default)
     {
         if (HttpContext.Items["User"] is not User user)
         {
             return Unauthorized();
+        }
+
+        if (!rateLimiter.TryAcquire(user.UserId))
+        {
+            return StatusCode(StatusCodes.Status429TooManyRequests, new { error = SourceSearchRateLimiter.LimitedMessage });
         }
 
         return this.ToActionResult(await _mediator.Send(new SearchSongRequestsQuery(user.UserId, q ?? "", limit), cancellationToken));
