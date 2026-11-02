@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using Nut.Results;
 using Shuffull.Api.Services;
@@ -71,6 +72,8 @@ public class SongImportServiceImportToDbTest : IDisposable
             playlistId,
             playlistName,
             likeStatus,
+            songRequestId: null,
+            NullLogger.Instance,
             CancellationToken.None);
 
     [Fact]

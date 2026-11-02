@@ -32,6 +32,11 @@ public class SongImport
     /// </summary>
     public string? ReplacesSongId { get; set; }
     /// <summary>
+    /// The song request this import fulfils (<c>SongImportDetails.SongRequestId</c>). The import completes it in its
+    /// own commit, and the importer takes these ahead of the rest of the queue. Null = not a requested song.
+    /// </summary>
+    public string? SongRequestId { get; set; }
+    /// <summary>
     /// Serialized <see cref="Shuffull.Metadata.Models.GeneratedSongTags"/> supplied by the external
     /// producer at ingest. Null when no tags were provided, in which case Shuffull
     /// generates them itself during import.

@@ -9,6 +9,8 @@ using Shuffull.Api.Services;
 using Shuffull.Api.Services.FileStorage;
 using Shuffull.Api.Tools.Authorization;
 using Shuffull.Core.Alerts;
+using Shuffull.Core.Features.SongRequests.AckSongRequests;
+using Shuffull.Core.Features.SongRequests.GetSongRequestQueue;
 using Shuffull.Core.Features.Songs.ApplySongTags;
 using Shuffull.Core.Features.Songs.GetLibrarySongs;
 using Shuffull.Core.Features.Songs.GetPendingTagSongs;
@@ -16,6 +18,7 @@ using Shuffull.Core.Features.Songs.HoldTagSongs;
 using Shuffull.Core.Persistence;
 using Shuffull.Core.Services.Alerts;
 using Shuffull.Core.Tests.Infrastructure;
+using Shuffull.Metadata.Contracts;
 
 namespace Shuffull.Core.Tests.Api;
 
@@ -57,6 +60,10 @@ public class ProducerKeyTest : IDisposable
             .ReturnsAsync(Result.Ok(new HoldTagSongsResponse(1)));
         mediator.Setup(m => m.Send(It.IsAny<ApplySongTagsCommand>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result.Ok(new ApplySongTagsResponse("song-1", 1, "gpt-5.5")));
+        mediator.Setup(m => m.Send(It.IsAny<GetSongRequestQueueQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Ok<IReadOnlyList<PendingSongRequestDto>>([]));
+        mediator.Setup(m => m.Send(It.IsAny<AckSongRequestsCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Ok(new SongRequestAckResponse([], [])));
         services.AddSingleton(mediator.Object);
 
         services.AddScoped<ShuffullContext>(_ => _database.CreateContext());
@@ -105,6 +112,8 @@ public class ProducerKeyTest : IDisposable
             () => Json("""{"tags":{"mainGenres":["House"],"subGenres":[],"languages":["Instrumental"],"timePeriod":"2010s"},"tagModel":"gpt-5.5"}"""),
             HttpStatusCode.OK
         },
+        { "song request queue", HttpMethod.Get, "api/v1/song-requests?status=Pending", () => null, HttpStatusCode.OK },
+        { "song request ack", HttpMethod.Post, "api/v1/song-requests/ack", () => Json("[]"), HttpStatusCode.OK },
     };
 
     private static HttpRequestMessage Request(HttpMethod method, string path, HttpContent? content, string? key)
