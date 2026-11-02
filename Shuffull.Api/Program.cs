@@ -8,6 +8,7 @@ using Shuffull.Api.Extensions;
 using Shuffull.Api.Services;
 using Shuffull.Api.Services.Alerts;
 using Shuffull.Api.Services.FileStorage;
+using Shuffull.Api.Services.SourceSearch;
 using Shuffull.Api.Tools.Authorization;
 using Shuffull.Core.Authentication;
 using Shuffull.Core.Behaviors;
@@ -84,6 +85,11 @@ builder.Services.AddSingleton<ISongMediaStore, SongMediaStore>();
 builder.Services.AddHostedService<PurgedSongMediaSweepService>();
 builder.Services.AddHostedService<SongImportService>();
 builder.Services.AddHostedService<ExternalSongImporterService>();
+
+// --- Song request search -----------------------------------------------------------------------
+// Relays the app's song search to the producer (Shuffull#58). Off, with no outbound call, until
+// Shuffull:SongRequests:BaseUrl and :Key are set (env Shuffull__SongRequests__BaseUrl / __Key).
+builder.Services.AddSourceSearch(builder.Configuration);
 
 // --- Alerts -------------------------------------------------------------------------------------
 // Email the owner when the funnel goes quiet, a Keep is refused, kept songs never get tagged or the media sweep

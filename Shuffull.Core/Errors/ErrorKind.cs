@@ -25,4 +25,8 @@ public enum ErrorKind
 
     /// <summary>500. The server failed, not the request: the database unreachable, a timeout, a deadlock.</summary>
     ServerFault,
+
+    /// <summary>503. A service this server relays to is down, slow or not set up, such as the producer's song search
+    /// (Shuffull#58). Nothing was written, so the caller can simply try again later.</summary>
+    Unavailable,
 }

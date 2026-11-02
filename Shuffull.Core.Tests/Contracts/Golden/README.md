@@ -29,10 +29,14 @@ request bodies, when the API stops binding them.
 | `song-requests-create` | `POST /api/v1/song-requests`, and `DELETE /api/v1/song-requests/{id}` (the cancelled request) | app |
 | `song-requests-pending` | `GET /api/v1/song-requests?status=Pending` | funnel (YoutubeFunnel#21) |
 | `song-requests-ack-response` | `POST /api/v1/song-requests/ack` | funnel (YoutubeFunnel#21) |
+| `song-requests-search` | `GET /api/v1/song-requests/search` | app |
+| `capabilities` | `GET /api/v1/capabilities` | app |
 | `songs-tags` | `POST /api/v1/songs/{id}/tags` (request body) | funnel sends |
 | `youtube-ratings-ack` | `POST /api/v1/youtube-ratings/ack` (request body) | funnel sends |
 | `songs-pending-tags-holds` | `POST /api/v1/songs/pending-tags/holds` (request body) | funnel sends |
 | `song-requests-ack` | `POST /api/v1/song-requests/ack` (request body) | funnel sends (YoutubeFunnel#21) |
+| `source-search` | `GET /api/source-search` on the funnel's web-api: the funnel's answer, which the API's search relay reads | funnel sends (YoutubeFunnel#21) |
+| `source-search-request` | `GET /api/source-search` on the funnel's web-api: the request the API sends (method, path and query, key header; the key is a placeholder) | funnel receives (YoutubeFunnel#21) |
 | `song-imports-details` | `POST /api/v1/song-imports` (the multipart `details` part, read with Newtonsoft) | funnel sends |
 | `song-lyrics` | `PUT /api/v1/song-lyrics` (request body) | funnel sends |
 | `listens-request` | `POST /api/v1/listens` (request body) | app sends (ShuffullApp#57) |
