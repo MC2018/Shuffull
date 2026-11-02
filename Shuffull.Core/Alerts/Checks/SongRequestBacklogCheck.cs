@@ -45,10 +45,13 @@ public sealed class SongRequestBacklogCheck(
     public static readonly TimeSpan DefaultPendingTooLong = TimeSpan.FromHours(2);
 
     /// <summary>
-    /// The funnel's request lane (YoutubeFunnel#20) moves a request out of the claimed states within minutes: it works
-    /// one request at a time, races each for at most 3 minutes in the foreground before failing it, and retries a
-    /// refused export at most 30 minutes apart. Even a user's full queue of 50 clears in a few hours. 6 hours leaves room
-    /// for that and for a slow funnel redeploy.
+    /// The funnel acks only when a request's status changes (YoutubeFunnel#21), never as a heartbeat, so this has to
+    /// outlast the longest a request can legitimately sit in one claimed state. Its request lane (YoutubeFunnel#20)
+    /// works one request at a time and races each for at most 3 minutes in the foreground (Retrying) before reporting it
+    /// Failed. Its ~10 hours of background racing happen after that, while the site already has it Failed, which isn't
+    /// watched. So the long legit wait is Accepted behind a queue: even a user's full cap of 50 clears in a few hours. 6
+    /// hours leaves room for that and a slow funnel redeploy. What sits longer is a fault: a pass that keeps throwing,
+    /// or an export the site keeps refusing (retried at most 30 minutes apart, Downloading throughout).
     /// </summary>
     public static readonly TimeSpan DefaultNoProgressAfter = TimeSpan.FromHours(6);
 
