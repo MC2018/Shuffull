@@ -42,6 +42,12 @@ namespace Shuffull.Core.Features.Playlists.DeletePlaylist;
 /// read the songs first and deleted them in a later SaveChanges, so a promotion that landed between those two
 /// steps was purged anyway.
 /// </para>
+/// <para>
+/// The unlink follows the same rules: a Keep or Like that commits first promotes the song or marks the link, so the
+/// link stays. A Keep that arrives after the lock still promotes the song, since it survives for the other user,
+/// but <c>KeepSongsHandler</c> re-reads the caller's link after promoting and reports that song as not in their
+/// library, so the app records the Keep as failed instead of believing it.
+/// </para>
 /// </summary>
 public class DeletePlaylistHandler(ShuffullContext context)
     : IRequestHandler<DeletePlaylistCommand, Result<DeletePlaylistResponse>>
@@ -99,19 +105,20 @@ public class DeletePlaylistHandler(ShuffullContext context)
                     }
                 }
 
-                // A song nobody kept that someone else still has: drop this user's own link to it. One conditional
-                // DELETE per song, so like the claim it is checked against the row as it is now. The song row is
-                // still locked, so it can't be promoted under us, and a Like on this UserSong that committed first
-                // keeps it. Nothing is sent back for these: the app's local delete already removed them.
-                foreach (var songId in songIds.Except(purgedSongIds))
+                // A song nobody kept that someone else still has: drop this user's own link to it. A conditional
+                // DELETE, so like the claim it is checked against the rows as they are now. The song rows are still
+                // locked, so none can be promoted under us. Nothing is sent back for these: the app's local delete
+                // already removed them.
+                var survivors = songIds.Except(purgedSongIds).ToList();
+                if (survivors.Count > 0)
                 {
                     await context.UserSongs
                         .Where(us => us.UserId == userId
-                            && us.SongId == songId
+                            && survivors.Contains(us.SongId)
                             && us.LikeStatus != LikeStatus.Like
                             && us.LikeStatus != LikeStatus.Love
-                            && context.Songs.Any(s => s.SongId == songId && s.Exploratory)
-                            && !context.PlaylistSongs.Any(ps => ps.SongId == songId
+                            && context.Songs.Any(s => s.SongId == us.SongId && s.Exploratory)
+                            && !context.PlaylistSongs.Any(ps => ps.SongId == us.SongId
                                 && ps.PlaylistId != playlistId
                                 && ps.Playlist.UserId == userId))
                         .ExecuteDeleteAsync(cancellationToken);

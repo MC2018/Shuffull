@@ -254,10 +254,11 @@ public class DeletePlaylistHandlerPostgresTest : IAsyncLifetime
     }
 
     [PostgresFact]
-    public async Task Delete_ExploratoryPlaylist_LikeCommittingMidDelete_KeepsTheLink()
+    public async Task Delete_ExploratoryPlaylist_LinkLikedAfterTheLockButBeforeTheUnlink_KeepsTheLink()
     {
-        // The user likes the song after the delete has locked it but before it unlinks: the unlink re-checks the
-        // committed row, so the Like wins.
+        // Pins the unlink's re-check: it reads the link as committed when it runs, not as it was when the delete
+        // started. A raw UPDATE stands in for the Like. The real Like handler also promotes the song, which waits on
+        // the delete's lock, so a real Like can't land in this window: it either commits first or fails afterwards.
         var user = await SeedUserAsync();
         var otherUser = await SeedUserAsync();
         var playlist = await SeedAuditionPlaylistAsync(user.UserId);

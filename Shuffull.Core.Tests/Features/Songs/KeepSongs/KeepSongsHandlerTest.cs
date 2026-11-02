@@ -51,6 +51,19 @@ public class KeepSongsHandlerTest : IDisposable
         }
     }
 
+    /// <summary>
+    /// Runs <paramref name="before"/> and then the real promotion, standing in for a write that commits between the
+    /// handler's ownership read and its promotion.
+    /// </summary>
+    private sealed class InterleavedPromotion(IAuditionPromotionService inner, Func<Task> before) : IAuditionPromotionService
+    {
+        public async Task<Result<int>> PromoteAsync(IReadOnlyList<string> songIds, CancellationToken cancellationToken = default!)
+        {
+            await before();
+            return await inner.PromoteAsync(songIds, cancellationToken);
+        }
+    }
+
     private Task<Result<KeepSongsResponse>> RunAsync(string userId, params string[] songIds)
         => new KeepSongsHandler(_database.UnitOfWork, _promotion, _signals)
             .Handle(new KeepSongsCommand(userId, songIds), CancellationToken.None);
@@ -270,5 +283,40 @@ public class KeepSongsHandlerTest : IDisposable
             .Handle(new KeepSongsCommand(caller.UserId, [theirs.SongId, mine.SongId]), CancellationToken.None);
 
         Assert.Equal([mine.SongId], Assert.Single(spy.Calls));
+    }
+
+    [Fact]
+    public async Task LinkDroppedBeforeThePromotion_IsReportedNotInYourLibrary()
+    {
+        // A mix delete on another device drops the caller's link to a shared audition song after the handler read it
+        // (Shuffull#87). The song survives for the other user, so the promotion succeeds, but the caller no longer
+        // has it, so the Keep must not come back as Kept.
+        var caller = await SeedUserAsync();
+        var other = await SeedUserAsync();
+        var song = await SeedSongAsync(exploratory: true, owner: caller);
+        await _database.Context.UserSongs.AddAsync(new UserSong
+        {
+            UserId = other.UserId,
+            SongId = song.SongId,
+            LastPlayed = DateTime.MinValue,
+            Version = OldVersion,
+        });
+        await _database.Context.SaveChangesAsync();
+
+        var promotion = new InterleavedPromotion(_promotion, async () =>
+        {
+            await using var context = _database.CreateContext();
+            await context.UserSongs
+                .Where(us => us.UserId == caller.UserId && us.SongId == song.SongId)
+                .ExecuteDeleteAsync();
+        });
+
+        var result = await new KeepSongsHandler(_database.UnitOfWork, promotion, _signals)
+            .Handle(new KeepSongsCommand(caller.UserId, [song.SongId]), CancellationToken.None);
+
+        Assert.True(result.IsOk);
+        Assert.Equal(
+            new SongKeepResult(song.SongId, KeepOutcomes.Failed, "Song is not in your library."),
+            Assert.Single(result.Get().Results));
     }
 }
