@@ -1,4 +1,7 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Nut.Results;
+using Shuffull.Api.Services;
 using Shuffull.Core.Features.Listens.GetRecap;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Enums;
@@ -275,6 +278,78 @@ public class GetRecapHandlerTest : IDisposable
         Assert.Equal(6, recap.KeepRate.AuditionedSongs);
         Assert.Equal(2, recap.KeepRate.KeptSongs); // promoted, and liked by me
         Assert.Equal(100 * 2 / 6.0, recap.KeepRate.Percent!.Value, 9);
+    }
+
+    [Fact]
+    public async Task KeepRate_InAYearWithRecordedKeeps_CountsOnlyThisUsersKeepsMadeByTheYearsEnd()
+    {
+        // Keeps were already being recorded when 2026 began (Shuffull#101).
+        _fx.Song("first-keep", "Old");
+        _fx.Owns("first-keep", owner: _other.UserId, keptAt: Utc(2025, 3, 1));
+
+        _fx.Song("kept-in-year", "A");
+        _fx.Owns("kept-in-year", keptAt: Utc(2026, 8, 1));
+        _fx.Song("kept-earlier", "B"); // kept last year, still in its mix
+        _fx.Owns("kept-earlier", keptAt: Utc(2025, 12, 1));
+        _fx.Song("kept-next-year", "C");
+        _fx.Owns("kept-next-year", keptAt: Utc(2027, 2, 1));
+        _fx.Song("kept-by-other", "D");
+        _fx.Owns("kept-by-other");
+        _fx.Owns("kept-by-other", owner: _other.UserId, keptAt: Utc(2026, 5, 1));
+        _fx.Song("liked-undated", "E", exploratory: true); // liked, but before any Keep was recorded
+        _fx.Owns("liked-undated", LikeStatus.Like);
+
+        foreach (var song in new[] { "kept-in-year", "kept-earlier", "kept-next-year", "kept-by-other", "liked-undated" })
+        {
+            _fx.Listen(song, Utc(2026, 7, 1), listenContext: ListenContext.Audition);
+        }
+
+        var recap = await RecapAsync();
+
+        Assert.Equal(new RecapKeepRate(5, 2, 40), recap.KeepRate);
+    }
+
+    [Fact]
+    public async Task KeepRate_InAYearThatBeganBeforeTheFirstRecordedKeep_FallsBackToKeptOrLikedNow()
+    {
+        _fx.Song("kept-mid-year", "A");
+        _fx.Owns("kept-mid-year", keptAt: Utc(2026, 6, 1)); // the first recorded Keep anywhere
+        _fx.Song("promoted-undated", "B");
+        _fx.Owns("promoted-undated");
+        _fx.Song("still-auditioning", "C", exploratory: true);
+        _fx.Owns("still-auditioning");
+        foreach (var song in new[] { "kept-mid-year", "promoted-undated", "still-auditioning" })
+        {
+            _fx.Listen(song, Utc(2026, 7, 1), listenContext: ListenContext.Audition);
+            _fx.Listen(song, Utc(2027, 7, 1), listenContext: ListenContext.Audition);
+        }
+
+        // 2026 began before Keeps were recorded: today's definition, so the undated promoted song counts.
+        Assert.Equal(new RecapKeepRate(3, 2, 100 * 2 / 3.0), (await RecapAsync(2026)).KeepRate);
+        // 2027 began after: only the dated Keep counts.
+        Assert.Equal(new RecapKeepRate(3, 1, 100 / 3.0), (await RecapAsync(2027)).KeepRate);
+    }
+
+    [Fact]
+    public async Task KeepRate_ForAPastYear_DoesNotMoveWhenTheSongIsKeptLater()
+    {
+        _fx.Song("first-keep", "Old");
+        _fx.Owns("first-keep", owner: _other.UserId, keptAt: Utc(2024, 3, 1));
+        _fx.Song("audition", "A", exploratory: true);
+        _fx.Owns("audition");
+        _fx.Listen("audition", Utc(2025, 7, 1), listenContext: ListenContext.Audition);
+        var before = (await RecapAsync(2025)).KeepRate;
+
+        // The real Keep, today: it promotes the song and records its time.
+        var services = new ServiceCollection();
+        services.AddScoped(_ => _database.CreateContext());
+        var promotion = new AuditionPromotionService(services.BuildServiceProvider());
+        Assert.True((await promotion.KeepAsync(_me.UserId, ["audition"])).IsOk);
+
+        Assert.Equal(new RecapKeepRate(1, 0, 0), before);
+        Assert.Equal(before, (await RecapAsync(2025)).KeepRate); // today's definition would now say 1 of 1
+        await using var read = _database.CreateContext();
+        Assert.False((await read.Songs.AsNoTracking().SingleAsync(s => s.SongId == "audition")).Exploratory);
     }
 
     [Fact]

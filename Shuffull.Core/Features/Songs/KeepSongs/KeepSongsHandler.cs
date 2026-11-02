@@ -12,8 +12,8 @@ namespace Shuffull.Core.Features.Songs.KeepSongs;
 
 /// <summary>
 /// Promotes the caller's kept songs out of audition via <see cref="IAuditionPromotionService"/> — the same durable
-/// write RetagSongs makes before enriching, without the enrichment or the curator gate. Ownership-scoped: only
-/// songs the user has a <c>UserSong</c> for are promoted.
+/// write RetagSongs makes before enriching, without the enrichment or the curator gate — and records when this user
+/// kept each one (<c>UserSong.KeptAt</c>). Ownership-scoped: only songs the user has a <c>UserSong</c> for are promoted.
 ///
 /// <para>A refusal is also recorded as a <c>keep-refused:</c> health signal, which emails the owner (Shuffull#75):
 /// the app holds the playlist's delete while that Keep is outstanding, and shows nothing.</para>
@@ -52,7 +52,8 @@ public class KeepSongsHandler(IUnitOfWork unitOfWork, IAuditionPromotionService 
 
         // A failure aborts the whole batch rather than reporting per-item failures: the caller (the app's
         // outbox) then keeps its rows and retries, instead of reading "failed" as a verdict on the song.
-        var promoteResult = await promotion.PromoteAsync(toPromote, cancellationToken);
+        // KeepAsync also stamps the caller's KeptAt in the same commit, which is what the recap's keep rate reads.
+        var promoteResult = await promotion.KeepAsync(request.UserId, toPromote, cancellationToken);
         if (promoteResult.IsError)
         {
             return Result.Error<KeepSongsResponse>(promoteResult.GetError().WithMessage(

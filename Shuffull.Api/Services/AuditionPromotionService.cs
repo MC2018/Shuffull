@@ -7,15 +7,21 @@ using Shuffull.Core.Services;
 namespace Shuffull.Api.Services;
 
 /// <summary>
-/// <see cref="IAuditionPromotionService"/> over <see cref="ShuffullContext"/>: one scoped UPDATE, committed on
-/// its own, with no dependency on the AI stack. Registered as a singleton that opens its own scope per call,
+/// <see cref="IAuditionPromotionService"/> over <see cref="ShuffullContext"/>: one scoped UPDATE (two for a Keep, which
+/// also stamps <c>UserSong.KeptAt</c>), committed on its own, with no dependency on the AI stack. Registered as a singleton that opens its own scope per call,
 /// mirroring <see cref="SongEnrichmentService"/>.
 /// </summary>
 public class AuditionPromotionService(IServiceProvider services) : IAuditionPromotionService
 {
     private readonly IServiceProvider _services = services;
 
-    public async Task<Result<int>> PromoteAsync(IReadOnlyList<string> songIds, CancellationToken cancellationToken = default!)
+    public Task<Result<int>> PromoteAsync(IReadOnlyList<string> songIds, CancellationToken cancellationToken = default!)
+        => PromoteCoreAsync(songIds, keptByUserId: null, cancellationToken);
+
+    public Task<Result<int>> KeepAsync(string userId, IReadOnlyList<string> songIds, CancellationToken cancellationToken = default!)
+        => PromoteCoreAsync(songIds, userId, cancellationToken);
+
+    private async Task<Result<int>> PromoteCoreAsync(IReadOnlyList<string> songIds, string? keptByUserId, CancellationToken cancellationToken)
     {
         if (songIds is null || songIds.Count == 0)
         {
@@ -42,7 +48,15 @@ public class AuditionPromotionService(IServiceProvider services) : IAuditionProm
                 .Where(s => ids.Contains(s.SongId) && s.Exploratory)
                 .ToListAsync(cancellationToken);
 
-            if (songs.Count == 0)
+            // The Keep's time, per user (Shuffull#101): only rows with none yet, so a re-sent Keep keeps the first time.
+            // UserSong.Version is left alone, since KeptAt isn't part of what clients sync.
+            var unstamped = keptByUserId is null
+                ? []
+                : await context.UserSongs
+                    .Where(us => us.UserId == keptByUserId && ids.Contains(us.SongId) && us.KeptAt == null)
+                    .ToListAsync(cancellationToken);
+
+            if (songs.Count == 0 && unstamped.Count == 0)
             {
                 return Result.Ok(0);
             }
@@ -60,7 +74,12 @@ public class AuditionPromotionService(IServiceProvider services) : IAuditionProm
                 // matching the RetagStaleSongs work query, so a sweep can still find and tag it later.
                 song.Version = now;
             }
+            foreach (var userSong in unstamped)
+            {
+                userSong.KeptAt = now;
+            }
 
+            // One SaveChanges, so one transaction: the promotion and the Keep's time commit together or not at all.
             await context.SaveChangesAsync(cancellationToken);
             return Result.Ok(songs.Count);
         }

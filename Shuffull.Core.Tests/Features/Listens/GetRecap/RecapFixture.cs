@@ -65,12 +65,13 @@ internal sealed class RecapFixture(ShuffullContext context, string userId)
         return mood;
     }
 
-    public void Owns(string songId, LikeStatus likeStatus = LikeStatus.Neutral, string? owner = null)
+    public void Owns(string songId, LikeStatus likeStatus = LikeStatus.Neutral, string? owner = null, DateTime? keptAt = null)
         => context.UserSongs.Add(new UserSong
         {
             UserId = owner ?? userId,
             SongId = songId,
             LikeStatus = likeStatus,
+            KeptAt = keptAt,
             LastPlayed = Utc(2026, 1, 1),
             Version = Utc(2026, 1, 1),
         });

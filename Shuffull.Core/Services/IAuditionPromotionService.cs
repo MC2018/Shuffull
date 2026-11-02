@@ -28,4 +28,12 @@ public interface IAuditionPromotionService
     /// their <c>Version</c> doesn't churn) and unknown ids are ignored. Returns how many rows actually changed.
     /// </summary>
     Task<Result<int>> PromoteAsync(IReadOnlyList<string> songIds, CancellationToken cancellationToken = default!);
+
+    /// <summary>
+    /// A user's Keep: <see cref="PromoteAsync"/>, plus <c>UserSong.KeptAt</c> on <paramref name="userId"/>'s rows for
+    /// these songs, in the same commit. The time is stamped even when the song was already promoted (another user kept
+    /// it, or this user liked it), because the Keep is this user's, and is never overwritten once set. Songs the user
+    /// has no <c>UserSong</c> for get no stamp; the caller checks ownership. Returns how many songs were promoted.
+    /// </summary>
+    Task<Result<int>> KeepAsync(string userId, IReadOnlyList<string> songIds, CancellationToken cancellationToken = default!);
 }

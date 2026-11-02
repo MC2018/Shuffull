@@ -368,4 +368,57 @@ public class SetSongLikeStatusHandlerTest : IDisposable
         Assert.Equal(YoutubeRating.Like, row.Rating);
         Assert.Equal(YoutubeRatingStatus.Pending, row.Status);
     }
+
+    private async Task<UserSong> ReadUserSongAsync(UserSong userSong)
+    {
+        await using var read = _database.CreateContext();
+        return await read.UserSongs.AsNoTracking().SingleAsync(us => us.UserId == userSong.UserId && us.SongId == userSong.SongId);
+    }
+
+    private Task<Result<SetSongLikeStatusResponse>> SetAsync(UserSong userSong, LikeStatus likeStatus)
+        => _handler.Handle(new SetSongLikeStatusCommand(userSong.UserId, userSong.SongId, likeStatus), CancellationToken.None);
+
+    // A Like is this user's Keep, so it dates the Keep (Shuffull#101), whether or not the song was still an audition.
+    [Theory]
+    [InlineData(LikeStatus.Like, false)]
+    [InlineData(LikeStatus.Love, true)]
+    public async Task Handle_LikingASong_RecordsWhenThisUserKeptIt(LikeStatus liked, bool exploratory)
+    {
+        var user = await SeedUserAsync(DateTime.UtcNow.AddDays(-10));
+        var userSong = await SeedUserSongAsync(user.UserId, LikeStatus.Dislike, DateTime.UtcNow.AddDays(-5), exploratory: exploratory);
+        var before = DateTime.UtcNow;
+
+        Assert.True((await SetAsync(userSong, liked)).IsOk);
+
+        var keptAt = (await ReadUserSongAsync(userSong)).KeptAt;
+        Assert.NotNull(keptAt);
+        Assert.InRange(keptAt!.Value, before.AddSeconds(-1), DateTime.UtcNow.AddSeconds(1));
+    }
+
+    [Fact]
+    public async Task Handle_LoveToLike_IsNotANewKeep_SoAPreRecordingLikeStaysUndated()
+    {
+        var user = await SeedUserAsync(DateTime.UtcNow.AddDays(-10));
+        var userSong = await SeedUserSongAsync(user.UserId, LikeStatus.Love, DateTime.UtcNow.AddDays(-5));
+
+        Assert.True((await SetAsync(userSong, LikeStatus.Like)).IsOk);
+
+        Assert.Null((await ReadUserSongAsync(userSong)).KeptAt);
+    }
+
+    [Fact]
+    public async Task Handle_UnlikeThenLikeAgain_KeepsTheFirstKeepTime()
+    {
+        var user = await SeedUserAsync(DateTime.UtcNow.AddDays(-10));
+        var userSong = await SeedUserSongAsync(user.UserId, LikeStatus.Like, DateTime.UtcNow.AddDays(-5));
+        var kept = new DateTime(2026, 3, 1, 12, 0, 0, DateTimeKind.Utc);
+        var tracked = await _database.Context.UserSongs.SingleAsync(us => us.UserId == user.UserId && us.SongId == userSong.SongId);
+        tracked.KeptAt = kept;
+        await _database.Context.SaveChangesAsync();
+
+        Assert.True((await SetAsync(userSong, LikeStatus.Neutral)).IsOk);
+        Assert.Equal(kept, (await ReadUserSongAsync(userSong)).KeptAt); // an unlike doesn't undo the Keep
+        Assert.True((await SetAsync(userSong, LikeStatus.Like)).IsOk);
+        Assert.Equal(kept, (await ReadUserSongAsync(userSong)).KeptAt);
+    }
 }

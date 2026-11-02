@@ -223,7 +223,9 @@ public class SongImportDuplicateLinkTest : IDisposable
         Assert.False(song.Exploratory);
         Assert.True(song.Version > SongVersion);
         using var read = _database.CreateContext();
-        Assert.Equal(LikeStatus.Like, (await read.UserSongs.AsNoTracking().SingleAsync(us => us.UserId == userB.UserId)).LikeStatus);
+        var userSongB = await read.UserSongs.AsNoTracking().SingleAsync(us => us.UserId == userB.UserId);
+        Assert.Equal(LikeStatus.Like, userSongB.LikeStatus);
+        Assert.NotNull(userSongB.KeptAt); // a liked import is B's Keep (Shuffull#101)
     }
 
     [Fact]
@@ -238,6 +240,8 @@ public class SongImportDuplicateLinkTest : IDisposable
         var song = await ReadSongAsync();
         Assert.True(song.Exploratory);
         Assert.Equal(SongVersion, song.Version);
+        using var read = _database.CreateContext();
+        Assert.Null((await read.UserSongs.AsNoTracking().SingleAsync(us => us.UserId == userB.UserId)).KeptAt);
     }
 
     [Fact]
@@ -254,6 +258,8 @@ public class SongImportDuplicateLinkTest : IDisposable
         Assert.True((await LinkAsync(import)).IsOk);
 
         Assert.True((await ReadSongAsync()).Exploratory);
+        using var read = _database.CreateContext();
+        Assert.Null((await read.UserSongs.AsNoTracking().SingleAsync(us => us.UserId == userB.UserId)).KeptAt);
     }
 
     [Fact]
@@ -272,8 +278,12 @@ public class SongImportDuplicateLinkTest : IDisposable
         // Nothing else moves: tags, the user's own like and the playlist stay as they were.
         Assert.Equal("gpt-5.6-terra", song.TagModel);
         using var read = _database.CreateContext();
-        Assert.Equal(LikeStatus.Like, (await read.UserSongs.AsNoTracking().SingleAsync()).LikeStatus);
+        var userSong = await read.UserSongs.AsNoTracking().SingleAsync();
+        Assert.Equal(LikeStatus.Like, userSong.LikeStatus);
+        Assert.Equal(SongVersion, userSong.Version);
         Assert.Equal(SongVersion, (await read.Playlists.AsNoTracking().SingleAsync()).Version);
+        // ...except the Keep's time on the importing user's existing UserSong (Shuffull#101).
+        Assert.NotNull(userSong.KeptAt);
     }
 
     [Fact]
