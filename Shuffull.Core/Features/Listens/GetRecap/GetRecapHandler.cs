@@ -15,7 +15,9 @@ namespace Shuffull.Core.Features.Listens.GetRecap;
 /// <para>Cost: measured on Postgres 16 with a year of heavy listening (21,900 listens, one every 24 minutes, over
 /// 2,500 songs, in a table of 362,000 rows): about 150 ms warm, nearly all of it the five reads (the listens index scan
 /// itself is under 4 ms). A recap is asked for rarely, so it is computed on every request, with no cache. The
-/// first-listen read came later and wasn't measured: it takes the top row off the same index.</para>
+/// first-listen read came later and wasn't measured: it takes the top row off the same index. Nor was the earliest
+/// <c>KeptAt</c> (Shuffull#101), read only for a year with auditions: an unindexed MIN over every user's
+/// <c>UserSongs</c>.</para>
 /// </summary>
 public class GetRecapHandler(ShuffullContext context) : IRequestHandler<GetRecapQuery, Result<GetRecapResponse>>
 {
@@ -98,7 +100,7 @@ public class GetRecapHandler(ShuffullContext context) : IRequestHandler<GetRecap
             .Take(TopCount)
             .ToList();
         var artists = Artists(songs, catalog);
-        var keptBy = await KeptByAsync(context, from, to, cancellationToken);
+        var keptBy = auditioned.Count == 0 ? null : await KeptByAsync(context, from, to, cancellationToken);
         var kept = auditioned.Count(songId => catalog.IsKept(songId, keptBy));
 
         return Result.Ok(new GetRecapResponse(
@@ -384,7 +386,9 @@ public class GetRecapHandler(ShuffullContext context) : IRequestHandler<GetRecap
             var hasMine = _mine.TryGetValue(songId, out var mine);
             if (keptBy is { } end)
             {
-                return hasMine && mine.KeptAt < end;
+                // Every move into Like or Love has stamped KeptAt since Shuffull#101, so a like with none is older than
+                // the first recorded Keep, and so older than any year that gets here: kept before the year ended.
+                return hasMine && (mine.KeptAt < end || (mine.KeptAt is null && mine.Liked));
             }
             return (_songs.TryGetValue(songId, out var song) && !song.Exploratory) || (hasMine && mine.Liked);
         }

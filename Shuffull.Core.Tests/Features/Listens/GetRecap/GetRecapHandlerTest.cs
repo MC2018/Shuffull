@@ -296,17 +296,20 @@ public class GetRecapHandlerTest : IDisposable
         _fx.Song("kept-by-other", "D");
         _fx.Owns("kept-by-other");
         _fx.Owns("kept-by-other", owner: _other.UserId, keptAt: Utc(2026, 5, 1));
-        _fx.Song("liked-undated", "E", exploratory: true); // liked, but before any Keep was recorded
+        _fx.Song("liked-undated", "E", exploratory: true); // liked before Keeps were recorded, so kept before 2026
         _fx.Owns("liked-undated", LikeStatus.Like);
+        _fx.Song("unliked-undated", "F", exploratory: true);
+        _fx.Owns("unliked-undated", LikeStatus.Neutral);
 
-        foreach (var song in new[] { "kept-in-year", "kept-earlier", "kept-next-year", "kept-by-other", "liked-undated" })
+        foreach (var song in new[] { "kept-in-year", "kept-earlier", "kept-next-year", "kept-by-other", "liked-undated", "unliked-undated" })
         {
             _fx.Listen(song, Utc(2026, 7, 1), listenContext: ListenContext.Audition);
         }
 
         var recap = await RecapAsync();
 
-        Assert.Equal(new RecapKeepRate(5, 2, 40), recap.KeepRate);
+        // kept-in-year, kept-earlier and liked-undated.
+        Assert.Equal(new RecapKeepRate(6, 3, 50), recap.KeepRate);
     }
 
     [Fact]

@@ -8,8 +8,8 @@ namespace Shuffull.Api.Services;
 
 /// <summary>
 /// <see cref="IAuditionPromotionService"/> over <see cref="ShuffullContext"/>: one scoped UPDATE (two for a Keep, which
-/// also stamps <c>UserSong.KeptAt</c>), committed on its own, with no dependency on the AI stack. Registered as a singleton that opens its own scope per call,
-/// mirroring <see cref="SongEnrichmentService"/>.
+/// also stamps <c>UserSong.KeptAt</c>), committed on its own, with no dependency on the AI stack. Registered as a
+/// singleton that opens its own scope per call, mirroring <see cref="SongEnrichmentService"/>.
 /// </summary>
 public class AuditionPromotionService(IServiceProvider services) : IAuditionPromotionService
 {

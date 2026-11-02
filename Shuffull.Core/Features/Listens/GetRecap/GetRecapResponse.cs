@@ -83,7 +83,8 @@ public record RecapGenreShare(string TagId, string Name, double Minutes, double 
 /// <list type="bullet">
 /// <item>A year that began after the first recorded Keep: this user kept the song (a Keep, a Like or Love, or an import
 /// that was liked or wasn't an audition) before the year ended. A Keep later doesn't change a past year, and another
-/// user's Keep doesn't count. A song kept in an earlier year and still played from its mix counts as kept.</item>
+/// user's Keep doesn't count. A song kept in an earlier year and still played from its mix counts as kept, and so does
+/// a like with no <c>KeptAt</c>, since that like is older than the recording.</item>
 /// <item>An earlier year: the song is kept NOW, i.e. it still exists and is no longer exploratory, or the user likes or
 /// loves it. <c>Exploratory</c> is one flag per song, so a song another user kept counts here too, and the rate moves
 /// when a song is kept, liked or purged later.</item>
