@@ -4,6 +4,10 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nut.Results;
 using Shuffull.Api.Configuration;
 using Shuffull.Api.Services.Alerts;
+using Shuffull.Core.Alerts.Checks;
+using Shuffull.Core.Models.Database;
+using Shuffull.Core.Models.Enums;
+using Shuffull.Core.Persistence;
 using Shuffull.Core.Services.Alerts;
 using Shuffull.Core.Tests.Infrastructure;
 
@@ -155,5 +159,37 @@ public class AlertMonitorTest : IDisposable
 
         Assert.Empty(_mailer.Sent);
         Assert.Empty(await _database.CreateContext().AlertStates.ToListAsync());
+    }
+
+    [Fact]
+    public async Task SongRequestBacklog_EmailsOnce_WhileTheQueueGrows()
+    {
+        // The real check through the monitor: a stable key and subject, so a growing queue doesn't re-send.
+        var services = new ServiceCollection();
+        services.AddScoped(_ => _database.CreateContext());
+        services.AddScoped<IAlertCheck>(sp => new SongRequestBacklogCheck(sp.GetRequiredService<ShuffullContext>(), Start.AddDays(-1)));
+        services.AddScoped<IAlertMailer>(_ => _mailer);
+        var monitor = new AlertMonitor(services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(),
+            _signals, new AlertsConfiguration { SubjectPrefix = "[Shuffull]" }, _clock, NullLogger<AlertMonitor>.Instance);
+
+        for (var run = 0; run < 4; run++)
+        {
+            _database.Context.SongRequests.Add(new SongRequest
+            {
+                SongRequestId = $"request-{run}",
+                UserId = "user",
+                ExternalSongId = $"yt-{run}",
+                Title = "Everybody Wants You",
+                TargetPlaylistName = "Requests · week of 2026-10-26",
+                Status = SongRequestStatus.Pending,
+                CreatedAt = _clock.UtcNow,
+                UpdatedAt = _clock.UtcNow,
+            });
+            await _database.Context.SaveChangesAsync();
+            await monitor.RunOnceAsync(CancellationToken.None);
+            _clock.UtcNow += TimeSpan.FromMinutes(5);
+        }
+
+        Assert.Equal(["[Shuffull] The funnel stopped picking up song requests"], _mailer.Sent);
     }
 }

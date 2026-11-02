@@ -198,10 +198,13 @@ public class ProducerKeyTest : IDisposable
 
         await host.Client.SendAsync(Request(HttpMethod.Get, "api/v1/songs/pending-tags?limit=25", null, "wrong"));
         await host.Client.SendAsync(Request(HttpMethod.Get, "api/v1/youtube-ratings?status=0", null, "wrong"));
+        await host.Client.SendAsync(Request(HttpMethod.Get, "api/v1/song-requests?status=Pending", null, "wrong"));
         Assert.Empty(_signals.Successes);
 
         await host.Client.SendAsync(Request(HttpMethod.Get, "api/v1/songs/pending-tags?limit=25", null, Key));
         await host.Client.SendAsync(Request(HttpMethod.Get, "api/v1/youtube-ratings?status=0", null, Key));
-        Assert.Equal([ShuffullSignalRules.PendingTagsPoll, ShuffullSignalRules.YoutubeRatingsPoll], _signals.Successes);
+        await host.Client.SendAsync(Request(HttpMethod.Get, "api/v1/song-requests?status=Pending", null, Key));
+        Assert.Equal([ShuffullSignalRules.PendingTagsPoll, ShuffullSignalRules.YoutubeRatingsPoll, ShuffullSignalRules.SongRequestsPoll],
+            _signals.Successes);
     }
 }

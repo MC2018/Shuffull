@@ -21,6 +21,7 @@ using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Dtos;
 using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Persistence;
+using Shuffull.Core.Services.Alerts;
 using Shuffull.Core.Tests.Infrastructure;
 using Shuffull.Metadata.Contracts;
 using Shuffull.Metadata.Enums;
@@ -147,7 +148,7 @@ public class SongRequestsControllerTest : IDisposable
         Assert.Equal(SongRequestStatus.Completed, (await ReloadAsync(dto.SongRequestId)).Status);
 
         // Nothing for the producer to do.
-        var queue = Assert.IsType<OkObjectResult>(await Controller().GetQueue(SongRequestStatus.Pending, CancellationToken.None));
+        var queue = Assert.IsType<OkObjectResult>(await Controller().GetQueue(new RecordingHealthSignals(), SongRequestStatus.Pending, CancellationToken.None));
         Assert.Empty(Assert.IsType<List<PendingSongRequestDto>>(queue.Value));
     }
 
@@ -161,7 +162,7 @@ public class SongRequestsControllerTest : IDisposable
         Assert.Null(dto.SongId);
 
         var queue = Assert.IsType<List<PendingSongRequestDto>>(Assert.IsType<OkObjectResult>(
-            await Controller().GetQueue(SongRequestStatus.Pending, CancellationToken.None)).Value);
+            await Controller().GetQueue(new RecordingHealthSignals(), SongRequestStatus.Pending, CancellationToken.None)).Value);
         var pending = Assert.Single(queue);
         // Records compare a List by reference, so the artists are checked on their own.
         List<string> noArtists = [];
@@ -464,6 +465,7 @@ public class SongRequestsControllerTest : IDisposable
         mediator.Setup(m => m.Send(It.IsAny<GetSongRequestQueueQuery>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result.Ok<IReadOnlyList<PendingSongRequestDto>>([]));
         services.AddSingleton(mediator.Object);
+        services.AddSingleton<IHealthSignals>(new RecordingHealthSignals());
     }, signedInAs);
 
     [Fact]

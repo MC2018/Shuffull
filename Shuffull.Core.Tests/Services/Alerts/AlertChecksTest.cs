@@ -295,4 +295,102 @@ public class AlertChecksTest : IDisposable
         Assert.Equal("media:abandoned", finding.Key);
         Assert.Contains("gave up on 1 ", finding.Subject);
     }
+
+    // ── Song request backlog ─────────────────────────────────────────────────────────────────────────────
+
+    private async Task SeedSongRequestAsync(SongRequestStatus status, DateTime updatedAt, DateTime? createdAt = null)
+    {
+        _database.Context.SongRequests.Add(new SongRequest
+        {
+            SongRequestId = Guid.NewGuid().ToString(),
+            UserId = "user",
+            ExternalSongId = Guid.NewGuid().ToString("N")[..11],
+            Title = "Everybody Wants You",
+            TargetPlaylistName = "Requests · week of 2026-10-26",
+            Status = status,
+            CreatedAt = createdAt ?? updatedAt,
+            UpdatedAt = updatedAt,
+        });
+        await _database.Context.SaveChangesAsync();
+    }
+
+    private SongRequestBacklogCheck SongRequests(DateTime? startedUtc = null) => new(_database.CreateContext(), startedUtc ?? LongAgo);
+
+    [Fact]
+    public async Task SongRequests_PendingAndNeverPolled_Alerts()
+    {
+        await SeedSongRequestAsync(SongRequestStatus.Pending, Now.AddMinutes(-5));
+        await SeedSongRequestAsync(SongRequestStatus.Pending, Now.AddMinutes(-1));
+
+        var finding = Assert.Single(await EvaluateAsync(SongRequests()));
+        Assert.Equal("song-requests:not-polled", finding.Key);
+        Assert.Contains("2 song request(s) are Pending", finding.Body);
+        Assert.Contains("never polled", finding.Body);
+    }
+
+    [Fact]
+    public async Task SongRequests_PendingAndPollSilentPastTheWindow_Alerts()
+    {
+        await SeedSignalAsync(ShuffullSignalRules.SongRequestsPoll, s => s.RecordSuccess(Now.AddMinutes(-31)));
+        await SeedSongRequestAsync(SongRequestStatus.Pending, Now.AddMinutes(-5));
+
+        Assert.Equal("song-requests:not-polled", Assert.Single(await EvaluateAsync(SongRequests())).Key);
+        // Configurable: a longer window is still quiet.
+        Assert.Empty(await EvaluateAsync(new SongRequestBacklogCheck(_database.CreateContext(), LongAgo,
+            pollSilentAfter: TimeSpan.FromHours(1))));
+    }
+
+    [Fact]
+    public async Task SongRequests_RecentPoll_IsQuiet()
+    {
+        await SeedSignalAsync(ShuffullSignalRules.SongRequestsPoll, s => s.RecordSuccess(Now.AddMinutes(-1)));
+        await SeedSongRequestAsync(SongRequestStatus.Pending, Now.AddMinutes(-10));
+
+        Assert.Empty(await EvaluateAsync(SongRequests()));
+    }
+
+    [Fact]
+    public async Task SongRequests_NothingPending_IsQuietEvenWithNoPoller()
+    {
+        // Prod before the funnel polls: no signal row at all. Only Pending counts, so the producer's own states don't.
+        await SeedSongRequestAsync(SongRequestStatus.Accepted, Now.AddDays(-3));
+        await SeedSongRequestAsync(SongRequestStatus.Retrying, Now.AddDays(-3));
+        await SeedSongRequestAsync(SongRequestStatus.Failed, Now.AddDays(-3));
+        await SeedSongRequestAsync(SongRequestStatus.Completed, Now.AddDays(-3));
+        await SeedSongRequestAsync(SongRequestStatus.Cancelled, Now.AddDays(-3));
+
+        Assert.Empty(await EvaluateAsync(SongRequests()));
+    }
+
+    [Fact]
+    public async Task SongRequests_SilenceDuringAnApiOutage_DoesNotCount()
+    {
+        await SeedSignalAsync(ShuffullSignalRules.SongRequestsPoll, s => s.RecordSuccess(Now.AddDays(-2)));
+        await SeedSongRequestAsync(SongRequestStatus.Pending, Now.AddMinutes(-5));
+
+        Assert.Empty(await EvaluateAsync(SongRequests(startedUtc: Now.AddMinutes(-10))));
+        Assert.Single(await EvaluateAsync(SongRequests(startedUtc: Now.AddMinutes(-30))));
+    }
+
+    [Fact]
+    public async Task SongRequests_OldPendingWhileThePollerRuns_AlertsAsStuck()
+    {
+        await SeedSignalAsync(ShuffullSignalRules.SongRequestsPoll, s => s.RecordSuccess(Now.AddMinutes(-1)));
+        await SeedSongRequestAsync(SongRequestStatus.Pending, Now.AddHours(-3));
+        await SeedSongRequestAsync(SongRequestStatus.Pending, Now.AddMinutes(-5));
+
+        var finding = Assert.Single(await EvaluateAsync(SongRequests()));
+        Assert.Equal("song-requests:stuck", finding.Key);
+        Assert.Contains("2 song request(s) are Pending", finding.Body);
+    }
+
+    [Fact]
+    public async Task SongRequests_RetriedRequest_IsAgedFromItsRetry()
+    {
+        // A Failed request the user retried goes back to Pending on its old row: its CreatedAt doesn't make it stuck.
+        await SeedSignalAsync(ShuffullSignalRules.SongRequestsPoll, s => s.RecordSuccess(Now.AddMinutes(-1)));
+        await SeedSongRequestAsync(SongRequestStatus.Pending, updatedAt: Now.AddMinutes(-10), createdAt: Now.AddDays(-5));
+
+        Assert.Empty(await EvaluateAsync(SongRequests()));
+    }
 }
