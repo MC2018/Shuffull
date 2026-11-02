@@ -45,7 +45,8 @@ public static class AlertServiceCollectionExtensions
         services.AddScoped<IAlertCheck, AbandonedMediaCheck>();
         services.AddScoped<IAlertCheck, SongRequestBacklogCheck>(sp => new SongRequestBacklogCheck(
             sp.GetRequiredService<ShuffullContext>(), startedUtc,
-            pollSilentAfter: config.SongRequestPollSilentAfter, pendingTooLong: config.SongRequestPendingTooLong));
+            pollSilentAfter: config.SongRequestPollSilentAfter, pendingTooLong: config.SongRequestPendingTooLong,
+            noProgressAfter: config.SongRequestNoProgressAfter));
 
         services.AddHostedService<AlertMonitor>();
         return services;

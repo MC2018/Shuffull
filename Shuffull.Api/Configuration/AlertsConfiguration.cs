@@ -41,5 +41,11 @@ public class AlertsConfiguration
     /// <summary>How long the oldest song request may sit Pending, while the producer polls, before it alerts.</summary>
     public TimeSpan SongRequestPendingTooLong { get; set; } = SongRequestBacklogCheck.DefaultPendingTooLong;
 
+    /// <summary>
+    /// How long a song request the producer claimed (Accepted, Downloading, Retrying) may go without an ack before it
+    /// alerts. The funnel's request lane finishes or fails one within minutes; see the default's doc for the reasoning.
+    /// </summary>
+    public TimeSpan SongRequestNoProgressAfter { get; set; } = SongRequestBacklogCheck.DefaultNoProgressAfter;
+
     public bool CanSendEmail => !string.IsNullOrWhiteSpace(ResendApiKey) && !string.IsNullOrWhiteSpace(To);
 }
