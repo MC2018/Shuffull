@@ -1,3 +1,5 @@
+using Shuffull.Core.Alerts.Checks;
+
 namespace Shuffull.Api.Configuration;
 
 /// <summary>
@@ -29,6 +31,15 @@ public class AlertsConfiguration
 
     /// <summary>The funnel web API's health route, over the shared <c>shuffull-ingest-net</c>. Blank turns the probe off.</summary>
     public string FunnelHealthUrl { get; set; } = "http://youtubefunnel.web-api:8080/api/health";
+
+    /// <summary>
+    /// How long song requests may sit Pending with no producer poll before it alerts (SongRequestBacklogCheck). The
+    /// producer polls every few seconds; this leaves room for a funnel redeploy.
+    /// </summary>
+    public TimeSpan SongRequestPollSilentAfter { get; set; } = SongRequestBacklogCheck.DefaultPollSilentAfter;
+
+    /// <summary>How long the oldest song request may sit Pending, while the producer polls, before it alerts.</summary>
+    public TimeSpan SongRequestPendingTooLong { get; set; } = SongRequestBacklogCheck.DefaultPendingTooLong;
 
     public bool CanSendEmail => !string.IsNullOrWhiteSpace(ResendApiKey) && !string.IsNullOrWhiteSpace(To);
 }

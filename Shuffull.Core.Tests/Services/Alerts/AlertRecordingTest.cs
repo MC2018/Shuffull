@@ -7,9 +7,11 @@ using Shuffull.Api.Configuration;
 using Shuffull.Api.Controllers;
 using Shuffull.Api.Services.Alerts;
 using Shuffull.Core.Alerts;
+using Shuffull.Core.Features.SongRequests.GetSongRequestQueue;
 using Shuffull.Core.Features.Songs.GetPendingTagSongs;
 using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Tests.Infrastructure;
+using Shuffull.Metadata.Contracts;
 
 namespace Shuffull.Core.Tests.Services.Alerts;
 
@@ -86,7 +88,7 @@ public class AlertRecordingTest : IDisposable
         Assert.Empty(_signals.Failures);
     }
 
-    // ── The funnel's two polls ───────────────────────────────────────────────────────────────────────────
+    // ── The funnel's polls ─────────────────────────────────────────────────────────────────────────────
 
     private SongsController Songs()
     {
@@ -116,6 +118,28 @@ public class AlertRecordingTest : IDisposable
     public async Task YoutubeRatingsPoll_ForAnotherStatus_IsNotRecorded()
     {
         await Ratings().GetQueue(YoutubeRatingStatus.Completed, CancellationToken.None);
+        Assert.Empty(_signals.Successes);
+    }
+
+    private SongRequestsController SongRequests()
+    {
+        var mediator = new Mock<IMediator>();
+        mediator.Setup(m => m.Send(It.IsAny<GetSongRequestQueueQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Ok<IReadOnlyList<PendingSongRequestDto>>([]));
+        return new SongRequestsController(mediator.Object);
+    }
+
+    [Fact]
+    public async Task SongRequestsPoll_ForPending_IsRecorded()
+    {
+        await SongRequests().GetQueue(_signals, SongRequestStatus.Pending, CancellationToken.None);
+        Assert.Equal([ShuffullSignalRules.SongRequestsPoll], _signals.Successes);
+    }
+
+    [Fact]
+    public async Task SongRequestsPoll_ForAnotherStatus_IsNotRecorded()
+    {
+        await SongRequests().GetQueue(_signals, SongRequestStatus.Failed, CancellationToken.None);
         Assert.Empty(_signals.Successes);
     }
 }

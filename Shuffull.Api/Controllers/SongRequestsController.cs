@@ -5,6 +5,7 @@ using Shuffull.Api.Extensions;
 using Shuffull.Api.Services.SourceSearch;
 using Shuffull.Api.Tools;
 using Shuffull.Api.Tools.Authorization;
+using Shuffull.Core.Alerts;
 using Shuffull.Core.Features.SongRequests;
 using Shuffull.Core.Features.SongRequests.AckSongRequests;
 using Shuffull.Core.Features.SongRequests.CancelSongRequest;
@@ -14,6 +15,7 @@ using Shuffull.Core.Features.SongRequests.GetSongRequestQueue;
 using Shuffull.Core.Features.SongRequests.SearchSongRequests;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Enums;
+using Shuffull.Core.Services.Alerts;
 using Shuffull.Metadata.Contracts;
 
 namespace Shuffull.Api.Controllers;
@@ -112,8 +114,17 @@ public class SongRequestsController : ControllerBase
     [HttpGet]
     [ProducerKey]
     [QueryParameter("status")]
-    public async Task<IActionResult> GetQueue([FromQuery] SongRequestStatus status, CancellationToken cancellationToken)
-        => this.ToActionResult(await _mediator.Send(new GetSongRequestQueueQuery(status), cancellationToken));
+    public async Task<IActionResult> GetQueue([FromServices] IHealthSignals signals, [FromQuery] SongRequestStatus status,
+        CancellationToken cancellationToken)
+    {
+        // Pending requests with no poll for a while alert (SongRequestBacklogCheck, Shuffull#112). Throttled to a write a minute.
+        if (status == SongRequestStatus.Pending)
+        {
+            await signals.SuccessAsync(ShuffullSignalRules.SongRequestsPoll, cancellationToken);
+        }
+
+        return this.ToActionResult(await _mediator.Send(new GetSongRequestQueueQuery(status), cancellationToken));
+    }
 
     /// <summary>Producer: report progress on each request. See <see cref="AckSongRequestsHandler"/>.</summary>
     [HttpPost("ack")]

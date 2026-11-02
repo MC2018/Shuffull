@@ -13,6 +13,11 @@ public static class ShuffullSignalRules
     /// <summary>Whether the models the funnel declares on songs/pending-tags are on the site's ladder.</summary>
     public const string PendingTagsModels = "pending-tags:models";
     public const string YoutubeRatingsPoll = "funnel-poll:youtube-ratings";
+    /// <summary>
+    /// The producer polling for Pending song requests. No rule here: its silence matters only while requests wait,
+    /// so <see cref="Checks.SongRequestBacklogCheck"/> reads it alongside the queue.
+    /// </summary>
+    public const string SongRequestsPoll = "funnel-poll:song-requests";
     /// <summary>Prefix of the per-song keys <see cref="KeepRefusedKey"/> makes.</summary>
     public const string KeepRefusedPrefix = "keep-refused:";
     public const string MediaSweep = "media-sweep";
