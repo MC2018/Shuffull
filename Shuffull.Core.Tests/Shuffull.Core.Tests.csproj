@@ -29,9 +29,9 @@
 
   <ItemGroup>
     <!-- Feature slices and the concrete ShuffullContext live in Shuffull.Core. The Api host project is also
-         referenced so its pure Tools (JWT/serializer/import-metadata helpers)
-         can be unit-tested directly, and its controllers run on an in-memory TestServer (Api/ApiTestHost).
-         The real Program host is never started. -->
+         referenced so its pure Tools (JWT, serializer and import-metadata helpers) can be unit-tested directly,
+         and its controllers run on an in-memory TestServer (Api/ApiTestHost). The real Program host is never
+         started. -->
     <ProjectReference Include="..\Shuffull.Core\Shuffull.Core.csproj" />
     <ProjectReference Include="..\Shuffull.Api\Shuffull.Api.csproj" />
   </ItemGroup>
