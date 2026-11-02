@@ -377,10 +377,11 @@ public class SongImportDuplicateLinkTest : IDisposable
     }
 
     [Fact]
-    public async Task AuditionSongSharedByTwoUsers_SurvivesEitherUsersMixDelete()
+    public async Task AuditionSongSharedByTwoUsers_EachMixDeleteDropsThatUsersLink_AndTheLastPurgesIt()
     {
-        // Pins today's purge rules for a song two users each got from an audition import: each user's link spares
-        // it from the other's delete, so it is never lost, and also never purged (MC2018/Shuffull#87).
+        // Two users each got one song from an audition import, and neither kept it (MC2018/Shuffull#87). The first
+        // delete can't purge it, since the other user still has it, so it drops the deleting user's own link. The
+        // second delete then finds nobody holding it and purges the song.
         var userA = await SeedUserAsync("a");
         var userB = await SeedUserAsync("b");
         await SeedOwnedSongAsync(userA.UserId, exploratory: true);
@@ -393,22 +394,74 @@ public class SongImportDuplicateLinkTest : IDisposable
         Assert.True((await LinkAsync(NewImport(userB.UserId, playlistName: "B's audition", exploratory: true))).IsOk);
         var playlistB = await _database.CreateContext().Playlists.AsNoTracking().SingleAsync(p => p.UserId == userB.UserId);
 
-        foreach (var (userId, playlistId) in new[] { (userA.UserId, "playlist-A's mix"), (userB.UserId, playlistB.PlaylistId) })
+        using (var context = _database.CreateContext())
         {
-            using var context = _database.CreateContext();
-            var deleted = await new DeletePlaylistHandler(context).Handle(new DeletePlaylistCommand(userId, playlistId), CancellationToken.None);
+            var deleted = await new DeletePlaylistHandler(context).Handle(new DeletePlaylistCommand(userA.UserId, "playlist-A's mix"), CancellationToken.None);
+            Assert.True(deleted.IsOk);
+            Assert.Empty(deleted.Get().PurgedSongIds);
+        }
+        using (var read = _database.CreateContext())
+        {
+            Assert.True((await read.Songs.AsNoTracking().SingleAsync()).Exploratory);
+            var holder = Assert.Single(await read.UserSongs.AsNoTracking().ToListAsync());
+            Assert.Equal(userB.UserId, holder.UserId);
+        }
+
+        using (var context = _database.CreateContext())
+        {
+            var deleted = await new DeletePlaylistHandler(context).Handle(new DeletePlaylistCommand(userB.UserId, playlistB.PlaylistId), CancellationToken.None);
+            Assert.True(deleted.IsOk);
+            Assert.Equal(["song-1"], deleted.Get().PurgedSongIds);
+        }
+        using (var read = _database.CreateContext())
+        {
+            Assert.False(await read.Songs.AnyAsync());
+            Assert.False(await read.UserSongs.AnyAsync());
+        }
+    }
+
+    [Fact]
+    public async Task AuditionSongAnotherUserKept_SurvivesTheMixDelete_InTheirLibrary()
+    {
+        // A kept the song B is auditioning: B's mix delete takes B's link only when the song is still un-kept, so here
+        // the song and A's library entry both stay (MC2018/Shuffull#87).
+        var userA = await SeedUserAsync("a");
+        var userB = await SeedUserAsync("b");
+        await SeedOwnedSongAsync(userA.UserId, exploratory: true);
+        using (var context = _database.CreateContext())
+        {
+            (await context.UserSongs.SingleAsync()).LikeStatus = LikeStatus.Neutral;
+            (await context.Playlists.SingleAsync()).IsExploratory = true;
+            await context.SaveChangesAsync();
+        }
+        Assert.True((await LinkAsync(NewImport(userB.UserId, playlistName: "B's audition", exploratory: true))).IsOk);
+        var playlistB = await _database.CreateContext().Playlists.AsNoTracking().SingleAsync(p => p.UserId == userB.UserId);
+        using (var context = _database.CreateContext())
+        {
+            // A's Keep, as AuditionPromotionService records it.
+            (await context.Songs.SingleAsync()).Exploratory = false;
+            await context.SaveChangesAsync();
+        }
+
+        using (var context = _database.CreateContext())
+        {
+            var deleted = await new DeletePlaylistHandler(context).Handle(new DeletePlaylistCommand(userB.UserId, playlistB.PlaylistId), CancellationToken.None);
             Assert.True(deleted.IsOk);
             Assert.Empty(deleted.Get().PurgedSongIds);
         }
 
-        Assert.True((await ReadSongAsync()).Exploratory);
+        using var read = _database.CreateContext();
+        Assert.True(await read.Songs.AnyAsync(s => s.SongId == "song-1"));
+        Assert.True(await read.UserSongs.AnyAsync(us => us.UserId == userA.UserId && us.SongId == "song-1"));
+        Assert.True(await read.PlaylistSongs.AnyAsync(ps => ps.PlaylistId == "playlist-A's mix"));
     }
 
     [Fact]
     public async Task AuditionDuplicateOfAKeptSong_StaysInTheSecondUsersLibraryAfterTheirMixDelete()
     {
-        // Pins today's behaviour (MC2018/Shuffull#87): the purge only removes Exploratory songs, so B's un-kept
-        // audition link to A's kept song loses its playlist but keeps its UserSong. The song itself is safe.
+        // Pins today's behaviour (MC2018/Shuffull#87, still open): B's audition link to a song A already kept loses its
+        // playlist but keeps its UserSong. Dropping it needs to know that B never kept the song, and nothing records
+        // which user kept a song yet. The song itself is safe.
         var userA = await SeedUserAsync("a");
         var userB = await SeedUserAsync("b");
         await SeedOwnedSongAsync(userA.UserId);
