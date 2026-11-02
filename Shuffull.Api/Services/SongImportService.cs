@@ -651,7 +651,7 @@ public partial class SongImportService : BackgroundService
     /// <summary>
     /// Applies a dropped duplicate import's target to the song it matched: the importing user's UserSong and the
     /// target playlist's PlaylistSong, each only if missing. The existing song's audio, tags and metadata are left
-    /// alone; a liked import only promotes it out of Exploratory. Split out from <see cref="LinkDuplicateAsync"/>,
+    /// alone; a liked import, or one that isn't an audition, only promotes it out of Exploratory. Split out from <see cref="LinkDuplicateAsync"/>,
     /// which owns the DI scope, so it can be tested against an in-memory <see cref="ShuffullContext"/>.
     /// </summary>
     internal static async Task<Result> LinkDuplicateCoreAsync(ShuffullContext dbContext, string songId, SongImport songImport, ILogger logger, CancellationToken cancellationToken = default!)
