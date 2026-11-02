@@ -5,8 +5,8 @@ namespace Shuffull.Core.Features.Listens.GetListenStats;
 /// <see cref="SkippedUnderSeconds"/> on at least <see cref="QuickSkips"/> of its last <see cref="OfLastPlays"/> plays.
 /// The flag is informational: nothing acts on it.
 ///
-/// <para>This is the only place the numbers live. <see cref="Default"/> is the proposed default, shipped before the
-/// user confirmed it; confirming it is Shuffull#100. Change it here.</para>
+/// <para>This is the only place the numbers live. <see cref="Default"/> is the rule the user confirmed on 2026-11-02
+/// (Shuffull#100). Change it here.</para>
 /// </summary>
 /// <param name="SkippedUnderSeconds">A skip counts only if less than this much played (strictly under).</param>
 /// <param name="QuickSkips">How many such skips flag the song.</param>
