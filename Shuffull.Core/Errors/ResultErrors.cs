@@ -17,6 +17,8 @@ public static class ResultErrors
 
     public static KindedError Conflict(string message) => new(ErrorKind.Conflict, message);
 
+    public static KindedError Unavailable(string message) => new(ErrorKind.Unavailable, message);
+
     /// <summary>The same kind of error under a new message, for a handler that adds its own context.</summary>
     public static KindedError WithMessage(this Exception error, string message) => new(KindOf(error), message, error);
 

@@ -32,6 +32,7 @@ public class ErrorStatusTest
         { ResultErrors.NotFound("missing"), HttpStatusCode.NotFound },
         { ResultErrors.Conflict("taken"), HttpStatusCode.Conflict },
         { new KindedError(ErrorKind.ServerFault, "db down"), HttpStatusCode.InternalServerError },
+        { ResultErrors.Unavailable("search down"), HttpStatusCode.ServiceUnavailable },
     };
 
     [Theory]

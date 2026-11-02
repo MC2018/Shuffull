@@ -7,7 +7,7 @@ namespace Shuffull.Api.Extensions;
 /// <summary>
 /// Maps a <see cref="Result"/> / <see cref="Result{T}"/> onto an HTTP response so controllers stay
 /// thin: success becomes 200 (with the value), failure becomes an { error } payload whose status comes from the
-/// error's <see cref="ErrorKind"/>: 400, 403, 404, 409 or 500. An error without a kind is a 400.
+/// error's <see cref="ErrorKind"/>: 400, 403, 404, 409, 500 or 503. An error without a kind is a 400.
 /// </summary>
 public static class ControllerBaseExtensions
 {
@@ -32,6 +32,9 @@ public static class ControllerBaseExtensions
                 return controller.NotFound(body);
             case ErrorKind.Conflict:
                 return controller.Conflict(body);
+            case ErrorKind.Unavailable:
+                // Not logged here: whatever found the service down logs why, without the request's details.
+                return controller.StatusCode(StatusCodes.Status503ServiceUnavailable, body);
             case ErrorKind.ServerFault:
                 // Returned, not thrown, so nothing else logs it. A query cancelled because the caller hung up isn't a
                 // fault worth an error entry; nobody receives this answer anyway.

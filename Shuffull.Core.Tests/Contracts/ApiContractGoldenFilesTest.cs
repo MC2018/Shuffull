@@ -12,7 +12,10 @@ using Shuffull.Api.Commands.Songs.UpdateSong;
 using Shuffull.Api.Commands.Songs.UpdateSongLyrics;
 using Shuffull.Api.Commands.Users.Credentials;
 using Shuffull.Api.Controllers;
+using Shuffull.Api.Configuration;
 using Shuffull.Api.Extensions;
+using Shuffull.Api.Services.SourceSearch;
+using Shuffull.Core.Features.Capabilities.GetCapabilities;
 using Shuffull.Core.Features.Listens.GetListenStats;
 using Shuffull.Core.Features.Listens.GetRecap;
 using Shuffull.Core.Features.Listens.RecordListens;
@@ -39,6 +42,7 @@ using Shuffull.Metadata.Contracts;
 using Shuffull.Metadata.Enums;
 using Shuffull.Metadata.Models;
 using Shuffull.Shared.Enums;
+using Microsoft.Extensions.Logging.Abstractions;
 using JsonConvert = Newtonsoft.Json.JsonConvert;
 using RatingAckOutcomes = Shuffull.Api.Controllers.YoutubeRatingOutcomes;
 using RetagOutcomes = Shuffull.Core.Features.Songs.RetagSongs.Outcomes;
@@ -399,10 +403,65 @@ public class ApiContractGoldenFilesTest
         },
         // POST /api/v1/song-requests/ack. Which acks moved their request.
         ["song-requests-ack-response"] = new SongRequestAckResponse(["request-3"], ["request-4"]),
+        // GET /api/v1/song-requests/search. The app's search: one the library has, one the user already asked for,
+        // and a sparse one (the source often has no album or duration).
+        ["song-requests-search"] = new List<SongRequestSearchResultDto>
+        {
+            new("dQw4w9WgXcQ", "Everybody Wants You", ["Billy Squier"], "Emotions in Motion", 230,
+                "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg", IsExplicit: false, InLibrary: true, AlreadyRequested: false),
+            new("9bZkp7q19f0", "Gangnam Style", ["PSY"], Album: null, 252, ThumbnailUrl: null, IsExplicit: true,
+                InLibrary: false, AlreadyRequested: true),
+            new("kJQP7kiw5Fk", "Untitled", [], Album: null, DurationSeconds: null, ThumbnailUrl: null, IsExplicit: false,
+                InLibrary: false, AlreadyRequested: false),
+        },
+        // GET /api/v1/capabilities. The optional features this server has set up.
+        ["capabilities"] = new CapabilitiesResponse(SongRequests: true),
+        // GET /api/source-search on the funnel's web-api — what the funnel ANSWERS the API's search relay with
+        // (YoutubeFunnel#21). The API reads it, so it is bound like a request body below.
+        ["source-search"] = new List<SourceSearchResultDto>
+        {
+            new("dQw4w9WgXcQ", "Everybody Wants You", ["Billy Squier"], "Emotions in Motion", 230,
+                "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg", IsExplicit: false),
+            new("kJQP7kiw5Fk", "Untitled", [], Album: null, DurationSeconds: null, ThumbnailUrl: null, IsExplicit: false),
+        },
+        // GET /api/source-search on the funnel's web-api — the request the API SENDS it, captured from the real client.
+        ["source-search-request"] = CaptureSourceSearchRequest(),
     };
 
     /// <summary>
-    /// The request bodies among <see cref="Cases"/>. The funnel writes its bodies with no naming policy, so their keys
+    /// The request <see cref="SourceSearchClient"/> sends the funnel for a search, as a golden file has to hold it: the
+    /// funnel's tests (YoutubeFunnel#21) replay it against their endpoint. Only the key header is kept; its value
+    /// here is a placeholder.
+    /// </summary>
+    private static OutboundRequest CaptureSourceSearchRequest()
+    {
+        var capture = new CapturingHandler();
+        var config = new SongRequestsConfiguration { BaseUrl = "http://youtubefunnel.web-api:8080", Key = "search-key" };
+        using var httpClient = new HttpClient(capture) { BaseAddress = config.BaseUri };
+        var client = new SourceSearchClient(httpClient, config, NullLogger<SourceSearchClient>.Instance);
+        client.SearchAsync("Everybody Wants You", 10, CancellationToken.None).GetAwaiter().GetResult();
+
+        var sent = capture.Sent!;
+        return new OutboundRequest(sent.Method.Method, sent.RequestUri!.PathAndQuery,
+            new Dictionary<string, string> { [SourceSearchClient.KeyHeader] = sent.Headers.GetValues(SourceSearchClient.KeyHeader).Single() });
+    }
+
+    /// <summary>An outbound request with no body, as the golden file records it.</summary>
+    private sealed record OutboundRequest(string Method, string PathAndQuery, Dictionary<string, string> Headers);
+
+    private sealed class CapturingHandler : HttpMessageHandler
+    {
+        public HttpRequestMessage? Sent { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Sent = request;
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent("[]") });
+        }
+    }
+
+    /// <summary>
+    /// The request bodies among <see cref="Cases"/>, plus the one answer the API reads (source-search). The funnel writes its bodies with no naming policy, so their keys
     /// arrive PascalCase or mixed (songs-tags wraps PascalCase tags in a camelCase object, song-lyrics is all
     /// camelCase), and rely on the API binding case-insensitively. The app's arrive camelCase.
     /// </summary>
@@ -410,7 +469,7 @@ public class ApiContractGoldenFilesTest
     [
         // The funnel's.
         "songs-tags", "youtube-ratings-ack", "songs-pending-tags-holds", "song-imports-details", "song-lyrics",
-        "song-requests-ack",
+        "song-requests-ack", "source-search",
         // The app's.
         "listens-request", "users-authenticate-request", "users-me-password-request", "songs-list-request",
         "playlists-list-request", "user-songs-create", "user-songs-last-played", "user-songs-like", "songs-update",
@@ -422,6 +481,12 @@ public class ApiContractGoldenFilesTest
     /// the import <c>details</c> as a form string and deserializes it itself, with Newtonsoft's defaults.
     /// </summary>
     private static readonly HashSet<string> NewtonsoftBound = ["song-imports-details"];
+
+    /// <summary>Answers the API reads with an HTTP client's own options rather than MVC's binder.</summary>
+    private static readonly Dictionary<string, JsonSerializerOptions> ClientBound = new()
+    {
+        ["source-search"] = SourceSearchClient.JsonOptions,
+    };
 
     public static TheoryData<string> CaseNames => new(Cases.Keys);
 
@@ -479,7 +544,7 @@ public class ApiContractGoldenFilesTest
         var type = Cases[name].GetType();
         var bound = NewtonsoftBound.Contains(name)
             ? JsonConvert.DeserializeObject(sent.ToJsonString(), type)
-            : JsonSerializer.Deserialize(sent.ToJsonString(), type, ApiJsonOptions());
+            : JsonSerializer.Deserialize(sent.ToJsonString(), type, ClientBound.GetValueOrDefault(name) ?? ApiJsonOptions());
         var roundTripped = JsonNode.Parse(JsonSerializer.Serialize(bound, type, ApiJsonOptions()));
 
         Assert.True(JsonNode.DeepEquals(golden, roundTripped), $"The API bound {sent.ToJsonString()} as {roundTripped}");

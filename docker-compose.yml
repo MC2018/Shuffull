@@ -108,6 +108,11 @@ services:
       - Alerts__ResendApiKey=${RESEND_API_KEY:-}
       - Alerts__To=${ALERT_EMAIL_TO:-}
       - Alerts__From=${ALERT_EMAIL_FROM:-Shuffull Alerts <alerts@clausius.app>}
+      # ── Song request search (Shuffull#58). The API relays the app's search to the producer's
+      # GET /api/source-search, sending this key as X-Search-Key. Leave either empty and search answers 503
+      # and the capabilities endpoint reports songRequests: false; the API starts normally either way.
+      - Shuffull__SongRequests__BaseUrl=${SHUFFULL_SONG_REQUESTS_BASE_URL:-}
+      - Shuffull__SongRequests__Key=${SHUFFULL_SONG_REQUESTS_KEY:-}
     volumes:
       # Each generated folder is its own bind mount. Point SHUFFULL_*_DIR at dedicated
       # TrueNAS folders in .env, or leave unset to use local ./data/* directories.
