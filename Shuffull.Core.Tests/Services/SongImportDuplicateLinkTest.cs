@@ -306,16 +306,17 @@ public class SongImportDuplicateLinkTest : IDisposable
         Assert.True(await read.UserSongs.AnyAsync(us => us.UserId == owner.UserId && us.SongId == song.SongId));
         Assert.Equal(SongRequestStatus.Completed, (await ReadRequestAsync(request.SongRequestId)).Status);
 
-        var pending = await new GetPendingTagSongsHandler(read, new ModelStrengths(new Dictionary<string, int> { ["weak-model"] = 10, ["strong-model"] = 30 }),
-                new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["AI:Tiers:Weak"] = "OpenAI",
-                    ["AI:Tiers:Strong"] = "OpenAI",
-                    ["AI:OpenAI:WeakModelName"] = "weak-model",
-                    ["AI:OpenAI:StrongModelName"] = "strong-model",
-                }).Build(),
-                new RecordingHealthSignals(), TimeProvider.System)
-            .Handle(new GetPendingTagSongsQuery(25, null, null), CancellationToken.None);
+        var strengths = new ModelStrengths(new Dictionary<string, int> { ["weak-model"] = 10, ["strong-model"] = 30 });
+        var aiConfig = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["AI:Tiers:Weak"] = "OpenAI",
+            ["AI:Tiers:Strong"] = "OpenAI",
+            ["AI:OpenAI:WeakModelName"] = "weak-model",
+            ["AI:OpenAI:StrongModelName"] = "strong-model",
+        }).Build();
+        var pendingTags = new GetPendingTagSongsHandler(read, strengths, aiConfig, new RecordingHealthSignals(), TimeProvider.System);
+
+        var pending = await pendingTags.Handle(new GetPendingTagSongsQuery(25, null, null), CancellationToken.None);
         Assert.Equal(song.SongId, Assert.Single(pending.Get().Songs).SongId);
     }
 

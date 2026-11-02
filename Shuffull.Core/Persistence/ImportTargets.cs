@@ -99,9 +99,9 @@ public static class ImportTargets
         }
 
         // An import that isn't an audition (a Standard or Premium funnel source, a manual upload) is a decision to keep
-        // the song, whoever else has it. Left Exploratory it would stay an untagged audition, since pending-tags hands
-        // out only kept songs: the request lane's import for a bumped video's own target (YoutubeFunnel#90). Like the
-        // like rule above, this only ever promotes.
+        // the song, whoever else has it. Left Exploratory it would never be tagged, since pending-tags hands out only
+        // kept songs. The case that needs this is the request lane's own-target import for a bumped video
+        // (YoutubeFunnel#90). Like the like rule above, this only ever promotes.
         if (song.Exploratory && !importedForAudition)
         {
             song.Exploratory = false;
