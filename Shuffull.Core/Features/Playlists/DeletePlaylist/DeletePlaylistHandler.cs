@@ -21,6 +21,19 @@ namespace Shuffull.Core.Features.Playlists.DeletePlaylist;
 /// Each purge leaves a <see cref="SongTombstone"/>. Media is NOT deleted here: the tombstone holds it for a grace
 /// window and a sweep removes it later, and only when no live song shares the file hash.
 /// <para>
+/// A song that survives only because someone else still has it loses the deleting user's own link instead
+/// (Shuffull#87): their <c>UserSong</c> is dropped when the song is still <c>Exploratory</c>, they don't like or love
+/// it, and it is on none of their other playlists. Otherwise two users auditioning one song would each spare it from
+/// the other's delete, and it would stay in both libraries for good. An <c>Exploratory</c> song is one nobody has kept
+/// (a Keep, a Like and a non-audition import all clear it), so this never drops a song the user kept. The app's own
+/// local delete already removes such a song (<c>deletePlaylistAndPurge</c>), so the server now matches it.
+/// </para>
+/// <para>
+/// A song someone has already kept (no longer <c>Exploratory</c>) keeps every user's link. It can be in this mix
+/// because a later audition import linked it, and then the user's link is clutter. But nothing yet records which user
+/// kept a song, so dropping that link could drop a Keep. That case stays open on Shuffull#87.
+/// </para>
+/// <para>
 /// The decision and the delete are one transaction. The candidate song rows are locked first, then each song is
 /// claimed by a conditional UPDATE that re-checks every rule against committed state. Anything that commits
 /// before the lock (a Keep, a Like, another user adding the song to their library or a playlist) makes the song
@@ -28,6 +41,12 @@ namespace Shuffull.Core.Features.Playlists.DeletePlaylist;
 /// a promotion finds no exploratory row, and an insert referencing the song fails its foreign key. The old version
 /// read the songs first and deleted them in a later SaveChanges, so a promotion that landed between those two
 /// steps was purged anyway.
+/// </para>
+/// <para>
+/// The unlink follows the same rules: a Keep or Like that commits first promotes the song or marks the link, so the
+/// link stays. A Keep that arrives after the lock still promotes the song, since it survives for the other user,
+/// but <c>KeepSongsHandler</c> re-reads the caller's link after promoting and reports that song as not in their
+/// library, so the app records the Keep as failed instead of believing it.
 /// </para>
 /// </summary>
 public class DeletePlaylistHandler(ShuffullContext context)
@@ -84,6 +103,25 @@ public class DeletePlaylistHandler(ShuffullContext context)
                     {
                         purgedSongIds.Add(songId);
                     }
+                }
+
+                // A song nobody kept that someone else still has: drop this user's own link to it. A conditional
+                // DELETE, so like the claim it is checked against the rows as they are now. The song rows are still
+                // locked, so none can be promoted under us. Nothing is sent back for these: the app's local delete
+                // already removed them.
+                var survivors = songIds.Except(purgedSongIds).ToList();
+                if (survivors.Count > 0)
+                {
+                    await context.UserSongs
+                        .Where(us => us.UserId == userId
+                            && survivors.Contains(us.SongId)
+                            && us.LikeStatus != LikeStatus.Like
+                            && us.LikeStatus != LikeStatus.Love
+                            && context.Songs.Any(s => s.SongId == us.SongId && s.Exploratory)
+                            && !context.PlaylistSongs.Any(ps => ps.SongId == us.SongId
+                                && ps.PlaylistId != playlistId
+                                && ps.Playlist.UserId == userId))
+                        .ExecuteDeleteAsync(cancellationToken);
                 }
             }
 

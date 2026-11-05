@@ -15,7 +15,8 @@ namespace Shuffull.Core.Tests.Features.Playlists.DeletePlaylist;
 /// nobody kept are removed: still Exploratory, on no other playlist, in no other user's library, and liked or loved
 /// by nobody. Each purge leaves a tombstone, and media is never deleted inline (a sweep does that after a grace
 /// window). Promoted songs, songs on another playlist, songs another user owns, liked songs, and a song promoted
-/// while the purge runs all survive. Non-exploratory playlists purge nothing, and a missing/not-owned playlist is
+/// while the purge runs all survive. A song that survives only because another user has it loses the deleting user's
+/// un-kept link instead (Shuffull#87). Non-exploratory playlists purge nothing, and a missing/not-owned playlist is
 /// an idempotent no-op.
 /// </summary>
 public class DeletePlaylistHandlerTest : IDisposable
@@ -290,6 +291,105 @@ public class DeletePlaylistHandlerTest : IDisposable
         Assert.True(await SongExistsAsync(song.SongId));
         Assert.True(await _database.Context.UserSongs.AsNoTracking().AnyAsync(us => us.SongId == song.SongId && us.UserId == otherUser.UserId));
         Assert.Empty(await _database.Context.SongTombstones.AsNoTracking().ToListAsync());
+        // The deleting user never kept it, so their own link goes (Shuffull#87).
+        Assert.False(await UserHasSongAsync(user.UserId, song.SongId));
+    }
+
+    private Task<bool> UserHasSongAsync(string userId, string songId) =>
+        _database.Context.UserSongs.AsNoTracking().AnyAsync(us => us.UserId == userId && us.SongId == songId);
+
+    /// <summary>The deleting user's audition mix holds a song another user also has, so the song itself is never purged.</summary>
+    private async Task<(User User, Playlist Mix, Song Song)> SeedSharedAuditionSongAsync(bool exploratory, LikeStatus likeStatus)
+    {
+        var user = await SeedUserAsync();
+        var otherUser = await SeedUserAsync();
+        var mix = await SeedPlaylistAsync(user.UserId, isExploratory: true);
+        var song = await SeedSongAsync(exploratory);
+        await AddJoinAsync(mix.PlaylistId, song.SongId);
+        await AddUserSongAsync(user.UserId, song.SongId, likeStatus);
+        await AddUserSongAsync(otherUser.UserId, song.SongId, LikeStatus.Neutral);
+        return (user, mix, song);
+    }
+
+    [Theory]
+    [InlineData(LikeStatus.Like)]
+    [InlineData(LikeStatus.Love)]
+    public async Task Delete_ExploratoryPlaylist_SharedSong_KeepsTheLinkOfAUserWhoLikesIt(LikeStatus likeStatus)
+    {
+        var (user, mix, song) = await SeedSharedAuditionSongAsync(exploratory: true, likeStatus);
+
+        var result = await _handler.Handle(new DeletePlaylistCommand(user.UserId, mix.PlaylistId), CancellationToken.None);
+
+        Assert.True(result.Get().Deleted);
+        Assert.True(await UserHasSongAsync(user.UserId, song.SongId));
+    }
+
+    [Fact]
+    public async Task Delete_ExploratoryPlaylist_SharedSong_DropsADislikedLink()
+    {
+        var (user, mix, song) = await SeedSharedAuditionSongAsync(exploratory: true, LikeStatus.Dislike);
+
+        var result = await _handler.Handle(new DeletePlaylistCommand(user.UserId, mix.PlaylistId), CancellationToken.None);
+
+        Assert.True(result.Get().Deleted);
+        Assert.False(await UserHasSongAsync(user.UserId, song.SongId));
+        Assert.True(await SongExistsAsync(song.SongId));
+    }
+
+    [Fact]
+    public async Task Delete_ExploratoryPlaylist_SharedSong_KeepsTheLinkWhenTheSongIsOnAnotherOfTheirPlaylists()
+    {
+        var (user, mix, song) = await SeedSharedAuditionSongAsync(exploratory: true, LikeStatus.Neutral);
+        var otherList = await SeedPlaylistAsync(user.UserId, isExploratory: false);
+        await AddJoinAsync(otherList.PlaylistId, song.SongId);
+
+        var result = await _handler.Handle(new DeletePlaylistCommand(user.UserId, mix.PlaylistId), CancellationToken.None);
+
+        Assert.True(result.Get().Deleted);
+        Assert.True(await UserHasSongAsync(user.UserId, song.SongId));
+    }
+
+    [Fact]
+    public async Task Delete_ExploratoryPlaylist_SharedSong_DropsTheLinkWhenOnlySomeoneElsesPlaylistHasIt()
+    {
+        // Only the deleting user's own playlists keep their link; another user's playlist spares the song, not the link.
+        var (user, mix, song) = await SeedSharedAuditionSongAsync(exploratory: true, LikeStatus.Neutral);
+        var otherUsersList = await SeedPlaylistAsync((await SeedUserAsync()).UserId, isExploratory: false);
+        await AddJoinAsync(otherUsersList.PlaylistId, song.SongId);
+
+        var result = await _handler.Handle(new DeletePlaylistCommand(user.UserId, mix.PlaylistId), CancellationToken.None);
+
+        Assert.True(result.Get().Deleted);
+        Assert.Empty(result.Get().PurgedSongIds);
+        Assert.False(await UserHasSongAsync(user.UserId, song.SongId));
+    }
+
+    [Fact]
+    public async Task Delete_ExploratoryPlaylist_SharedSong_KeepsEveryLinkOnceTheSongIsKept()
+    {
+        // Somebody kept it, and nothing records who, so the deleting user's link stays (still open on Shuffull#87).
+        var (user, mix, song) = await SeedSharedAuditionSongAsync(exploratory: false, LikeStatus.Neutral);
+
+        var result = await _handler.Handle(new DeletePlaylistCommand(user.UserId, mix.PlaylistId), CancellationToken.None);
+
+        Assert.True(result.Get().Deleted);
+        Assert.True(await UserHasSongAsync(user.UserId, song.SongId));
+    }
+
+    [Fact]
+    public async Task Delete_ExploratoryPlaylist_SharedSongPromotedWhileTheDeleteRuns_KeepsTheLink()
+    {
+        // The promotion lands after the song ids are read and before the first write, so only the unlink's own
+        // re-check can see it.
+        var (user, mix, song) = await SeedSharedAuditionSongAsync(exploratory: true, LikeStatus.Neutral);
+        var promote = new PromoteBeforeFirstSongWrite(song.SongId);
+        using var racedContext = _database.CreateContext(promote);
+
+        var result = await new DeletePlaylistHandler(racedContext).Handle(new DeletePlaylistCommand(user.UserId, mix.PlaylistId), CancellationToken.None);
+
+        Assert.True(promote.Fired);
+        Assert.True(result.Get().Deleted);
+        Assert.True(await UserHasSongAsync(user.UserId, song.SongId));
     }
 
     [Fact]

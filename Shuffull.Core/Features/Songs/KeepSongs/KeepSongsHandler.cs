@@ -60,8 +60,20 @@ public class KeepSongsHandler(IUnitOfWork unitOfWork, IAuditionPromotionService 
                 $"Could not record the keep for this batch; no songs were kept. {promoteResult.GetError().Message}"));
         }
 
+        // Read the links again now that the promotion has committed. A mix delete on another device can drop this
+        // user's link to a shared audition song between the read above and the promotion (Shuffull#87). The song
+        // survives for the other user, so the promotion still succeeds, but the song is no longer in this user's
+        // library, and reporting Kept would tell the app a Keep held that didn't.
+        var keptResult = await unitOfWork.Repository<UserSong>()
+            .ListAsync(new UserSongsByUserAndSongIdsSpec(request.UserId, toPromote).AsNoTracking(), cancellationToken);
+        if (keptResult.IsError)
+        {
+            return Result.Error<KeepSongsResponse>(keptResult.GetError());
+        }
+        var kept = keptResult.Get().Select(us => us.SongId).ToHashSet();
+
         var results = order
-            .Select(songId => owned.Contains(songId)
+            .Select(songId => kept.Contains(songId)
                 ? new SongKeepResult(songId, KeepOutcomes.Kept)
                 : new SongKeepResult(songId, KeepOutcomes.Failed, "Song is not in your library."))
             .ToList();

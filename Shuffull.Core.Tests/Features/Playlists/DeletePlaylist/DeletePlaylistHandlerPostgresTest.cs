@@ -217,4 +217,69 @@ public class DeletePlaylistHandlerPostgresTest : IAsyncLifetime
         var failure = await Assert.ThrowsAsync<PostgresException>(() => libraryAdd!);
         Assert.Equal(PostgresErrorCodes.ForeignKeyViolation, failure.SqlState);
     }
+
+    [PostgresFact]
+    public async Task Delete_ExploratoryPlaylist_SharedSongs_DropOnlyTheDeletingUsersUnkeptLinksOnPostgres()
+    {
+        // Shuffull#87: a song that survives because another user has it loses the deleting user's link, unless they
+        // love it or another of their own playlists has it.
+        var user = await SeedUserAsync();
+        var otherUser = await SeedUserAsync();
+        var playlist = await SeedAuditionPlaylistAsync(user.UserId);
+        var ownOtherMix = await SeedAuditionPlaylistAsync(user.UserId);
+        var unkept = await SeedSongOnPlaylistAsync(playlist.PlaylistId);
+        var loved = await SeedSongOnPlaylistAsync(playlist.PlaylistId);
+        var onAnotherMix = await SeedSongOnPlaylistAsync(playlist.PlaylistId);
+        await using (var context = Database.CreateContext())
+        {
+            context.PlaylistSongs.Add(new PlaylistSong { PlaylistSongId = Guid.NewGuid().ToString(), PlaylistId = ownOtherMix.PlaylistId, SongId = onAnotherMix.SongId });
+            await context.SaveChangesAsync();
+        }
+        await AddUserSongAsync(user.UserId, unkept.SongId, LikeStatus.Neutral);
+        await AddUserSongAsync(user.UserId, loved.SongId, LikeStatus.Love);
+        await AddUserSongAsync(user.UserId, onAnotherMix.SongId, LikeStatus.Neutral);
+        foreach (var song in new[] { unkept, loved, onAnotherMix })
+        {
+            await AddUserSongAsync(otherUser.UserId, song.SongId, LikeStatus.Neutral);
+        }
+
+        var result = await PurgeAsync(user.UserId, playlist.PlaylistId);
+
+        Assert.True(result.IsOk, result.IsError ? result.GetError().Message : null);
+        Assert.Empty(result.Get().PurgedSongIds);
+        await using var read = Database.CreateContext();
+        var userSongIds = await read.UserSongs.Where(us => us.UserId == user.UserId).Select(us => us.SongId).ToListAsync();
+        Assert.Equal(new[] { loved.SongId, onAnotherMix.SongId }.Order(), userSongIds.Order());
+        Assert.Equal(3, await read.UserSongs.CountAsync(us => us.UserId == otherUser.UserId));
+    }
+
+    [PostgresFact]
+    public async Task Delete_ExploratoryPlaylist_LinkLikedAfterTheLockButBeforeTheUnlink_KeepsTheLink()
+    {
+        // Pins the unlink's re-check: it reads the link as committed when it runs, not as it was when the delete
+        // started. A raw UPDATE stands in for the Like. The real Like handler also promotes the song, which waits on
+        // the delete's lock, so a real Like can't land in this window: it either commits first or fails afterwards.
+        var user = await SeedUserAsync();
+        var otherUser = await SeedUserAsync();
+        var playlist = await SeedAuditionPlaylistAsync(user.UserId);
+        var song = await SeedSongOnPlaylistAsync(playlist.PlaylistId);
+        await AddUserSongAsync(user.UserId, song.SongId, LikeStatus.Neutral);
+        await AddUserSongAsync(otherUser.UserId, song.SongId, LikeStatus.Neutral);
+
+        await using var likeConnection = await Database.OpenConnectionAsync();
+        var afterClaim = new AfterFirstClaim(async () =>
+        {
+            await using var like = new NpgsqlCommand(
+                "UPDATE \"UserSongs\" SET \"LikeStatus\" = 1 WHERE \"UserId\" = @user AND \"SongId\" = @song", likeConnection);
+            like.Parameters.AddWithValue("user", user.UserId);
+            like.Parameters.AddWithValue("song", song.SongId);
+            Assert.Equal(1, await like.ExecuteNonQueryAsync());
+        });
+
+        var result = await PurgeAsync(user.UserId, playlist.PlaylistId, afterClaim);
+
+        Assert.True(result.IsOk, result.IsError ? result.GetError().Message : null);
+        await using var read = Database.CreateContext();
+        Assert.Equal(LikeStatus.Like, (await read.UserSongs.SingleAsync(us => us.UserId == user.UserId && us.SongId == song.SongId)).LikeStatus);
+    }
 }
