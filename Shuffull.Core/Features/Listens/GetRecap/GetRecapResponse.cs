@@ -77,14 +77,19 @@ public record RecapGenreMonth(int Month, double TotalMinutes, IReadOnlyList<Reca
 public record RecapGenreShare(string TagId, string Name, double Minutes, double Percent);
 
 /// <summary>
-/// Keep rate. The time of a Keep isn't stored anywhere (<c>Song.Exploratory</c> is a flag, cleared in place), so this
-/// can't be "kept during the year". It is: of the songs the user played from an audition playlist this year
-/// (<paramref name="AuditionedSongs"/>), how many are kept NOW (<paramref name="KeptSongs"/>): the song still exists
-/// and is no longer exploratory, or the user likes or loves it. A purged song counts as not kept.
-///
-/// <para><c>Exploratory</c> is one flag per song, not per user: a song another user kept counts as kept here too. So a
-/// past year's rate moves when a song is kept, liked or purged later. Shuffull#101 tracks recording Keeps, and asks the
-/// user to confirm this definition.</para>
+/// Keep rate: of the songs the user played from an audition playlist this year (<paramref name="AuditionedSongs"/>),
+/// how many they kept (<paramref name="KeptSongs"/>). Which "kept" depends on the year, because Keeps have been
+/// recorded (<c>UserSong.KeptAt</c>) only since Shuffull#101, with no backfill:
+/// <list type="bullet">
+/// <item>A year that began after the first recorded Keep: this user kept the song (a Keep, a Like or Love, or an import
+/// that was liked or wasn't an audition) before the year ended. A Keep later doesn't change a past year, and another
+/// user's Keep doesn't count. A song kept in an earlier year and still played from its mix counts as kept, and so does
+/// a like with no <c>KeptAt</c>, since that like is older than the recording.</item>
+/// <item>An earlier year: the song is kept NOW, i.e. it still exists and is no longer exploratory, or the user likes or
+/// loves it. <c>Exploratory</c> is one flag per song, so a song another user kept counts here too, and the rate moves
+/// when a song is kept, liked or purged later.</item>
+/// </list>
+/// Either way a purged song counts as not kept: its <c>UserSong</c> is gone.
 /// </summary>
 /// <param name="Percent">0 to 100; null when nothing was auditioned.</param>
 public record RecapKeepRate(int AuditionedSongs, int KeptSongs, double? Percent);

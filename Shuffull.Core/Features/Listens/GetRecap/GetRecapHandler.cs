@@ -15,7 +15,9 @@ namespace Shuffull.Core.Features.Listens.GetRecap;
 /// <para>Cost: measured on Postgres 16 with a year of heavy listening (21,900 listens, one every 24 minutes, over
 /// 2,500 songs, in a table of 362,000 rows): about 150 ms warm, nearly all of it the five reads (the listens index scan
 /// itself is under 4 ms). A recap is asked for rarely, so it is computed on every request, with no cache. The
-/// first-listen read came later and wasn't measured: it takes the top row off the same index.</para>
+/// first-listen read came later and wasn't measured: it takes the top row off the same index. Nor was the earliest
+/// <c>KeptAt</c> (Shuffull#101), read only for a year with auditions: an unindexed MIN over every user's
+/// <c>UserSongs</c>.</para>
 /// </summary>
 public class GetRecapHandler(ShuffullContext context) : IRequestHandler<GetRecapQuery, Result<GetRecapResponse>>
 {
@@ -98,7 +100,8 @@ public class GetRecapHandler(ShuffullContext context) : IRequestHandler<GetRecap
             .Take(TopCount)
             .ToList();
         var artists = Artists(songs, catalog);
-        var kept = auditioned.Count(catalog.IsKept);
+        var keptBy = auditioned.Count == 0 ? null : await KeptByAsync(context, from, to, cancellationToken);
+        var kept = auditioned.Count(songId => catalog.IsKept(songId, keptBy));
 
         return Result.Ok(new GetRecapResponse(
             Year: request.Year,
@@ -144,6 +147,20 @@ public class GetRecapHandler(ShuffullContext context) : IRequestHandler<GetRecap
                 .OrderByDescending(s => s.Skips).ThenBy(s => s.Plays).ThenBy(s => s.SongId, StringComparer.Ordinal)
                 .Select(s => new RecapMostSkipped(catalog.Song(s.SongId, s.Minutes, s.Plays), s.Skips))
                 .FirstOrDefault()));
+    }
+
+    /// <summary>
+    /// Which keep-rate definition the year gets (see <see cref="RecapKeepRate"/>): <paramref name="to"/>, so a song counts
+    /// if this user kept it before the year ended, when Keeps were recorded for the whole year; null, for "kept or liked
+    /// now", when the year began before the first recorded Keep. The first <c>KeptAt</c> anywhere, any user, stands in
+    /// for when recording began (Shuffull#101, no backfill): it can only be later than the deploy, never earlier, so a
+    /// year that began before recording can't be read as covered.
+    /// </summary>
+    private static async Task<DateTime?> KeptByAsync(ShuffullContext context, DateTime from, DateTime to,
+        CancellationToken cancellationToken)
+    {
+        var firstKeep = await context.UserSongs.AsNoTracking().MinAsync(us => us.KeptAt, cancellationToken);
+        return firstKeep is { } first && DateTime.SpecifyKind(first, DateTimeKind.Utc) <= from ? to : null;
     }
 
     private static List<RecapArtist> Artists(List<SongTotals> songs, SongCatalog catalog) => songs
@@ -316,15 +333,15 @@ public class GetRecapHandler(ShuffullContext context) : IRequestHandler<GetRecap
         private readonly Dictionary<string, (string Name, bool Exploratory)> _songs;
         private readonly ILookup<string, NamedId> _artists;
         private readonly ILookup<string, NamedId> _genres;
-        private readonly HashSet<string> _liked;
+        private readonly Dictionary<string, (bool Liked, DateTime? KeptAt)> _mine;
 
         private SongCatalog(Dictionary<string, (string, bool)> songs, ILookup<string, NamedId> artists,
-            ILookup<string, NamedId> genres, HashSet<string> liked)
+            ILookup<string, NamedId> genres, Dictionary<string, (bool, DateTime?)> mine)
         {
             _songs = songs;
             _artists = artists;
             _genres = genres;
-            _liked = liked;
+            _mine = mine;
         }
 
         public static async Task<SongCatalog> LoadAsync(ShuffullContext context, string userId, List<string> songIds,
@@ -342,10 +359,9 @@ public class GetRecapHandler(ShuffullContext context) : IRequestHandler<GetRecap
                 .Where(st => songIds.Contains(st.SongId) && st.Tag.Type == TagType.Genre)
                 .Select(st => new { st.SongId, st.TagId, st.Tag.Name })
                 .ToListAsync(cancellationToken);
-            var liked = await context.UserSongs.AsNoTracking()
-                .Where(us => us.UserId == userId && songIds.Contains(us.SongId)
-                    && (us.LikeStatus == LikeStatus.Like || us.LikeStatus == LikeStatus.Love))
-                .Select(us => us.SongId)
+            var mine = await context.UserSongs.AsNoTracking()
+                .Where(us => us.UserId == userId && songIds.Contains(us.SongId))
+                .Select(us => new { us.SongId, us.LikeStatus, us.KeptAt })
                 .ToListAsync(cancellationToken);
 
             return new SongCatalog(
@@ -353,16 +369,29 @@ public class GetRecapHandler(ShuffullContext context) : IRequestHandler<GetRecap
                 artists.OrderBy(a => a.Name, StringComparer.Ordinal).ThenBy(a => a.ArtistId, StringComparer.Ordinal)
                     .ToLookup(a => a.SongId, a => new NamedId(a.ArtistId, a.Name)),
                 genres.ToLookup(g => g.SongId, g => new NamedId(g.TagId, g.Name)),
-                liked.ToHashSet());
+                mine.ToDictionary(us => us.SongId, us => (us.LikeStatus.RetainsSong(),
+                    us.KeptAt is { } keptAt ? DateTime.SpecifyKind(keptAt, DateTimeKind.Utc) : (DateTime?)null)));
         }
 
         public IEnumerable<NamedId> ArtistsOf(string songId) => _artists[songId];
 
         public IEnumerable<NamedId> GenresOf(string songId) => _genres[songId];
 
-        /// <summary>See <see cref="RecapKeepRate"/>: the song still exists and is out of audition, or the user likes it.</summary>
-        public bool IsKept(string songId)
-            => (_songs.TryGetValue(songId, out var song) && !song.Exploratory) || _liked.Contains(songId);
+        /// <summary>
+        /// See <see cref="RecapKeepRate"/>. With <paramref name="keptBy"/>: this user kept the song before then. Without
+        /// it: the song still exists and is out of audition, or the user likes it.
+        /// </summary>
+        public bool IsKept(string songId, DateTime? keptBy)
+        {
+            var hasMine = _mine.TryGetValue(songId, out var mine);
+            if (keptBy is { } end)
+            {
+                // Every move into Like or Love has stamped KeptAt since Shuffull#101, so a like with none is older than
+                // the first recorded Keep, and so older than any year that gets here: kept before the year ended.
+                return hasMine && (mine.KeptAt < end || (mine.KeptAt is null && mine.Liked));
+            }
+            return (_songs.TryGetValue(songId, out var song) && !song.Exploratory) || (hasMine && mine.Liked);
+        }
 
         public RecapSong Song(string songId, double minutes, int plays) => new(
             songId,

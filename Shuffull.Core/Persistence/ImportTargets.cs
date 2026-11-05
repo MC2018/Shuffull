@@ -75,17 +75,19 @@ public static class ImportTargets
 
         // A user who already has the song keeps their UserSong as it is: a re-import must not overwrite a
         // like/dislike or play history they set here.
-        var hasUserSong = await dbContext.UserSongs
-            .AnyAsync(us => us.UserId == userId && us.SongId == song.SongId, cancellationToken);
-        if (!hasUserSong)
+        var userSong = await dbContext.UserSongs
+            .FirstOrDefaultAsync(us => us.UserId == userId && us.SongId == song.SongId, cancellationToken);
+        if (userSong is null)
         {
-            var userSong = new UserSong()
+            userSong = new UserSong()
             {
                 UserId = userId,
                 SongId = song.SongId,
                 LastPlayed = DateTime.MinValue,
                 Version = DateTime.UtcNow,
-                LikeStatus = likeStatus
+                LikeStatus = likeStatus,
+                // A liked import is this user's Keep, as a Like is (Shuffull#101).
+                KeptAt = likeStatus.RetainsSong() ? DateTime.UtcNow : null,
             };
             dbContext.UserSongs.Add(userSong);
 
@@ -106,6 +108,14 @@ public static class ImportTargets
         {
             song.Exploratory = false;
             song.Version = DateTime.UtcNow;
+        }
+
+        // The same decision is this user's Keep, so it is dated too (Shuffull#101), on a UserSong found above as well:
+        // only KeptAt, which is null until set, so nothing the user set is overwritten. Not part of the synced row, so
+        // Version stays.
+        if (!importedForAudition && userSong.KeptAt is null)
+        {
+            userSong.KeptAt = DateTime.UtcNow;
         }
     }
 }

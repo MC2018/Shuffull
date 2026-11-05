@@ -684,6 +684,9 @@ namespace Shuffull.Api.Migrations
                     b.Property<string>("SongId")
                         .HasColumnType("text");
 
+                    b.Property<DateTime?>("KeptAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime>("LastPlayed")
                         .HasColumnType("timestamp with time zone");
 

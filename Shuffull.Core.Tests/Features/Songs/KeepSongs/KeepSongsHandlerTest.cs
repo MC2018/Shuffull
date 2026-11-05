@@ -40,13 +40,15 @@ public class KeepSongsHandlerTest : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    /// <summary>Records what was promoted and can be scripted to fail (a down/locked database).</summary>
+    /// <summary>Records what was kept, and for whom, and can be scripted to fail (a down/locked database).</summary>
     private sealed class SpyPromotion(Result<int>? scripted = null) : IAuditionPromotionService
     {
-        public List<IReadOnlyList<string>> Calls { get; } = [];
+        public List<(string UserId, IReadOnlyList<string> SongIds)> Calls { get; } = [];
         public Task<Result<int>> PromoteAsync(IReadOnlyList<string> songIds, CancellationToken cancellationToken = default!)
+            => throw new InvalidOperationException("A Keep goes through KeepAsync, which records its time.");
+        public Task<Result<int>> KeepAsync(string userId, IReadOnlyList<string> songIds, CancellationToken cancellationToken = default!)
         {
-            Calls.Add(songIds);
+            Calls.Add((userId, songIds));
             return Task.FromResult(scripted ?? Result.Ok(songIds.Count));
         }
     }
@@ -269,6 +271,62 @@ public class KeepSongsHandlerTest : IDisposable
         await new KeepSongsHandler(_database.UnitOfWork, spy, _signals)
             .Handle(new KeepSongsCommand(caller.UserId, [theirs.SongId, mine.SongId]), CancellationToken.None);
 
-        Assert.Equal([mine.SongId], Assert.Single(spy.Calls));
+        var call = Assert.Single(spy.Calls);
+        Assert.Equal(caller.UserId, call.UserId);
+        Assert.Equal([mine.SongId], call.SongIds);
+    }
+
+    private async Task<UserSong> ReloadUserSongAsync(string userId, string songId)
+    {
+        _database.Context.ChangeTracker.Clear();
+        return await _database.Context.UserSongs.AsNoTracking().SingleAsync(us => us.UserId == userId && us.SongId == songId);
+    }
+
+    [Fact]
+    public async Task Keep_RecordsItsTime_OnTheCallersUserSongOnly()
+    {
+        var caller = await SeedUserAsync();
+        var other = await SeedUserAsync();
+        var song = await SeedSongAsync(exploratory: true, owner: caller);
+        await _database.Context.UserSongs.AddAsync(new UserSong
+        {
+            UserId = other.UserId, SongId = song.SongId, LastPlayed = DateTime.MinValue, Version = OldVersion,
+        });
+        await _database.Context.SaveChangesAsync();
+        var before = DateTime.UtcNow;
+
+        await RunAsync(caller.UserId, song.SongId);
+
+        var mine = await ReloadUserSongAsync(caller.UserId, song.SongId);
+        Assert.NotNull(mine.KeptAt);
+        Assert.InRange(mine.KeptAt!.Value, before.AddSeconds(-1), DateTime.UtcNow.AddSeconds(1));
+        Assert.Equal(OldVersion, mine.Version); // KeptAt isn't synced, so the row's sync cursor stays put
+        Assert.Null((await ReloadUserSongAsync(other.UserId, song.SongId)).KeptAt);
+    }
+
+    [Fact]
+    public async Task Keep_OfASongAnotherUserAlreadyPromoted_StillRecordsThisUsersTime()
+    {
+        var user = await SeedUserAsync();
+        var song = await SeedSongAsync(exploratory: false, owner: user);
+
+        await RunAsync(user.UserId, song.SongId);
+
+        Assert.NotNull((await ReloadUserSongAsync(user.UserId, song.SongId)).KeptAt);
+        Assert.Equal(OldVersion, (await ReloadAsync(song.SongId)).Version);
+    }
+
+    [Fact]
+    public async Task ResentKeep_KeepsTheFirstTime()
+    {
+        var user = await SeedUserAsync();
+        var song = await SeedSongAsync(exploratory: true, owner: user);
+        await RunAsync(user.UserId, song.SongId);
+        var first = (await ReloadUserSongAsync(user.UserId, song.SongId)).KeptAt;
+
+        await Task.Delay(20);
+        await RunAsync(user.UserId, song.SongId);
+
+        Assert.Equal(first, (await ReloadUserSongAsync(user.UserId, song.SongId)).KeptAt);
     }
 }

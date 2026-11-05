@@ -37,6 +37,8 @@ public class RetagSongsHandlerTest
             Calls.Add(songIds);
             return Task.FromResult(scripted ?? Result.Ok(songIds.Count));
         }
+        public Task<Result<int>> KeepAsync(string userId, IReadOnlyList<string> songIds, CancellationToken cancellationToken = default!)
+            => throw new InvalidOperationException("RetagSongs promotes; it doesn't record a user's Keep.");
     }
 
     /// <summary>Appends "promote:id1,id2" to a shared log so call ORDER across both seams can be asserted.</summary>
@@ -47,6 +49,8 @@ public class RetagSongsHandlerTest
             log.Add($"promote:{string.Join(",", songIds)}");
             return Task.FromResult(Result.Ok(songIds.Count));
         }
+        public Task<Result<int>> KeepAsync(string userId, IReadOnlyList<string> songIds, CancellationToken cancellationToken = default!)
+            => throw new InvalidOperationException("RetagSongs promotes; it doesn't record a user's Keep.");
     }
 
     /// <summary>Enrichment counterpart of <see cref="SequencedPromotion"/>, writing to the same log.</summary>

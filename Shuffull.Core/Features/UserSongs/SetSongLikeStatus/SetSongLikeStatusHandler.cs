@@ -48,6 +48,13 @@ public class SetSongLikeStatusHandler(IUnitOfWork unitOfWork)
         YoutubeRatingRequest? queuedRating = null;
         if (statusChanged)
         {
+            // A Like is this user's Keep (Shuffull#101), so its time is recorded here, in the like's own commit. Only on
+            // a move INTO Like or Love: Love to Like, or a re-sent Like, isn't a new decision, and stamping it now would
+            // date a pre-#101 like to today.
+            if (userSong.KeptAt is null && request.LikeStatus.RetainsSong() && !userSong.LikeStatus.RetainsSong())
+            {
+                userSong.KeptAt = now;
+            }
             userSong.LikeStatus = request.LikeStatus;
             userSong.Version = now;
 
