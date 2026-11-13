@@ -32,7 +32,8 @@ public static class SongImportMetadataResolver
     /// Resolves the ordered artist names. The producer's vetted artist list (carried as
     /// <see cref="Core.Models.Database.SongImport.ArtistsJson"/>) is authoritative whenever it is present (non-blank
     /// JSON) — it avoids a producer-side MusicBrainz match collapsing a multi-artist collab into one credit string.
-    /// Blank entries are dropped from the producer list. Only a missing/blank <paramref name="artistsJson"/> falls
+    /// Blank entries are dropped from the producer list, and a name listed twice is kept once, first place wins
+    /// (a song links each artist once). Only a missing/blank <paramref name="artistsJson"/> falls
     /// back to the file's ID3 performers (manual uploads / older payloads that didn't carry artists).
     /// </summary>
     /// <param name="artistsJson">JSON-serialized <c>List&lt;string&gt;</c> of producer artists; null/blank => use ID3.</param>
@@ -43,12 +44,14 @@ public static class SongImportMetadataResolver
         {
             return (JsonConvert.DeserializeObject<List<string>>(artistsJson) ?? new List<string>())
                 .Where(a => !string.IsNullOrWhiteSpace(a))
+                .Distinct(StringComparer.Ordinal)
                 .ToArray();
         }
 
         // The ID3 fallback is filtered too, so a blank performer entry can never become an empty-named artist.
         return (id3Performers ?? Array.Empty<string>())
             .Where(a => !string.IsNullOrWhiteSpace(a))
+            .Distinct(StringComparer.Ordinal)
             .ToArray();
     }
 }

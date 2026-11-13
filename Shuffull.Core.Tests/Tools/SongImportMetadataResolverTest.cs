@@ -87,6 +87,15 @@ public class SongImportMetadataResolverTest
     }
 
     [Fact]
+    public void ResolveArtistNames_DropsRepeatedNames_KeepingFirstOrder()
+    {
+        var json = JsonConvert.SerializeObject(new List<string> { "B", "A", "B" });
+
+        Assert.Equal(new[] { "B", "A" }, SongImportMetadataResolver.ResolveArtistNames(json, Array.Empty<string>()));
+        Assert.Equal(new[] { "P", "Q" }, SongImportMetadataResolver.ResolveArtistNames(null, new[] { "P", "Q", "P" }));
+    }
+
+    [Fact]
     public void ResolveArtistNames_DropsBlankProducerEntries()
     {
         var json = JsonConvert.SerializeObject(new List<string> { "Real", "", "   ", "Also Real" });

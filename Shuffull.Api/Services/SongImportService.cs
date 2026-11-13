@@ -444,7 +444,8 @@ public partial class SongImportService : BackgroundService
                 i++;
             }
 
-            // A name listed twice would create two Artist rows, or link one artist to the song twice.
+            // ResolveArtistNames already drops repeated names; this catches one the AC/DC join produces ("AC", "DC",
+            // "AC/DC"), which would otherwise create two Artist rows or link one artist twice.
             if (!seenNames.Add(performerName))
             {
                 continue;
