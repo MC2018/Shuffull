@@ -201,6 +201,11 @@ public class RecordListensHandler(ShuffullContext context)
         {
             return Reject($"deviceId is longer than {UserDevice.MaxDeviceIdLength} characters.");
         }
+        // The same rule as the check-in's (CheckInDeviceValidator), so every stored id can match a device row.
+        if (item.DeviceId?.Any(char.IsControl) == true)
+        {
+            return Reject("deviceId can't contain control characters.");
+        }
 
         return new CheckedItem(item, new Listen
         {

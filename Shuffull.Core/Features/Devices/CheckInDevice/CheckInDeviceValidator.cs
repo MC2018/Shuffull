@@ -18,7 +18,7 @@ public class CheckInDeviceValidator : AbstractValidator<CheckInDeviceCommand>
 
         RuleFor(x => x.Name)
             .NotEmpty().WithMessage("A device name is required.")
-            .Must(name => name is null || name.Trim().Length <= UserDevice.MaxNameLength)
+            .Must(name => name.Trim().Length <= UserDevice.MaxNameLength)
             .WithMessage($"The device name is longer than {UserDevice.MaxNameLength} characters.")
             .Must(NoControlCharacters).WithMessage("The device name can't contain control characters.");
 

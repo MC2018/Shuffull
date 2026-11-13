@@ -137,7 +137,7 @@ public class DevicesControllerTest : IAsyncDisposable
 
     [Theory]
     [MemberData(nameof(BadCheckIns))]
-    public async Task CheckIn_WithAnEmptyOrOverLongValue_Is400_AndWritesNothing(string deviceId, string? name, string? platform)
+    public async Task CheckIn_WithAnInvalidValue_Is400_AndWritesNothing(string deviceId, string? name, string? platform)
     {
         var user = await SeedUserAsync("a");
 

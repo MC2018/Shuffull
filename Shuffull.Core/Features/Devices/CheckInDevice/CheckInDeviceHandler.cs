@@ -17,8 +17,8 @@ public class CheckInDeviceHandler(ShuffullContext context, TimeProvider timeProv
 {
     public async Task<Result<UserDeviceDto>> Handle(CheckInDeviceCommand request, CancellationToken cancellationToken)
     {
-        var deviceId = request.DeviceId!;
-        var name = request.Name!.Trim();
+        var deviceId = request.DeviceId;
+        var name = request.Name.Trim();
         var platform = string.IsNullOrWhiteSpace(request.Platform) ? null : request.Platform;
         var now = timeProvider.GetUtcNow().UtcDateTime;
 

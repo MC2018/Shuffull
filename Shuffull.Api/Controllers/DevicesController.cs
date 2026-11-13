@@ -33,6 +33,6 @@ public class DevicesController : ControllerBase
         CancellationToken cancellationToken)
     {
         return this.ToActionResult(await _mediator.Send(
-            new CheckInDeviceCommand(user.UserId, deviceId, request.Name, request.Platform), cancellationToken));
+            new CheckInDeviceCommand(user.UserId, deviceId, request.Name ?? string.Empty, request.Platform), cancellationToken));
     }
 }

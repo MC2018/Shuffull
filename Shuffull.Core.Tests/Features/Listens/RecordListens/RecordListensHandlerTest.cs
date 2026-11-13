@@ -143,16 +143,17 @@ public class RecordListensHandlerTest : IDisposable
             Item("nul-in-platform") with { Platform = "and\0roid" },
             Item("long-device-id") with { DeviceId = new string('d', UserDevice.MaxDeviceIdLength + 1) },
             Item("nul-in-device-id") with { DeviceId = "dev\0ice" },
+            Item("tab-in-device-id") with { DeviceId = "dev\tice" },
             null!,
             Item("good"));
 
         Assert.True(result.IsOk);
         var outcomes = result.Get().Results;
-        Assert.Equal(20, outcomes.Count);
-        Assert.All(outcomes.Take(19), r => Assert.Equal(ListenOutcomes.Rejected, r.Outcome));
-        Assert.All(outcomes.Take(19), r => Assert.False(string.IsNullOrWhiteSpace(r.Error)));
-        Assert.Null(outcomes[18].ListenId);
-        Assert.Equal(ListenOutcomes.Recorded, outcomes[19].Outcome);
+        Assert.Equal(21, outcomes.Count);
+        Assert.All(outcomes.Take(20), r => Assert.Equal(ListenOutcomes.Rejected, r.Outcome));
+        Assert.All(outcomes.Take(20), r => Assert.False(string.IsNullOrWhiteSpace(r.Error)));
+        Assert.Null(outcomes[19].ListenId);
+        Assert.Equal(ListenOutcomes.Recorded, outcomes[20].Outcome);
         Assert.Equal(["good"], await StoredIdsAsync());
     }
 
