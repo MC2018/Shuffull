@@ -37,9 +37,13 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: shuffull-api
+    # Come back by itself after a Docker restart or reboot, like the db (Shuffull#55). Without it the API
+    # stayed down after the 2026-10-16 `systemctl restart docker` until someone pressed Start.
+    restart: unless-stopped
+    # Only 7117: nothing listens on 5117 (ASPNETCORE_URLS is http://+:7117), and an unused published port is
+    # one more host port that can be left allocated and block the start ("port is already allocated").
     ports:
       - "7117:7117"
-      - "5117:5117"
     depends_on:
       db:
         condition: service_healthy
