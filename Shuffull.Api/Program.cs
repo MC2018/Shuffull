@@ -187,7 +187,7 @@ app.UseRouting();
 // into an opaque "Network Error" on the client.
 app.UseCors(ShuffullCorsPolicy);
 
-// Resolves the bearer token (if any) to HttpContext.Items["User"] for the [Authorize] filter.
+// Resolves the bearer token (if any) to HttpContext.Items[JwtMiddleware.UserKey] for the [Authorize] filter.
 app.UseMiddleware<JwtMiddleware>();
 
 app.UseAuthorization();

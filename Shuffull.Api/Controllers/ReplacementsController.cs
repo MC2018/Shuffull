@@ -1,10 +1,13 @@
+using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Shuffull.Core.Tools;
+using Nut.Results;
+using Shuffull.Api.Commands.Replacements.FlagSongReplacement;
+using Shuffull.Api.Extensions;
 using Shuffull.Api.Tools.Authorization;
-using Shuffull.Core.Models.Database;
+using Shuffull.Core.Errors;
+using Shuffull.Core.Features.Replacements.FlagSongReplacement;
+using Shuffull.Core.Features.Replacements.GetSongReplacementQueue;
 using Shuffull.Core.Models.Enums;
-using Shuffull.Core.Persistence;
 
 namespace Shuffull.Api.Controllers;
 
@@ -17,80 +20,35 @@ namespace Shuffull.Api.Controllers;
 [Route("api/v1/replacements")]
 public class ReplacementsController : ControllerBase
 {
-    private readonly ShuffullContext _context;
+    private readonly IMediator _mediator;
 
-    public ReplacementsController(ShuffullContext context)
+    public ReplacementsController(IMediator mediator)
     {
-        _context = context;
+        _mediator = mediator;
     }
 
-    /// <summary>App: flag a song for replacement. Global per song — a no-op if one is already open.</summary>
+    /// <summary>App: flag a song for replacement. See <see cref="FlagSongReplacementHandler"/>.</summary>
     [HttpPost]
     [Authorize]
     public async Task<IActionResult> Flag([FromBody] FlagReplacementRequest request, CancellationToken cancellationToken)
     {
-        if (request is null || string.IsNullOrWhiteSpace(request.SongId))
+        var result = await _mediator.Send(new FlagSongReplacementCommand(request.SongId, request.Note), cancellationToken);
+        if (result.IsOk)
         {
-            return BadRequest("SongId is required.");
+            // An empty 200 whether or not a row was added, as the app has always had it.
+            return Ok();
         }
 
-        var song = await _context.Songs.FirstOrDefaultAsync(s => s.SongId == request.SongId, cancellationToken);
-        if (song is null)
-        {
-            return NotFound("Song not found.");
-        }
-
-        var alreadyOpen = await _context.SongReplacements
-            .AnyAsync(r => r.SongId == request.SongId && r.Status != SongReplacementStatus.Completed, cancellationToken);
-        if (!alreadyOpen)
-        {
-            _context.SongReplacements.Add(new SongReplacement
-            {
-                SongReplacementId = IdGenerator.Generate(),
-                SongId = request.SongId,
-                Status = SongReplacementStatus.Pending,
-                Note = request.Note,
-                // Snapshot the source id now, before a replacement overwrites Song.ExternalSongId.
-                OriginalExternalSongId = song.ExternalSongId,
-                CreatedAt = DateTime.UtcNow,
-            });
-            await _context.SaveChangesAsync(cancellationToken);
-        }
-
-        return Ok();
+        // This endpoint answers with a plain-text message, not ToActionResult's { error } object.
+        var error = result.GetError();
+        return ResultErrors.KindOf(error) == ErrorKind.NotFound
+            ? NotFound(error.Message)
+            : BadRequest(error.Message);
     }
 
     /// <summary>Producer: pull the replacement queue at a given status (shared-secret guarded).</summary>
     [HttpGet]
     [ProducerKey]
-    public async Task<IActionResult> GetQueue(
-        [FromQuery] SongReplacementStatus status,
-        CancellationToken cancellationToken)
-    {
-        var rows = await _context.SongReplacements
-            .Where(r => r.Status == status)
-            .OrderBy(r => r.CreatedAt)
-            .Select(r => new SongReplacementDto(
-                r.SongReplacementId,
-                r.SongId,
-                r.Song.Name,
-                r.Song.SongArtists.Select(sa => sa.Artist.Name).ToList(),
-                r.OriginalExternalSongId,
-                r.Note,
-                r.CreatedAt))
-            .ToListAsync(cancellationToken);
-
-        return Ok(rows);
-    }
+    public async Task<IActionResult> GetQueue([FromQuery] SongReplacementStatus status, CancellationToken cancellationToken)
+        => this.ToActionResult(await _mediator.Send(new GetSongReplacementQueueQuery(status), cancellationToken));
 }
-
-public record FlagReplacementRequest(string SongId, string? Note);
-
-public record SongReplacementDto(
-    string SongReplacementId,
-    string SongId,
-    string Name,
-    List<string> Artists,
-    string? OriginalExternalSongId,
-    string? Note,
-    DateTime CreatedAt);
