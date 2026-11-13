@@ -38,6 +38,20 @@ public class UpdateSongsLastPlayedHandlerTest : IDisposable
         return user;
     }
 
+    private async Task<Song> SeedSongAsync()
+    {
+        var song = new Song
+        {
+            SongId = Guid.NewGuid().ToString(),
+            Name = "Song",
+            FileExtension = ".mp3",
+            FileHash = Guid.NewGuid().ToString(),
+        };
+        await _database.Context.Songs.AddAsync(song);
+        await _database.Context.SaveChangesAsync();
+        return song;
+    }
+
     private async Task<UserSong> SeedUserSongAsync(string userId, DateTime lastPlayed)
     {
         var song = await SeedSongAsync();
@@ -103,20 +117,6 @@ public class UpdateSongsLastPlayedHandlerTest : IDisposable
         var savedUserSong = await _database.Context.UserSongs.AsNoTracking()
             .SingleAsync(us => us.UserId == user.UserId && us.SongId == userSong.SongId);
         Assert.Equal(lastPlayed, savedUserSong.LastPlayed);
-    }
-
-    private async Task<Song> SeedSongAsync()
-    {
-        var song = new Song
-        {
-            SongId = Guid.NewGuid().ToString(),
-            Name = "Song",
-            FileExtension = ".mp3",
-            FileHash = Guid.NewGuid().ToString(),
-        };
-        await _database.Context.Songs.AddAsync(song);
-        await _database.Context.SaveChangesAsync();
-        return song;
     }
 
     [Fact]
