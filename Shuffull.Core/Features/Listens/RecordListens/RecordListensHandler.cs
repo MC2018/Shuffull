@@ -67,9 +67,9 @@ public class RecordListensHandler(ShuffullContext context)
                 var rows = await context.Database.ExecuteSqlInterpolatedAsync(
                     $"""
                     INSERT INTO "Listens" ("ListenId", "UserId", "SongId", "StartedAt", "EndedAt", "SecondsListened",
-                                           "SongDurationSeconds", "EndReason", "Context", "PlaylistId", "Platform", "RecordedAt")
+                                           "SongDurationSeconds", "EndReason", "Context", "PlaylistId", "Platform", "DeviceId", "RecordedAt")
                     VALUES ({l.ListenId}, {l.UserId}, {l.SongId}, {l.StartedAt}, {l.EndedAt}, {l.SecondsListened},
-                            {l.SongDurationSeconds}, {(int)l.EndReason}, {(int)l.Context}, {l.PlaylistId}, {l.Platform}, {now})
+                            {l.SongDurationSeconds}, {(int)l.EndReason}, {(int)l.Context}, {l.PlaylistId}, {l.Platform}, {l.DeviceId}, {now})
                     ON CONFLICT ("ListenId") DO NOTHING
                     """,
                     cancellationToken);
@@ -134,7 +134,7 @@ public class RecordListensHandler(ShuffullContext context)
             return Reject("A listen is required.");
         }
         // Postgres text can't hold a NUL, and the failed insert would fail the whole batch.
-        if (new[] { item.ListenId, item.SongId, item.PlaylistId, item.Platform, item.UserId }.Any(s => s?.Contains('\0') == true))
+        if (new[] { item.ListenId, item.SongId, item.PlaylistId, item.Platform, item.UserId, item.DeviceId }.Any(s => s?.Contains('\0') == true))
         {
             return Reject("Text fields can't contain a NUL character.");
         }
@@ -197,6 +197,15 @@ public class RecordListensHandler(ShuffullContext context)
         {
             return Reject($"platform is longer than {Listen.MaxPlatformLength} characters.");
         }
+        if (item.DeviceId is { Length: > UserDevice.MaxDeviceIdLength })
+        {
+            return Reject($"deviceId is longer than {UserDevice.MaxDeviceIdLength} characters.");
+        }
+        // The same rule as the check-in's (CheckInDeviceValidator), so every stored id can match a device row.
+        if (item.DeviceId?.Any(char.IsControl) == true)
+        {
+            return Reject("deviceId can't contain control characters.");
+        }
 
         return new CheckedItem(item, new Listen
         {
@@ -211,6 +220,7 @@ public class RecordListensHandler(ShuffullContext context)
             Context = listenContext,
             PlaylistId = string.IsNullOrWhiteSpace(item.PlaylistId) ? null : item.PlaylistId,
             Platform = string.IsNullOrWhiteSpace(item.Platform) ? null : item.Platform,
+            DeviceId = string.IsNullOrWhiteSpace(item.DeviceId) ? null : item.DeviceId,
         }, null);
     }
 

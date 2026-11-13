@@ -130,6 +130,10 @@ namespace Shuffull.Api.Migrations
                     b.Property<int>("Context")
                         .HasColumnType("integer");
 
+                    b.Property<string>("DeviceId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<int>("EndReason")
                         .HasColumnType("integer");
 
@@ -675,6 +679,35 @@ namespace Shuffull.Api.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("Shuffull.Core.Models.Database.UserDevice", b =>
+                {
+                    b.Property<string>("UserId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("DeviceId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Platform")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.HasKey("UserId", "DeviceId");
+
+                    b.ToTable("UserDevices");
+                });
+
             modelBuilder.Entity("Shuffull.Core.Models.Database.UserSong", b =>
                 {
                     b.Property<string>("UserId")
@@ -894,6 +927,17 @@ namespace Shuffull.Api.Migrations
                     b.Navigation("Song");
 
                     b.Navigation("Tag");
+                });
+
+            modelBuilder.Entity("Shuffull.Core.Models.Database.UserDevice", b =>
+                {
+                    b.HasOne("Shuffull.Core.Models.Database.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Shuffull.Core.Models.Database.UserSong", b =>

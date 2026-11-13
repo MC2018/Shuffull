@@ -10,6 +10,7 @@ namespace Shuffull.Core.Features.Listens.RecordListens;
 /// <see cref="Context"/> are the enum names, matched without case ("skipped", "genreJam").
 /// </summary>
 /// <param name="UserId">Optional. When sent it must be the caller's own id.</param>
+/// <param name="DeviceId">Optional: the app install that played it (Shuffull#132). Older app builds don't send it.</param>
 public record ListenItem(
     string? ListenId,
     string? SongId,
@@ -21,7 +22,8 @@ public record ListenItem(
     string? Context,
     string? PlaylistId = null,
     string? Platform = null,
-    string? UserId = null);
+    string? UserId = null,
+    string? DeviceId = null);
 
 /// <summary>
 /// Appends the caller's listens to their listen log. A listen is history: it is recorded whether or not the user

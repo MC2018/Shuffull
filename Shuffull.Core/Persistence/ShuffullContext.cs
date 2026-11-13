@@ -33,6 +33,7 @@ public class ShuffullContext : DbContext
     public DbSet<HealthSignal> HealthSignals { get; set; }
     public DbSet<AlertState> AlertStates { get; set; }
     public DbSet<Listen> Listens { get; set; }
+    public DbSet<UserDevice> UserDevices { get; set; }
 
     public ShuffullContext(DbContextOptions options) : base(options) { }
 
@@ -45,6 +46,10 @@ public class ShuffullContext : DbContext
 
         modelBuilder.Entity<SongArtist>()
             .HasKey(sa => new { sa.SongId, sa.ArtistId });
+
+        // Per user, so the same install signed into two accounts is two devices (Shuffull#132).
+        modelBuilder.Entity<UserDevice>()
+            .HasKey(d => new { d.UserId, d.DeviceId });
 
         modelBuilder.Entity<GenreRelation>()
             .HasOne(gr => gr.MainGenre)
