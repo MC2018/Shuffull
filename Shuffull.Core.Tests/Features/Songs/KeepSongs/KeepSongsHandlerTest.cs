@@ -64,6 +64,13 @@ public class KeepSongsHandlerTest : IDisposable
             await before();
             return await inner.PromoteAsync(songIds, cancellationToken);
         }
+
+        // The handler keeps through KeepAsync, so this is the call the interleaved write has to precede.
+        public async Task<Result<int>> KeepAsync(string userId, IReadOnlyList<string> songIds, CancellationToken cancellationToken = default!)
+        {
+            await before();
+            return await inner.KeepAsync(userId, songIds, cancellationToken);
+        }
     }
 
     private Task<Result<KeepSongsResponse>> RunAsync(string userId, params string[] songIds)
