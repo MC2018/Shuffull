@@ -5,6 +5,7 @@ using Microsoft.Extensions.FileProviders;
 using NLog.Web;
 using Shuffull.Api.Configuration;
 using Shuffull.Api.Extensions;
+using Shuffull.Api.Hubs;
 using Shuffull.Api.Services;
 using Shuffull.Api.Services.Alerts;
 using Shuffull.Api.Services.FileStorage;
@@ -85,6 +86,12 @@ builder.Services.AddSingleton<ISongMediaStore, SongMediaStore>();
 builder.Services.AddHostedService<PurgedSongMediaSweepService>();
 builder.Services.AddHostedService<SongImportService>();
 builder.Services.AddHostedService<ExternalSongImporterService>();
+
+// --- Cross-device playback ---------------------------------------------------------------------
+// Playback sessions + the /hubs/playback live channel (Shuffull#6). The hub's presence map is in memory, so this
+// assumes one API instance. The prune drops sessions untouched for 30 days.
+builder.Services.AddPlaybackChannel();
+builder.Services.AddHostedService<PlaybackSessionPruneService>();
 
 // --- Song request search -----------------------------------------------------------------------
 // Relays the app's song search to the producer (Shuffull#58). Off, with no outbound call, until
@@ -189,10 +196,13 @@ app.UseCors(ShuffullCorsPolicy);
 
 // Resolves the bearer token (if any) to HttpContext.Items[JwtMiddleware.UserKey] for the [Authorize] filter.
 app.UseMiddleware<JwtMiddleware>();
+// The playback hub's own sign-in check: the [Authorize] filter is MVC-only.
+app.UsePlaybackHubSignIn();
 
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapPlaybackHub();
 
 using (var scope = app.Services.CreateScope())
 {
