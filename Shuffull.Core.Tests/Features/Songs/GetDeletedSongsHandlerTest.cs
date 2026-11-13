@@ -1,4 +1,5 @@
 using Nut.Results;
+using Shuffull.Core.Errors;
 using Shuffull.Core.Features.Songs.GetDeletedSongs;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Tests.Infrastructure;
@@ -157,5 +158,6 @@ public class GetDeletedSongsHandlerTest : IDisposable
         var result = await RunAsync("user-a", before);
 
         Assert.True(result.IsError);
+        Assert.Equal(ErrorKind.Invalid, ResultErrors.KindOf(result.GetError()));
     }
 }

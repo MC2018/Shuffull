@@ -7,7 +7,7 @@ namespace Shuffull.Core.Models.Database;
 /// The record left behind when a song row is purged (today: an un-kept audition song, when its exploratory
 /// playlist is deleted). Written in the same transaction as the delete, so a purge is never silent.
 /// <para>
-/// It does two jobs. First, it holds the media back: the purge does not delete the audio/album-art file. A sweep
+/// It does three jobs. First, it holds the media back: the purge does not delete the audio/album-art file. A sweep
 /// deletes it only after <see cref="MediaGracePeriod"/>, and only when no live song shares
 /// <see cref="FileHash"/>. That leaves time to recover a wrong purge from the file and these columns (on
 /// 2026-08-22, 34 kept songs had their media hard-deleted on the spot). Second, it is the deletion signal for
