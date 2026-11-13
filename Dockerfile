@@ -21,11 +21,11 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
 COPY --from=build /app ./
 
-# Clients connect over plain HTTP on 7117 (see Shuffull.Windows SiteInfo.cs). 5117 is exposed but
-# reserved for a future HTTPS endpoint (appsettings.Production.json keeps a commented-out Kestrel
-# HTTPS endpoint on 5117 + cert). NOTE: a machine-local appsettings.Production.json Kestrel:Endpoints
-# section overrides this ASPNETCORE_URLS default; this value only applies when that file is absent.
+# Clients connect over plain HTTP on 7117 (see Shuffull.Windows SiteInfo.cs); TLS ends at the Cloudflare
+# Tunnel, so the container serves no HTTPS port. NOTE: a machine-local appsettings.Production.json
+# Kestrel:Endpoints section overrides this ASPNETCORE_URLS default; this value only applies when that file
+# is absent.
 ENV ASPNETCORE_URLS=http://+:7117
-EXPOSE 7117 5117
+EXPOSE 7117
 
 ENTRYPOINT ["dotnet", "Shuffull.Api.dll"]
