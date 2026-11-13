@@ -19,6 +19,8 @@ public sealed class ApiTestHost : IAsyncDisposable
 
     public HttpClient Client { get; }
 
+    public IServiceProvider Services => _app.Services;
+
     private ApiTestHost(WebApplication app)
     {
         _app = app;

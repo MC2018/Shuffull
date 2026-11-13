@@ -29,49 +29,33 @@ public class UserSongsController : ControllerBase
 
     [HttpPut]
     [Authorize]
-    public async Task<IActionResult> CreateMany([FromBody] string[] songIds, CancellationToken cancellationToken)
+    public async Task<IActionResult> CreateMany([FromCurrentUser] User user, [FromBody] string[] songIds,
+        CancellationToken cancellationToken)
     {
-        if (HttpContext.Items["User"] is not User user)
-        {
-            return Unauthorized();
-        }
-
         return this.ToActionResult(await _mediator.Send(new CreateUserSongsCommand(user.UserId, songIds), cancellationToken));
     }
 
     [HttpGet]
     [Authorize]
-    public async Task<IActionResult> GetAll([FromQuery] DateTime afterDate, [FromQuery] string? afterId, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAll([FromCurrentUser] User user, [FromQuery] DateTime afterDate,
+        [FromQuery] string? afterId, CancellationToken cancellationToken)
     {
-        if (HttpContext.Items["User"] is not User user)
-        {
-            return Unauthorized();
-        }
-
         return this.ToActionResult(await _mediator.Send(new GetUserSongsQuery(user.UserId, afterDate, afterId), cancellationToken));
     }
 
     [HttpPost("last-played")]
     [Authorize]
-    public async Task<IActionResult> UpdateLastPlayed([FromBody] List<SongLastPlayed> updates, CancellationToken cancellationToken)
+    public async Task<IActionResult> UpdateLastPlayed([FromCurrentUser] User user,
+        [FromBody] List<SongLastPlayed> updates, CancellationToken cancellationToken)
     {
-        if (HttpContext.Items["User"] is not User user)
-        {
-            return Unauthorized();
-        }
-
         return this.ToActionResult(await _mediator.Send(new UpdateSongsLastPlayedCommand(user.UserId, updates), cancellationToken));
     }
 
     [HttpPost("{songId}/like")]
     [Authorize]
-    public async Task<IActionResult> SetLikeStatus(string songId, [FromBody] LikeStatus likeStatus, CancellationToken cancellationToken)
+    public async Task<IActionResult> SetLikeStatus([FromCurrentUser] User user, string songId,
+        [FromBody] LikeStatus likeStatus, CancellationToken cancellationToken)
     {
-        if (HttpContext.Items["User"] is not User user)
-        {
-            return Unauthorized();
-        }
-
         return this.ToActionResult(await _mediator.Send(new SetSongLikeStatusCommand(user.UserId, songId, likeStatus), cancellationToken));
     }
 }

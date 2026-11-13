@@ -29,13 +29,9 @@ public class RecapController : ControllerBase
     /// </summary>
     [HttpGet("{year:int}")]
     [Authorize]
-    public async Task<IActionResult> Get(int year, [FromQuery] string? timeZone, CancellationToken cancellationToken)
+    public async Task<IActionResult> Get([FromCurrentUser] User user, int year, [FromQuery] string? timeZone,
+        CancellationToken cancellationToken)
     {
-        if (HttpContext.Items["User"] is not User user)
-        {
-            return Unauthorized();
-        }
-
         return this.ToActionResult(await _mediator.Send(new GetRecapQuery(user.UserId, year, timeZone), cancellationToken));
     }
 }
