@@ -18,6 +18,9 @@ namespace Shuffull.Core.Models.Database;
 /// </summary>
 [Index(nameof(DeletedAt))]
 [Index(nameof(FileHash))]
+// GET /songs/deleted: the caller's tombstones, keyset-paged newest first on (DeletedAt, SongId). Equality on the user
+// then the page order, so each page is one range read of this index (Postgres walks it backwards for the DESC order).
+[Index(nameof(DeletedByUserId), nameof(DeletedAt), nameof(SongId))]
 public class SongTombstone
 {
     /// <summary>How long a purged song's media is kept before the sweep may delete it.</summary>
