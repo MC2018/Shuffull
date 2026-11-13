@@ -9,12 +9,17 @@ using Shuffull.Api.Services;
 using Shuffull.Api.Services.FileStorage;
 using Shuffull.Api.Tools.Authorization;
 using Shuffull.Core.Alerts;
+using Shuffull.Core.Errors;
+using Shuffull.Core.Features.Replacements.GetSongReplacementQueue;
 using Shuffull.Core.Features.SongRequests.AckSongRequests;
 using Shuffull.Core.Features.SongRequests.GetSongRequestQueue;
 using Shuffull.Core.Features.Songs.ApplySongTags;
 using Shuffull.Core.Features.Songs.GetLibrarySongs;
 using Shuffull.Core.Features.Songs.GetPendingTagSongs;
 using Shuffull.Core.Features.Songs.HoldTagSongs;
+using Shuffull.Core.Features.Songs.UpdateSongLyrics;
+using Shuffull.Core.Features.YoutubeRatings.GetYoutubeRatingQueue;
+using Shuffull.Core.Models.Dtos;
 using Shuffull.Core.Persistence;
 using Shuffull.Core.Services.Alerts;
 using Shuffull.Core.Tests.Infrastructure;
@@ -64,6 +69,12 @@ public class ProducerKeyTest : IDisposable
             .ReturnsAsync(Result.Ok<IReadOnlyList<PendingSongRequestDto>>([]));
         mediator.Setup(m => m.Send(It.IsAny<AckSongRequestsCommand>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result.Ok(new SongRequestAckResponse([], [])));
+        mediator.Setup(m => m.Send(It.IsAny<GetYoutubeRatingQueueQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Ok<IReadOnlyList<YoutubeRatingDto>>([]));
+        mediator.Setup(m => m.Send(It.IsAny<GetSongReplacementQueueQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Ok<IReadOnlyList<SongReplacementDto>>([]));
+        mediator.Setup(m => m.Send(It.IsAny<UpdateSongLyricsCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Error<UpdateSongLyricsResponse>(ResultErrors.NotFound("No song found for external id 'no-such-video'.")));
         services.AddSingleton(mediator.Object);
 
         services.AddScoped<ShuffullContext>(_ => _database.CreateContext());
