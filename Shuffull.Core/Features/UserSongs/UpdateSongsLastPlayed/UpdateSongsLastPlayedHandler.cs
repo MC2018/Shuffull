@@ -54,12 +54,13 @@ public class UpdateSongsLastPlayedHandler(IUnitOfWork unitOfWork) : IRequestHand
         // Only for songs that exist: an id with no song is most often one the server deleted while a client still holds
         // it locally. That is not a client error. Failing on it made the whole batch 400, which pinned the client's
         // outbox rows in place and, until the status was read correctly, wedged its entire sync. Such ids are skipped
-        // and simply not counted, exactly as a stale (older) timestamp is.
+        // and simply not counted, exactly as a stale (older) timestamp is. So is an audition song whose link a mix
+        // delete dropped (SongsAUserCanStartPlayingSpec), which a stale play from an unsynced device would re-link.
         var missingSongIds = latestBySong.Keys.Except(userSongs.Select(us => us.SongId)).ToList();
         if (missingSongIds.Count > 0)
         {
             var songsResult = await unitOfWork.Repository<Song>()
-                .ListAsync(new SongsWithoutRelationsByIdsSpec(missingSongIds).AsNoTracking(), cancellationToken);
+                .ListAsync(new SongsAUserCanStartPlayingSpec(request.UserId, missingSongIds).AsNoTracking(), cancellationToken);
             if (songsResult.IsError)
             {
                 return Result.Error<UpdateSongsLastPlayedResponse>(songsResult.GetError());

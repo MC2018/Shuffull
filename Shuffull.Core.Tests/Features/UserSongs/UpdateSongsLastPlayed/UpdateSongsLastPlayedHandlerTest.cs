@@ -38,7 +38,7 @@ public class UpdateSongsLastPlayedHandlerTest : IDisposable
         return user;
     }
 
-    private async Task<Song> SeedSongAsync()
+    private async Task<Song> SeedSongAsync(bool exploratory = false)
     {
         var song = new Song
         {
@@ -46,10 +46,32 @@ public class UpdateSongsLastPlayedHandlerTest : IDisposable
             Name = "Song",
             FileExtension = ".mp3",
             FileHash = Guid.NewGuid().ToString(),
+            Exploratory = exploratory,
         };
         await _database.Context.Songs.AddAsync(song);
         await _database.Context.SaveChangesAsync();
         return song;
+    }
+
+    private async Task SeedMixHoldingAsync(string userId, string songId)
+    {
+        var playlist = new Playlist
+        {
+            PlaylistId = Guid.NewGuid().ToString(),
+            UserId = userId,
+            Name = "Mix",
+            PercentUntilReplayable = 0.9m,
+            IsExploratory = true,
+            Version = DateTime.UtcNow,
+        };
+        await _database.Context.Playlists.AddAsync(playlist);
+        await _database.Context.PlaylistSongs.AddAsync(new PlaylistSong
+        {
+            PlaylistSongId = Guid.NewGuid().ToString(),
+            PlaylistId = playlist.PlaylistId,
+            SongId = songId,
+        });
+        await _database.Context.SaveChangesAsync();
     }
 
     private async Task<UserSong> SeedUserSongAsync(string userId, DateTime lastPlayed)
@@ -176,6 +198,42 @@ public class UpdateSongsLastPlayedHandlerTest : IDisposable
                 .Where(us => us.UserId == user.UserId)
                 .Select(us => us.LastPlayed)
                 .ToArrayAsync());
+    }
+
+    [Fact]
+    public async Task Handle_FirstPlayOfAnAuditionSongOnTheUsersMix_CreatesIt()
+    {
+        var user = await SeedUserAsync(DateTime.UtcNow.AddDays(-10));
+        var song = await SeedSongAsync(exploratory: true);
+        await SeedMixHoldingAsync(user.UserId, song.SongId);
+
+        var result = await _handler.Handle(
+            new UpdateSongsLastPlayedCommand(user.UserId, new[] { new SongLastPlayed(song.SongId, DateTime.UtcNow) }),
+            CancellationToken.None);
+
+        Assert.True(result.IsOk, result.IsError ? result.GetError().Message : null);
+        Assert.Equal(1, result.Get().UpdatedCount);
+        Assert.True(await _database.Context.UserSongs.AnyAsync(us => us.UserId == user.UserId && us.SongId == song.SongId));
+    }
+
+    [Fact]
+    public async Task Handle_AuditionSongOnNoneOfTheUsersPlaylists_IsNotLinkedAgain()
+    {
+        // The state a mix delete leaves when another user still has the song (Shuffull#87): the deleting user's link
+        // is gone and the song is on none of their playlists. A play queued on a device that hasn't synced the delete
+        // must not re-link it, or it would sit in their library for good and veto the other user's purge.
+        var user = await SeedUserAsync(DateTime.UtcNow.AddDays(-10));
+        var other = await SeedUserAsync(DateTime.UtcNow.AddDays(-10));
+        var song = await SeedSongAsync(exploratory: true);
+        await SeedMixHoldingAsync(other.UserId, song.SongId);
+
+        var result = await _handler.Handle(
+            new UpdateSongsLastPlayedCommand(user.UserId, new[] { new SongLastPlayed(song.SongId, DateTime.UtcNow) }),
+            CancellationToken.None);
+
+        Assert.True(result.IsOk, result.IsError ? result.GetError().Message : null);
+        Assert.Equal(0, result.Get().UpdatedCount);
+        Assert.False(await _database.Context.UserSongs.AnyAsync(us => us.UserId == user.UserId));
     }
 
     [Fact]
