@@ -7,7 +7,7 @@ namespace Shuffull.Api.Tools.Authorization;
 /// <summary>
 /// Binds an action's <see cref="User"/> parameter to the signed-in caller (what <see cref="JwtMiddleware"/> attached),
 /// so a controller never reads <c>HttpContext.Items</c> itself:
-/// <code>public Task&lt;IActionResult&gt; GetCurrent([FromCurrentUser] User user, ...)</code>
+/// <code>GetCurrent([FromCurrentUser] User user, CancellationToken cancellationToken)</code>
 /// Any action with such a parameter is behind <see cref="AuthorizeAttribute"/> even if it doesn't say so
 /// (<see cref="CurrentUserRequiresSignInConvention"/>), so an unauthenticated call is a 401 (503 when the user lookup
 /// failed) before binding runs, and can't reach the action with no user.

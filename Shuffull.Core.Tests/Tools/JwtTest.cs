@@ -167,7 +167,7 @@ public class JwtTest
 
         await middleware.Invoke(context, database.CreateContext());
 
-        return context.Items["User"] as User;
+        return context.Items[JwtMiddleware.UserKey] as User;
     }
 
     private static async Task<User> SeedUserAsync(DatabaseFixture database)
