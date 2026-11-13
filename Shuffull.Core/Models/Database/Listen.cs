@@ -61,6 +61,12 @@ public class Listen
     [MaxLength(MaxPlatformLength)]
     public string? Platform { get; set; }
 
+    /// <summary>The app install that played it (<see cref="UserDevice.DeviceId"/>, Shuffull#132). No foreign key, like
+    /// <see cref="SongId"/>: a listen is history and outlives its device row. Null from app builds older than device
+    /// identity.</summary>
+    [MaxLength(UserDevice.MaxDeviceIdLength)]
+    public string? DeviceId { get; set; }
+
     /// <summary>When the server stored it. A listen made offline arrives later than it happened.</summary>
     [Required]
     public DateTime RecordedAt { get; set; }

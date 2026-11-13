@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Nut.Results;
+using Shuffull.Api.Commands.Devices.CheckInDevice;
 using Shuffull.Api.Commands.Listens.RecordListens;
 using Shuffull.Api.Commands.Replacements.FlagSongReplacement;
 using Shuffull.Api.Commands.SongRequests;
@@ -183,7 +184,7 @@ public class ApiContractGoldenFilesTest
         ["listens-request"] = new RecordListensRequest(
         [
             new ListenItem("listen-full", "song-full", V1, V1.AddSeconds(214), 201.5, 214.0, "finished", "playlist",
-                PlaylistId: "playlist-1", Platform: "android", UserId: "user-1"),
+                PlaylistId: "playlist-1", Platform: "android", UserId: "user-1", DeviceId: "device-1"),
             new ListenItem("listen-sparse", "song-sparse", V2, V2.AddSeconds(12), 12, null, "skipped", "genreJam"),
         ]),
         // POST /api/v1/listens. The app reads each outcome: "recorded" and "duplicate" are done, "rejected" is final.
@@ -193,6 +194,10 @@ public class ApiContractGoldenFilesTest
             new ListenResult("listen-sparse", ListenOutcomes.Duplicate),
             new ListenResult("listen-bad", ListenOutcomes.Rejected, "endedAt is before startedAt."),
         ]),
+        // PUT /api/v1/devices/{deviceId} — a REQUEST body: the app's check-in (Shuffull#132, ShuffullApp#58).
+        ["devices-checkin-request"] = new CheckInDeviceRequest("Pixel 8", "android"),
+        // PUT /api/v1/devices/{deviceId}. The caller's device row after the check-in.
+        ["devices-checkin"] = new UserDeviceDto("device-1", "Pixel 8", "android", CreatedAt: V1, LastSeenAt: V2),
         // GET /api/v1/listens/stats. Per-song stats and the "maybe drop this" flag (ShuffullApp#115).
         ["listens-stats"] = new GetListenStatsResponse(
             MaybeDropRule.Default,
@@ -483,6 +488,7 @@ public class ApiContractGoldenFilesTest
         "listens-request", "users-authenticate-request", "users-me-password-request", "songs-list-request",
         "playlists-list-request", "user-songs-create", "user-songs-last-played", "user-songs-like", "songs-update",
         "songs-keep-request", "songs-retag-request", "replacements-request", "song-requests-create-request",
+        "devices-checkin-request",
     ];
 
     /// <summary>

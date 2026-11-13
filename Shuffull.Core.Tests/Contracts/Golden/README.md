@@ -16,6 +16,7 @@ request bodies, when the API stops binding them.
 | `users-authenticate` | `POST /api/v1/users/authenticate`, `POST /api/v1/users` and `POST /api/v1/users/me/password` | app |
 | `songs-keep` | `POST /api/v1/songs/keep` | app |
 | `listens` | `POST /api/v1/listens` | app (ShuffullApp#57) |
+| `devices-checkin` | `PUT /api/v1/devices/{deviceId}` | app (ShuffullApp#58) |
 | `listens-stats` | `GET /api/v1/listens/stats` | app (ShuffullApp#115) |
 | `recap` | `GET /api/v1/recap/{year}` | app (ShuffullApp#116) |
 | `songs-retag` | `POST /api/v1/songs/retag` | app |
@@ -52,6 +53,7 @@ request bodies, when the API stops binding them.
 | `songs-retag-request` | `POST /api/v1/songs/retag` (request body) | app sends |
 | `replacements-request` | `POST /api/v1/replacements` (request body) | app sends |
 | `song-requests-create-request` | `POST /api/v1/song-requests` (request body) | app sends (ShuffullApp#107) |
+| `devices-checkin-request` | `PUT /api/v1/devices/{deviceId}` (request body) | app sends (ShuffullApp#58) |
 
 Only the endpoints in the table are pinned. Calls that send no body are not: playlist create, add song, remove song and
 delete, and `songs/retag-stale`, which carry only route and query values (shuffull-workspace#92).

@@ -141,16 +141,18 @@ public class RecordListensHandlerTest : IDisposable
             Item("clock-at-1970") with { StartedAt = DateTime.UnixEpoch, EndedAt = DateTime.UnixEpoch.AddSeconds(30) },
             Item("milliseconds-as-seconds") with { SecondsListened = 30_000 },
             Item("nul-in-platform") with { Platform = "and\0roid" },
+            Item("long-device-id") with { DeviceId = new string('d', UserDevice.MaxDeviceIdLength + 1) },
+            Item("nul-in-device-id") with { DeviceId = "dev\0ice" },
             null!,
             Item("good"));
 
         Assert.True(result.IsOk);
         var outcomes = result.Get().Results;
-        Assert.Equal(18, outcomes.Count);
-        Assert.All(outcomes.Take(17), r => Assert.Equal(ListenOutcomes.Rejected, r.Outcome));
-        Assert.All(outcomes.Take(17), r => Assert.False(string.IsNullOrWhiteSpace(r.Error)));
-        Assert.Null(outcomes[16].ListenId);
-        Assert.Equal(ListenOutcomes.Recorded, outcomes[17].Outcome);
+        Assert.Equal(20, outcomes.Count);
+        Assert.All(outcomes.Take(19), r => Assert.Equal(ListenOutcomes.Rejected, r.Outcome));
+        Assert.All(outcomes.Take(19), r => Assert.False(string.IsNullOrWhiteSpace(r.Error)));
+        Assert.Null(outcomes[18].ListenId);
+        Assert.Equal(ListenOutcomes.Recorded, outcomes[19].Outcome);
         Assert.Equal(["good"], await StoredIdsAsync());
     }
 
@@ -186,6 +188,26 @@ public class RecordListensHandlerTest : IDisposable
         Assert.Null(stored.PlaylistId);
         Assert.Equal("desktop", stored.Platform);
         Assert.True(stored.RecordedAt > T0);
+    }
+
+    [Fact]
+    public async Task Record_WithAndWithoutADeviceId_StoresBoth()
+    {
+        var me = await SeedUserAsync();
+
+        // An app build older than device identity (Shuffull#132) sends no deviceId at all; a blank one counts as none.
+        var result = await RunAsync(me.UserId,
+            Item("from-device") with { DeviceId = "device-1" },
+            Item("old-app"),
+            Item("blank-device") with { DeviceId = " " });
+
+        Assert.Equal(
+            [("from-device", ListenOutcomes.Recorded), ("old-app", ListenOutcomes.Recorded), ("blank-device", ListenOutcomes.Recorded)],
+            Outcomes(result));
+        await using var check = _database.CreateContext();
+        Assert.Equal(
+            [("blank-device", null), ("from-device", "device-1"), ("old-app", null)],
+            (await check.Listens.OrderBy(l => l.ListenId).ToListAsync()).Select(l => (l.ListenId, l.DeviceId)));
     }
 
     [Fact]
