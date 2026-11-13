@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Nut.Results;
 using Shuffull.Core.Features.UserSongs.UpdateSongsLastPlayed;
 using Shuffull.Core.Models.Database;
+using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Tests.Infrastructure;
 
 namespace Shuffull.Core.Tests.Features.UserSongs.UpdateSongsLastPlayed;
@@ -113,8 +114,81 @@ public class UpdateSongsLastPlayedHandlerTest : IDisposable
         Assert.Equal(lastPlayed, savedUserSong.LastPlayed);
     }
 
+    private async Task<Song> SeedSongAsync()
+    {
+        var song = new Song
+        {
+            SongId = Guid.NewGuid().ToString(),
+            Name = "Song",
+            FileExtension = ".mp3",
+            FileHash = Guid.NewGuid().ToString(),
+        };
+        await _database.Context.Songs.AddAsync(song);
+        await _database.Context.SaveChangesAsync();
+        return song;
+    }
+
     [Fact]
-    public async Task Handle_WhenNoMatchingUserSong_ReturnsOkWithZeroUpdates()
+    public async Task Handle_WhenSongHasNoUserSong_CreatesItWithThePlay()
+    {
+        // A first play creates the play record (Shuffull#2), so no PUT /user-songs has to come first.
+        var oldVersion = DateTime.UtcNow.AddDays(-10);
+        var user = await SeedUserAsync(oldVersion);
+        var song = await SeedSongAsync();
+        var played = DateTime.UtcNow.AddMinutes(-1);
+
+        var result = await _handler.Handle(
+            new UpdateSongsLastPlayedCommand(user.UserId, new[]
+            {
+                new SongLastPlayed(song.SongId, played.AddMinutes(-5)),
+                new SongLastPlayed(song.SongId, played),
+            }),
+            CancellationToken.None);
+
+        Assert.True(result.IsOk, result.IsError ? result.GetError().Message : null);
+        Assert.Equal(1, result.Get().UpdatedCount);
+
+        var saved = await _database.Context.UserSongs.AsNoTracking()
+            .SingleAsync(us => us.UserId == user.UserId && us.SongId == song.SongId);
+        Assert.Equal(played, saved.LastPlayed);
+        Assert.Equal(LikeStatus.Neutral, saved.LikeStatus);
+        Assert.Null(saved.KeptAt);
+        Assert.True(saved.Version > oldVersion);
+
+        // The user's version moves too, so the app's next sync pulls the new row.
+        var savedUser = await _database.Context.Users.AsNoTracking().SingleAsync(u => u.UserId == user.UserId);
+        Assert.True(savedUser.Version > oldVersion);
+    }
+
+    [Fact]
+    public async Task Handle_MixedBatch_UpdatesExistingAndCreatesMissingTogether()
+    {
+        var user = await SeedUserAsync(DateTime.UtcNow.AddDays(-10));
+        var existing = await SeedUserSongAsync(user.UserId, DateTime.UtcNow.AddDays(-5));
+        var fresh = await SeedSongAsync();
+        var played = DateTime.UtcNow;
+
+        var result = await _handler.Handle(
+            new UpdateSongsLastPlayedCommand(user.UserId, new[]
+            {
+                new SongLastPlayed(existing.SongId, played),
+                new SongLastPlayed(fresh.SongId, played),
+                new SongLastPlayed(Guid.NewGuid().ToString(), played),
+            }),
+            CancellationToken.None);
+
+        Assert.True(result.IsOk, result.IsError ? result.GetError().Message : null);
+        Assert.Equal(2, result.Get().UpdatedCount);
+        Assert.Equal(
+            new[] { played, played },
+            await _database.Context.UserSongs.AsNoTracking()
+                .Where(us => us.UserId == user.UserId)
+                .Select(us => us.LastPlayed)
+                .ToArrayAsync());
+    }
+
+    [Fact]
+    public async Task Handle_WhenSongDoesNotExist_ReturnsOkWithZeroUpdates()
     {
         // Arrange
         var user = await SeedUserAsync(DateTime.UtcNow);
@@ -125,9 +199,10 @@ public class UpdateSongsLastPlayedHandlerTest : IDisposable
             CancellationToken.None);
 
         // Assert
-        // Ids with no play record are not a client error -- a client still holding a song the server has since
-        // deleted is the ordinary case. Failing here 400s the entire batch and strands the client's outbox.
+        // An id with no song is not a client error -- a client still holding a song the server has since deleted is
+        // the ordinary case. Failing here 400s the entire batch and strands the client's outbox. Nothing is created.
         Assert.True(result.IsOk);
         Assert.Equal(0, result.Get().UpdatedCount);
+        Assert.False(await _database.Context.UserSongs.AnyAsync(us => us.UserId == user.UserId));
     }
 }
