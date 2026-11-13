@@ -25,8 +25,9 @@ namespace Shuffull.Core.Tests.Api;
 /// <summary>
 /// The live channel (Shuffull#6) on a real test server with the real <see cref="JwtMiddleware"/>, the hub's sign-in
 /// gate and SignalR (long polling, which the test server can carry). Shows that a write signals only the same user's
-/// other connections, that presence feeds <c>online</c>, that the <c>access_token</c> query is honoured on the hub path
-/// and nowhere else, and that a connection without a valid token, or as another user's device, is refused.
+/// other connections, that presence feeds <c>online</c> and signals when it changes, that the <c>access_token</c> query
+/// is honoured on the hub path and nowhere else, and that a connection without a valid token, or as another user's
+/// device, is refused (503 when the sign-in can't be checked at all).
 /// </summary>
 public class PlaybackHubTest : IAsyncDisposable
 {
@@ -65,7 +66,8 @@ public class PlaybackHubTest : IAsyncDisposable
         context.Database.EnsureCreated();
     }
 
-    private async Task<TestServer> ServerAsync()
+    /// <param name="authUnavailable">Build the server as if the sign-in store were down. Only the first call's value counts.</param>
+    private async Task<TestServer> ServerAsync(bool authUnavailable = false)
     {
         if (_server is not null)
         {
@@ -74,6 +76,10 @@ public class PlaybackHubTest : IAsyncDisposable
 
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
+        if (authUnavailable)
+        {
+            builder.Services.AddTransient<IStartupFilter, AuthUnavailableStartupFilter>();
+        }
         builder.Configuration["Jwt:Secret"] = TestSecret;
         builder.Services.AddShuffullControllers().AddApplicationPart(typeof(UsersController).Assembly);
         var coreAssembly = typeof(ValidationBehavior<,>).Assembly;
@@ -174,6 +180,10 @@ public class PlaybackHubTest : IAsyncDisposable
         var laptop = await ConnectAsync(a, "laptop");
         var tablet = await ConnectAsync(a, "tablet", tokenInQuery: false);
         var bPhone = await ConnectAsync(b, "b-phone");
+        // Connecting is itself a change (the device is now online): the phone hears the laptop and the tablet arrive,
+        // and the laptop hears the tablet. The two sends to the phone come from different connections, so in any order.
+        Assert.Equal(["laptop", "tablet"], new[] { await NextSignalAsync(phone), await NextSignalAsync(phone) }.Order());
+        Assert.Equal("tablet", await NextSignalAsync(laptop));
 
         await PutStateAsync(a, "phone", "song-1");
 
@@ -215,6 +225,33 @@ public class PlaybackHubTest : IAsyncDisposable
     }
 
     [Fact]
+    public async Task Presence_Changes_SignalTheUsersOtherDevices_WhenADeviceConnects_AndWhenItsLastConnectionCloses()
+    {
+        var a = await SeedUserAsync("a", "phone", "laptop", "tablet");
+        var b = await SeedUserAsync("b", "b-phone");
+        var laptop = await ConnectAsync(a, "laptop");
+
+        // Each connection of the phone tells the laptop the phone's row (its online) changed; B's device tells it nothing.
+        var phone1 = await ConnectAsync(a, "phone");
+        Assert.Equal("phone", await NextSignalAsync(laptop));
+        var phone2 = await ConnectAsync(a, "phone");
+        Assert.Equal("phone", await NextSignalAsync(laptop));
+        await ConnectAsync(b, "b-phone");
+
+        // Closing one of the phone's two connections leaves it online: no signal. Signals to one connection arrive in
+        // order, so if the next thing the laptop hears is the tablet's write, neither B's connection nor that close
+        // signalled it.
+        await phone1.Connection.StopAsync();
+        await PutStateAsync(a, "tablet", "song-1");
+        Assert.Equal("tablet", await NextSignalAsync(laptop));
+
+        // Closing the last one takes the phone offline, and the laptop hears about it.
+        await phone2.Connection.StopAsync();
+        Assert.Equal("phone", await NextSignalAsync(laptop));
+        Assert.False(laptop.Signals.TryRead(out _));
+    }
+
+    [Fact]
     public async Task TheQueryToken_IsIgnoredOutsideTheHubPath()
     {
         var a = await SeedUserAsync("a", "phone");
@@ -238,6 +275,18 @@ public class PlaybackHubTest : IAsyncDisposable
         Assert.Equal(HttpStatusCode.Unauthorized, forged.StatusCode);
         var refused = await Assert.ThrowsAsync<HttpRequestException>(() => ConnectAsync(a, "phone", token: "not-a-token"));
         Assert.Equal(HttpStatusCode.Unauthorized, refused.StatusCode);
+    }
+
+    [Fact]
+    public async Task Connecting_WhileTheSignInCantBeChecked_Is503_NotA401()
+    {
+        await SeedUserAsync("a", "phone");
+        var client = (await ServerAsync(authUnavailable: true)).CreateClient();
+
+        var response = await client.PostAsync($"{PlaybackHub.Path}/negotiate?negotiateVersion=1&deviceId=phone", null);
+
+        // A 401 tells the app to sign the user out; a 503 tells it to retry.
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
     }
 
     [Fact]

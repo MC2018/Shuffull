@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.SignalR;
+using Shuffull.Core.Services;
 
 namespace Shuffull.Api.Hubs;
 
@@ -18,8 +19,11 @@ public interface IPlaybackClient
 /// deviceId", never state, so a missed signal costs latency and nothing else. Clients connect to <see cref="Path"/>
 /// with <c>?deviceId=</c> (one of their checked-in devices) and their token; <see cref="PlaybackHubSignIn"/> checks both
 /// before a connection exists, and tags the connection with the user and device it checked.
+///
+/// <para>A device's <c>online</c> in the listing comes from these connections, so connecting, and closing a device's
+/// last connection, also signal "session changed" for that device to the user's other devices.</para>
 /// </summary>
-public class PlaybackHub(PlaybackPresence presence, ILogger<PlaybackHub> logger) : Hub<IPlaybackClient>
+public class PlaybackHub(PlaybackPresence presence, IPlaybackNotifier notifier, ILogger<PlaybackHub> logger) : Hub<IPlaybackClient>
 {
     public const string Path = "/hubs/playback";
 
@@ -40,11 +44,17 @@ public class PlaybackHub(PlaybackPresence presence, ILogger<PlaybackHub> logger)
 
         presence.Add(Context.ConnectionId, userId, deviceId);
         await base.OnConnectedAsync();
+        await notifier.SessionChangedAsync(userId, deviceId, writerDeviceId: deviceId);
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        presence.Remove(Context.ConnectionId);
+        if (presence.Remove(Context.ConnectionId) is { } owner
+            && !presence.OnlineDeviceIds(owner.UserId).Contains(owner.DeviceId))
+        {
+            // That was the device's last connection, so it just went offline.
+            await notifier.SessionChangedAsync(owner.UserId, owner.DeviceId, writerDeviceId: owner.DeviceId);
+        }
         await base.OnDisconnectedAsync(exception);
     }
 }

@@ -84,6 +84,10 @@ public class ApiContractGoldenFilesTest
     // What the app sends: a JS Date goes out with milliseconds only, so a request time can't carry V1's microseconds.
     private static readonly DateTime SentAt = new(2026, 10, 1, 12, 34, 56, 123, DateTimeKind.Utc);
 
+    // Playback timestamps are whole milliseconds (PlaybackRules.Now), so the app can echo one back from a JS Date and a
+    // takeover still matches it. A takeover stamps PositionAt, UpdatedAt and TakenOverAt with the same instant.
+    private static readonly DateTime PlayedAt = new(2026, 10, 2, 8, 0, 0, 125, DateTimeKind.Utc);
+
     private static SongDto FullSong(DateTime version) => new(
         SongId: "song-full",
         Name: "Everybody Wants You",
@@ -132,16 +136,16 @@ public class ApiContractGoldenFilesTest
         DeviceId: "device-1",
         SongId: "song-full",
         PositionSeconds: 42.5,
-        PositionAt: V2,
+        PositionAt: PlayedAt,
         IsPlaying: false,
         EstimatedPositionSeconds: 42.5,
         Scope: ScopeJson,
         History: ["song-old", "song-sparse"],
         QueuedNext: ["song-next"],
-        UpdatedAt: V2,
+        UpdatedAt: PlayedAt,
         TakenOverBy: "device-2",
-        TakenOverAt: V2,
-        Command: new PlaybackCommandDto("cmd-1", "seek", SeekSeconds: 90, At: V2));
+        TakenOverAt: PlayedAt,
+        Command: new PlaybackCommandDto("cmd-1", "seek", SeekSeconds: 90, At: PlayedAt.AddSeconds(3)));
 
     private static readonly UserDto Curator = new("user-1", "listener", V1, IsCurator: true);
 
@@ -224,20 +228,22 @@ public class ApiContractGoldenFilesTest
         // PUT /api/v1/playback/sessions/{deviceId} — a REQUEST body: a device's own playback state (Shuffull#6,
         // ShuffullApp#194). `scope` is the app's own JSON object, stored and handed back as sent.
         ["playback-session-request"] = new UpdatePlaybackSessionRequest("song-full", 42.5, IsPlaying: true,
-            Scope: ScopeJson, History: ["song-old", "song-sparse"], QueuedNext: ["song-next"]),
+            Scope: ScopeJson, History: ["song-old", "song-sparse"], QueuedNext: ["song-next"],
+            // The takeover this device has acted on, echoed back to retire it.
+            SeenTakenOverAt: SentAt),
         // PUT /api/v1/playback/sessions/{deviceId}, and the takeover, command and ack answers: the device's session.
         // This one was taken over and has a seek waiting for its ack.
         ["playback-session"] = TakenOverSession,
         // GET /api/v1/playback/sessions. The caller's devices, most recently active first, with their sessions.
-        ["playback-sessions"] = new GetPlaybackSessionsResponse(V2,
+        ["playback-sessions"] = new GetPlaybackSessionsResponse(PlayedAt.AddSeconds(4),
         [
-            new PlaybackDeviceDto("device-1", "Pixel 8", "android", LastActiveAt: V2, Online: true, Session: TakenOverSession),
+            new PlaybackDeviceDto("device-1", "Pixel 8", "android", LastActiveAt: PlayedAt, Online: true, Session: TakenOverSession),
             // Checked in, never played: no session.
             new PlaybackDeviceDto("device-2", "Laptop", null, LastActiveAt: V1, Online: false, Session: null),
         ]),
         // POST /api/v1/playback/sessions/{deviceId}/takeover — a REQUEST body: the taking device, and the source's
         // updatedAt as it read it (the takeover is refused with 409 if the row moved since).
-        ["playback-takeover-request"] = new TakeOverPlaybackSessionRequest("device-2", ExpectedUpdatedAt: V1),
+        ["playback-takeover-request"] = new TakeOverPlaybackSessionRequest("device-2", ExpectedUpdatedAt: SentAt),
         // POST /api/v1/playback/sessions/{deviceId}/command — a REQUEST body: a remote command for that device.
         ["playback-command-request"] = new SendPlaybackCommandRequest("cmd-1", "seek", SeekSeconds: 90),
         // GET /api/v1/listens/stats. Per-song stats and the "maybe drop this" flag (ShuffullApp#115).

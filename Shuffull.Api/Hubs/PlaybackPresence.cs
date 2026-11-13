@@ -13,7 +13,9 @@ public class PlaybackPresence : IPlaybackPresence
 
     public void Add(string connectionId, string userId, string deviceId) => _connections[connectionId] = (userId, deviceId);
 
-    public void Remove(string connectionId) => _connections.TryRemove(connectionId, out _);
+    /// <summary>Forgets a closed connection, and says whose it was (null if it was never added).</summary>
+    public (string UserId, string DeviceId)? Remove(string connectionId)
+        => _connections.TryRemove(connectionId, out var owner) ? owner : null;
 
     public IReadOnlySet<string> OnlineDeviceIds(string userId)
         => _connections.Values.Where(c => c.UserId == userId).Select(c => c.DeviceId).ToHashSet();

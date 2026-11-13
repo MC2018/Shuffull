@@ -19,9 +19,15 @@ public class TakeOverPlaybackSessionHandler(ShuffullContext context, TimeProvide
 {
     public async Task<Result<PlaybackSessionDto>> Handle(TakeOverPlaybackSessionCommand request, CancellationToken cancellationToken)
     {
+        // The validator requires both; this guard only makes that visible here.
+        if (request.ExpectedUpdatedAt is not { } expectedUpdatedAt || request.ByDeviceId is not { } byDeviceId)
+        {
+            return Result.Error<PlaybackSessionDto>(new KindedError(ErrorKind.Invalid,
+                "A takeover needs byDeviceId and expectedUpdatedAt."));
+        }
+
         var now = PlaybackRules.Now(timeProvider);
-        var expected = PlaybackRules.AsUtc(request.ExpectedUpdatedAt!.Value);
-        var byDeviceId = request.ByDeviceId!;
+        var expected = PlaybackRules.AsUtc(expectedUpdatedAt);
         try
         {
             var takerIsTheirs = await context.UserDevices

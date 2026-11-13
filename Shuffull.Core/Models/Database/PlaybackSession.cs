@@ -11,11 +11,16 @@ namespace Shuffull.Core.Models.Database;
 /// <para>Who writes what:</para>
 /// <list type="bullet">
 /// <item>The device itself, with <c>PUT /api/v1/playback/sessions/{deviceId}</c>: song, position, playing, scope,
-/// history and queue. Last write wins. That PUT never touches the takeover or command fields, so a stale PUT that
-/// lands after a takeover can't erase it; the device sees the takeover in the PUT's answer or its next read.</item>
+/// history and queue. Last write wins. That PUT never touches the command fields, and it clears the takeover fields
+/// only when it names the takeover it saw (<c>seenTakenOverAt</c> equal to <see cref="TakenOverAt"/>), in one
+/// conditional UPDATE. So a stale PUT that lands after a takeover can't erase it, and a device that has acted on a
+/// takeover retires it without having to remember it; the device sees a takeover in the PUT's answer or its next
+/// read.</item>
 /// <item>Another of the user's devices, with <c>.../takeover</c>: <see cref="TakenOverBy"/> and
 /// <see cref="TakenOverAt"/>, and the row is paused at its estimated position. Conditional on <see cref="UpdatedAt"/>.
-/// <see cref="TakenOverAt"/> doubles as the takeover's id: a device acts on a takeover it hasn't seen before.</item>
+/// <see cref="TakenOverAt"/> doubles as the takeover's id. The source acts on it (stops playing), then echoes it as
+/// <c>seenTakenOverAt</c> on its next PUT, which clears both fields. Until then the takeover stays on the row, so a
+/// source that restarts in between still finds it and still has to act on it.</item>
 /// <item>Any of the user's devices, with <c>.../command</c>: a pending remote command for this device, which it clears
 /// with <c>.../command/{commandId}/ack</c>. A newer command replaces an unacked one, and one older than
 /// <see cref="CommandLifetime"/> is no longer handed out.</item>
@@ -80,7 +85,8 @@ public class PlaybackSession
     /// <summary>When the device's state or a takeover last changed this row. A takeover must name the value it read.</summary>
     public DateTime UpdatedAt { get; set; }
 
-    /// <summary>The device that took playback over from this one, or null.</summary>
+    /// <summary>The device that took playback over from this one, or null: never taken over, or the source has since
+    /// retired the takeover with a PUT naming <see cref="TakenOverAt"/>.</summary>
     [MaxLength(UserDevice.MaxDeviceIdLength)]
     public string? TakenOverBy { get; set; }
 

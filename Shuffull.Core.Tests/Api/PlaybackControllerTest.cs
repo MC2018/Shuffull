@@ -359,6 +359,36 @@ public class PlaybackControllerTest : IAsyncDisposable
     }
 
     [Fact]
+    public async Task Put_NamingTheTakeoverItActedOn_ClearsIt_ButAMissingOrStaleOneLeavesIt()
+    {
+        var user = await SeedUserAsync("a", "phone", "laptop", "tablet");
+        var read = await PutOkAsync(user, "phone", State());
+        _clock.UtcNow = T0.AddSeconds(1);
+        var first = (await (await TakeOverAsync(user, "phone", "laptop", read.UpdatedAt)).Content.ReadFromJsonAsync<PlaybackSessionDto>())!;
+
+        // A PUT that names no takeover (say, one already in flight when the takeover landed) leaves it.
+        _clock.UtcNow = T0.AddSeconds(2);
+        var plain = await PutOkAsync(user, "phone", State(playing: false));
+        Assert.Equal(("laptop", first.TakenOverAt), (plain.TakenOverBy, plain.TakenOverAt));
+
+        // The tablet takes over again before the phone retires the first one, so the phone's echo of the first is stale.
+        _clock.UtcNow = T0.AddSeconds(3);
+        var second = (await (await TakeOverAsync(user, "phone", "tablet", plain.UpdatedAt)).Content.ReadFromJsonAsync<PlaybackSessionDto>())!;
+        _clock.UtcNow = T0.AddSeconds(4);
+        var stale = await PutOkAsync(user, "phone", new { songId = "song-1", positionSeconds = 30, isPlaying = false, seenTakenOverAt = first.TakenOverAt });
+        Assert.Equal(("tablet", second.TakenOverAt), (stale.TakenOverBy, stale.TakenOverAt));
+
+        // Echoing the current one clears it, in the answer and on the row.
+        _clock.UtcNow = T0.AddSeconds(5);
+        var retired = await PutOkAsync(user, "phone", new { songId = "song-1", positionSeconds = 30, isPlaying = false, seenTakenOverAt = second.TakenOverAt });
+        Assert.Null(retired.TakenOverBy);
+        Assert.Null(retired.TakenOverAt);
+        var row = (await RowAsync(user.UserId, "phone"))!;
+        Assert.Null(row.TakenOverBy);
+        Assert.Null(row.TakenOverAt);
+    }
+
+    [Fact]
     public async Task TakeOver_OfASessionThatDoesntExist_Is404()
     {
         var user = await SeedUserAsync("a", "phone", "laptop");
@@ -403,6 +433,15 @@ public class PlaybackControllerTest : IAsyncDisposable
     }
 
     // --- Commands -------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task Ack_WithAControlCharacterInTheCommandId_Is400()
+    {
+        var user = await SeedUserAsync("a", "phone");
+        await PutOkAsync(user, "phone", State());
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await AckAsync(user, "phone", "cmd\u0001")).StatusCode);
+    }
 
     [Fact]
     public async Task Command_IsPendingUntilItsOwnAck_AndAWrongAckIs409()

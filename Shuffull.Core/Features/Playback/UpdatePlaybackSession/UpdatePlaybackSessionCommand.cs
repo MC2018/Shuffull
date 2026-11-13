@@ -12,6 +12,8 @@ namespace Shuffull.Core.Features.Playback.UpdatePlaybackSession;
 /// <param name="Scope">The app's song filters as compact JSON (an object), or null.</param>
 /// <param name="History">The last songs played, newest last.</param>
 /// <param name="QueuedNext">The play-next songs, in order.</param>
+/// <param name="SeenTakenOverAt">The <c>takenOverAt</c> of the takeover this device has acted on, or null. When it still
+/// matches the row, the takeover is cleared; a newer takeover (a different value) is left alone.</param>
 public record UpdatePlaybackSessionCommand(
     string UserId,
     string DeviceId,
@@ -20,4 +22,5 @@ public record UpdatePlaybackSessionCommand(
     bool IsPlaying,
     string? Scope,
     IReadOnlyList<string> History,
-    IReadOnlyList<string> QueuedNext) : IRequest<Result<PlaybackSessionDto>>;
+    IReadOnlyList<string> QueuedNext,
+    DateTime? SeenTakenOverAt = null) : IRequest<Result<PlaybackSessionDto>>;

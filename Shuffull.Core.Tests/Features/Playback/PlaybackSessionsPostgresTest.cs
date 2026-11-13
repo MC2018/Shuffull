@@ -59,11 +59,12 @@ public class PlaybackSessionsPostgresTest : IAsyncLifetime
     }
 
     private async Task<Result<PlaybackSessionDto>> PutAsync(string userId, string deviceId, DateTime now, string songId = "song-1",
-        string? scope = null, string[]? history = null, string[]? queuedNext = null)
+        string? scope = null, string[]? history = null, string[]? queuedNext = null, DateTime? seenTakenOverAt = null)
     {
         await using var context = Database.CreateContext();
         return await new UpdatePlaybackSessionHandler(context, new ManualTimeProvider(now), new NoSignals())
-            .Handle(new UpdatePlaybackSessionCommand(userId, deviceId, songId, 30, true, scope, history ?? [], queuedNext ?? []),
+            .Handle(new UpdatePlaybackSessionCommand(userId, deviceId, songId, 30, true, scope, history ?? [], queuedNext ?? [],
+                    seenTakenOverAt),
                 CancellationToken.None);
     }
 
@@ -106,6 +107,14 @@ public class PlaybackSessionsPostgresTest : IAsyncLifetime
         var taken = await TakeOverAsync(user.UserId, "phone", "laptop", read.UpdatedAt, T0.AddSeconds(1));
         Assert.True(taken.IsOk, taken.IsError ? taken.GetError().Message : null);
         Assert.Equal(("laptop", false), (taken.Get().TakenOverBy, taken.Get().IsPlaying));
+
+        // The source retires the takeover by echoing its timestamp: the same timestamptz equality, so a stale echo
+        // (a millisecond off) leaves it and the exact one clears it.
+        var staleEcho = (await PutAsync(user.UserId, "phone", T0.AddSeconds(2), seenTakenOverAt: taken.Get().TakenOverAt!.Value.AddMilliseconds(-1))).Get();
+        Assert.Equal("laptop", staleEcho.TakenOverBy);
+        var retired = (await PutAsync(user.UserId, "phone", T0.AddSeconds(3), seenTakenOverAt: taken.Get().TakenOverAt)).Get();
+        Assert.Null(retired.TakenOverBy);
+        Assert.Null(retired.TakenOverAt);
     }
 
     [PostgresFact]

@@ -62,7 +62,7 @@ public class PlaybackController : ControllerBase
             : null;
         return this.ToActionResult(await _mediator.Send(new UpdatePlaybackSessionCommand(
             user.UserId, deviceId, request.SongId, request.PositionSeconds, request.IsPlaying, scope,
-            request.History ?? [], request.QueuedNext ?? []), cancellationToken));
+            request.History ?? [], request.QueuedNext ?? [], request.SeenTakenOverAt), cancellationToken));
     }
 
     /// <summary>

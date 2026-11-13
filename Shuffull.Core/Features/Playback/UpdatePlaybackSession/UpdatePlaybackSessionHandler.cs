@@ -10,9 +10,10 @@ using Shuffull.Core.Services;
 namespace Shuffull.Core.Features.Playback.UpdatePlaybackSession;
 
 /// <summary>
-/// Upserts the device's session row and stamps <c>PositionAt</c> and <c>UpdatedAt</c> with the server's clock. It never
-/// writes the takeover or command fields, so a PUT that was in flight when another device took over can't erase the
-/// takeover. The answer is the row read back after the save, so it carries any takeover that committed first. Signals the
+/// Upserts the device's session row and stamps <c>PositionAt</c> and <c>UpdatedAt</c> with the server's clock. The upsert
+/// never writes the takeover or command fields, so a PUT that was in flight when another device took over can't erase
+/// the takeover. A PUT that names the takeover it has acted on (<c>SeenTakenOverAt</c>) then clears it with a separate
+/// UPDATE conditional on <c>TakenOverAt</c> still being that value, so a takeover that landed since survives. The answer is the row read back after the save, so it carries any takeover that committed first. Signals the
 /// user's other devices once the row is saved.
 /// </summary>
 public class UpdatePlaybackSessionHandler(ShuffullContext context, TimeProvider timeProvider, IPlaybackNotifier notifier)
@@ -63,6 +64,16 @@ public class UpdatePlaybackSessionHandler(ShuffullContext context, TimeProvider 
                 {
                     context.ChangeTracker.Clear();
                 }
+            }
+
+            if (request.SeenTakenOverAt is { } seenTakenOverAt)
+            {
+                var seen = PlaybackRules.AsUtc(seenTakenOverAt);
+                await context.PlaybackSessions
+                    .Where(s => s.UserId == request.UserId && s.DeviceId == request.DeviceId && s.TakenOverAt == seen)
+                    .ExecuteUpdateAsync(set => set
+                        .SetProperty(s => s.TakenOverBy, (string?)null)
+                        .SetProperty(s => s.TakenOverAt, (DateTime?)null), cancellationToken);
             }
 
             saved = await context.PlaybackSessions.AsNoTracking()
