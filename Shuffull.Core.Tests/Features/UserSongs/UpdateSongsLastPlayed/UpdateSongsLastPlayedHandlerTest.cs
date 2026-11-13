@@ -40,16 +40,7 @@ public class UpdateSongsLastPlayedHandlerTest : IDisposable
 
     private async Task<UserSong> SeedUserSongAsync(string userId, DateTime lastPlayed)
     {
-        var song = new Song
-        {
-            SongId = Guid.NewGuid().ToString(),
-            Name = "Song",
-            FileExtension = ".mp3",
-            FileHash = Guid.NewGuid().ToString(),
-            ExternalSongId = null,
-        };
-        await _database.Context.Songs.AddAsync(song);
-        await _database.Context.SaveChangesAsync();
+        var song = await SeedSongAsync();
 
         var userSong = new UserSong
         {

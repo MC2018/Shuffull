@@ -30,7 +30,7 @@ public class UserSongsController : ControllerBase
     /// <summary>
     /// Deprecated: POST last-played now creates a missing play record itself (Shuffull#2), and current app builds no
     /// longer call this. It stays for installed builds that still send it before their first last-played, and goes
-    /// once none of those remain.
+    /// once none of those remain (Shuffull#126).
     /// </summary>
     [HttpPut]
     [Authorize]

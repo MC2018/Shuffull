@@ -59,7 +59,7 @@ public class UpdateSongsLastPlayedHandler(IUnitOfWork unitOfWork) : IRequestHand
         if (missingSongIds.Count > 0)
         {
             var songsResult = await unitOfWork.Repository<Song>()
-                .ListAsync(new SongsByIdsSpec(missingSongIds).AsNoTracking(), cancellationToken);
+                .ListAsync(new SongsWithoutRelationsByIdsSpec(missingSongIds).AsNoTracking(), cancellationToken);
             if (songsResult.IsError)
             {
                 return Result.Error<UpdateSongsLastPlayedResponse>(songsResult.GetError());
