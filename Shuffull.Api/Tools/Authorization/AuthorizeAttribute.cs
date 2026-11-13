@@ -17,7 +17,7 @@ public class AuthorizeAttribute : Attribute, IAuthorizationFilter
     /// <param name="context"></param>
     public void OnAuthorization(AuthorizationFilterContext context)
     {
-        if (context.HttpContext.Items["User"] is User)
+        if (context.HttpContext.Items[JwtMiddleware.UserKey] is User)
         {
             return;
         }

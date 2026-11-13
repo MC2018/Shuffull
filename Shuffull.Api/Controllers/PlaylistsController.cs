@@ -30,49 +30,32 @@ public class PlaylistsController : ControllerBase
 
     [HttpGet]
     [Authorize]
-    public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAll([FromCurrentUser] User user, CancellationToken cancellationToken)
     {
-        if (HttpContext.Items["User"] is not User user)
-        {
-            return Unauthorized();
-        }
-
         return this.ToActionResult(await _mediator.Send(new GetUserPlaylistsQuery(user.UserId), cancellationToken));
     }
 
     [HttpPut]
     [Authorize]
-    public async Task<IActionResult> Create(string name, CancellationToken cancellationToken)
+    public async Task<IActionResult> Create([FromCurrentUser] User user, string name,
+        CancellationToken cancellationToken)
     {
-        if (HttpContext.Items["User"] is not User user)
-        {
-            return Unauthorized();
-        }
-
         return this.ToActionResult(await _mediator.Send(new CreatePlaylistCommand(user.UserId, name), cancellationToken));
     }
 
     [HttpPost("{playlistId}/songs")]
     [Authorize]
-    public async Task<IActionResult> AddSong(string playlistId, [FromQuery] string songId, CancellationToken cancellationToken)
+    public async Task<IActionResult> AddSong([FromCurrentUser] User user, string playlistId, [FromQuery] string songId,
+        CancellationToken cancellationToken)
     {
-        if (HttpContext.Items["User"] is not User user)
-        {
-            return Unauthorized();
-        }
-
         return this.ToActionResult(await _mediator.Send(new AddSongToPlaylistCommand(user.UserId, playlistId, songId), cancellationToken));
     }
 
     [HttpDelete("{playlistId}/songs/{songId}")]
     [Authorize]
-    public async Task<IActionResult> RemoveSong(string playlistId, string songId, CancellationToken cancellationToken)
+    public async Task<IActionResult> RemoveSong([FromCurrentUser] User user, string playlistId, string songId,
+        CancellationToken cancellationToken)
     {
-        if (HttpContext.Items["User"] is not User user)
-        {
-            return Unauthorized();
-        }
-
         return this.ToActionResult(await _mediator.Send(new RemoveSongFromPlaylistCommand(user.UserId, playlistId, songId), cancellationToken));
     }
 
@@ -80,37 +63,25 @@ public class PlaylistsController : ControllerBase
     // never kept — see DeletePlaylistHandler. Idempotent: deleting an already-absent playlist is a no-op success.
     [HttpDelete("{playlistId}")]
     [Authorize]
-    public async Task<IActionResult> Delete(string playlistId, CancellationToken cancellationToken)
+    public async Task<IActionResult> Delete([FromCurrentUser] User user, string playlistId,
+        CancellationToken cancellationToken)
     {
-        if (HttpContext.Items["User"] is not User user)
-        {
-            return Unauthorized();
-        }
-
         return this.ToActionResult(await _mediator.Send(new DeletePlaylistCommand(user.UserId, playlistId), cancellationToken));
     }
 
     [HttpPost("list")]
     [Authorize]
-    public async Task<IActionResult> GetList([FromBody] string[] playlistIds, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetList([FromCurrentUser] User user, [FromBody] string[] playlistIds,
+        CancellationToken cancellationToken)
     {
-        if (HttpContext.Items["User"] is not User user)
-        {
-            return Unauthorized();
-        }
-
         return this.ToActionResult(await _mediator.Send(new GetPlaylistsQuery(user.UserId, playlistIds), cancellationToken));
     }
 
     [HttpGet("{playlistId}")]
     [Authorize]
-    public async Task<IActionResult> Get(string playlistId, CancellationToken cancellationToken)
+    public async Task<IActionResult> Get([FromCurrentUser] User user, string playlistId,
+        CancellationToken cancellationToken)
     {
-        if (HttpContext.Items["User"] is not User user)
-        {
-            return Unauthorized();
-        }
-
         return this.ToActionResult(await _mediator.Send(new GetPlaylistDetailsQuery(user.UserId, playlistId), cancellationToken));
     }
 }

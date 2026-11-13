@@ -3,6 +3,7 @@ using Nut.Results;
 using Shuffull.Core.Errors;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Persistence.Repositories;
+using Shuffull.Core.Persistence.Specifications.Songs;
 using Shuffull.Core.Persistence.Specifications.UserSongs;
 
 namespace Shuffull.Core.Features.UserSongs.UpdateSongsLastPlayed;
@@ -23,11 +24,6 @@ public class UpdateSongsLastPlayedHandler(IUnitOfWork unitOfWork) : IRequestHand
             return Result.Error<UpdateSongsLastPlayedResponse>(userSongsResult.GetError());
         }
 
-        // No matching play records is NOT a client error: the ids are simply songs this user has none for --
-        // most often because the song was deleted server-side while a client still holds it locally. Reporting
-        // that as a failure made the whole batch 400, which pinned the client's outbox rows in place and, until
-        // the status was read correctly, wedged its entire sync. Fall through and report 0 updated instead,
-        // exactly as a batch of stale (older) timestamps already does.
         var userSongs = userSongsResult.Get();
 
         // Keep the latest requested timestamp per song in case a song appears more than once.
@@ -50,6 +46,40 @@ public class UpdateSongsLastPlayedHandler(IUnitOfWork unitOfWork) : IRequestHand
             {
                 userSong.LastPlayed = requestedLastPlayed;
                 userSong.Version = now;
+                updatedCount++;
+            }
+        }
+
+        // A first play creates the play record, so a client needs no separate PUT /user-songs before it (Shuffull#2).
+        // Only for songs that exist: an id with no song is most often one the server deleted while a client still holds
+        // it locally. That is not a client error. Failing on it made the whole batch 400, which pinned the client's
+        // outbox rows in place and, until the status was read correctly, wedged its entire sync. Such ids are skipped
+        // and simply not counted, exactly as a stale (older) timestamp is. So is an audition song whose link a mix
+        // delete dropped (SongsAUserCanStartPlayingSpec), which a stale play from an unsynced device would re-link.
+        var missingSongIds = latestBySong.Keys.Except(userSongs.Select(us => us.SongId)).ToList();
+        if (missingSongIds.Count > 0)
+        {
+            var songsResult = await unitOfWork.Repository<Song>()
+                .ListAsync(new SongsAUserCanStartPlayingSpec(request.UserId, missingSongIds).AsNoTracking(), cancellationToken);
+            if (songsResult.IsError)
+            {
+                return Result.Error<UpdateSongsLastPlayedResponse>(songsResult.GetError());
+            }
+
+            foreach (var song in songsResult.Get())
+            {
+                var addResult = await userSongRepository.AddAsync(new UserSong
+                {
+                    UserId = request.UserId,
+                    SongId = song.SongId,
+                    LastPlayed = latestBySong[song.SongId],
+                    Version = now,
+                }, cancellationToken);
+                if (addResult.IsError)
+                {
+                    return Result.Error<UpdateSongsLastPlayedResponse>(addResult.GetError());
+                }
+
                 updatedCount++;
             }
         }

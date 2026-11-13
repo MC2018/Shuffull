@@ -53,14 +53,10 @@ public class SongRequestsController : ControllerBase
     /// </summary>
     [HttpGet("search")]
     [Authorize]
-    public async Task<IActionResult> Search([FromServices] SourceSearchRateLimiter rateLimiter, [FromQuery] string? q,
+    public async Task<IActionResult> Search([FromCurrentUser] User user,
+        [FromServices] SourceSearchRateLimiter rateLimiter, [FromQuery] string? q,
         [FromQuery] int limit = DefaultSearchLimit, CancellationToken cancellationToken = default)
     {
-        if (HttpContext.Items["User"] is not User user)
-        {
-            return Unauthorized();
-        }
-
         if (!rateLimiter.TryAcquire(user.UserId))
         {
             return StatusCode(StatusCodes.Status429TooManyRequests, new { error = SourceSearchRateLimiter.LimitedMessage });
@@ -72,13 +68,9 @@ public class SongRequestsController : ControllerBase
     /// <summary>App: ask for a song by its source id. See <see cref="CreateSongRequestHandler"/>.</summary>
     [HttpPost]
     [Authorize]
-    public async Task<IActionResult> Create([FromBody] CreateSongRequestRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> Create([FromCurrentUser] User user, [FromBody] CreateSongRequestRequest request,
+        CancellationToken cancellationToken)
     {
-        if (HttpContext.Items["User"] is not User user)
-        {
-            return Unauthorized();
-        }
-
         return this.ToActionResult(await _mediator.Send(new CreateSongRequestCommand(user.UserId, request.ExternalSongId,
             request.Title, request.Artists, request.DurationSeconds, request.ThumbnailUrl), cancellationToken));
     }
@@ -87,26 +79,17 @@ public class SongRequestsController : ControllerBase
     [HttpGet]
     [Authorize]
     [QueryParameter("status", present: false)]
-    public async Task<IActionResult> GetMine(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetMine([FromCurrentUser] User user, CancellationToken cancellationToken)
     {
-        if (HttpContext.Items["User"] is not User user)
-        {
-            return Unauthorized();
-        }
-
         return this.ToActionResult(await _mediator.Send(new GetMySongRequestsQuery(user.UserId), cancellationToken));
     }
 
     /// <summary>App: cancel a request the producer hasn't claimed yet. Returns it as it now is.</summary>
     [HttpDelete("{songRequestId}")]
     [Authorize]
-    public async Task<IActionResult> Cancel(string songRequestId, CancellationToken cancellationToken)
+    public async Task<IActionResult> Cancel([FromCurrentUser] User user, string songRequestId,
+        CancellationToken cancellationToken)
     {
-        if (HttpContext.Items["User"] is not User user)
-        {
-            return Unauthorized();
-        }
-
         return this.ToActionResult(await _mediator.Send(new CancelSongRequestCommand(user.UserId, songRequestId), cancellationToken));
     }
 
