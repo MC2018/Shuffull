@@ -28,7 +28,7 @@ OUT="docker-compose.truenas.local.yml"
 # ship a dummy JWT signing key / import key / DB password (docker compose config does no validation itself).
 if grep -qE 'replace-with-|ChangeMe!StrongPassword' "$ENVFILE"; then
   echo "ERROR: $ENVFILE still contains placeholder secrets (replace-with-… / ChangeMe…)." >&2
-  echo "       Set real DB_SA_PASSWORD, JWT_SECRET, and SHUFFULL_IMPORT_KEY values first." >&2
+  echo "       Set real DB_PASSWORD, JWT_SECRET, and SHUFFULL_IMPORT_KEY values first." >&2
   exit 1
 fi
 
@@ -61,6 +61,20 @@ for tier in Weak Strong; do
     exit 1
   fi
 done
+
+# DB_PASSWORD was called DB_SA_PASSWORD (a SQL Server leftover) before shuffull-workspace#115. docker-compose.yml
+# still falls back to the old name for one release, so the render is the same either way; this only nags.
+# Neither set is an error: compose would quietly render the local-dev default password, and the api could not
+# log in to the existing prod database (a typo while renaming the key would do exactly that).
+if [ -z "$(envval DB_PASSWORD)" ] && [ -z "$(envval DB_SA_PASSWORD)" ]; then
+  echo "ERROR: $ENVFILE has no DB_PASSWORD (the Postgres password; DB_SA_PASSWORD before shuffull-workspace#115)." >&2
+  exit 1
+elif [ -z "$(envval DB_PASSWORD)" ]; then
+  echo "WARNING: $ENVFILE sets DB_SA_PASSWORD, the old name. Rename it to DB_PASSWORD;" >&2
+  echo "         the old name is only read for one more release." >&2
+elif [ -n "$(envval DB_PASSWORD)" ] && [ -n "$(envval DB_SA_PASSWORD)" ]; then
+  echo "WARNING: $ENVFILE sets both DB_PASSWORD and DB_SA_PASSWORD. DB_PASSWORD wins; delete DB_SA_PASSWORD." >&2
+fi
 
 # `config` resolves all substitutions; the awk filter drops the 4-space "build:" key and its 6-space children,
 # replacing it with `pull_policy: always`.

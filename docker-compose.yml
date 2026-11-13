@@ -8,7 +8,9 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_SA_PASSWORD:-Password!}
+      # DB_SA_PASSWORD is the pre-shuffull-workspace#115 name, still read for one release so an
+      # un-renamed .env keeps working. Drop the inner fallback once both .env.production files use DB_PASSWORD.
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-${DB_SA_PASSWORD:-Password!}}
       POSTGRES_DB: Shuffull
       # Store data in a SUBDIR of the mount, not the mount root. initdb chmods PGDATA to 0700; on a bind
       # mount (esp. a TrueNAS ZFS dataset) it often can't chmod the mount POINT itself ("could not change
@@ -59,8 +61,8 @@ services:
       - DOTNET_gcServer=0
       # ── Secrets / cross-service config, supplied at runtime (NEVER baked into the image; the
       # appsettings.Production.json that held these is .dockerignored). Set real values in .env. ──
-      # DB connection points at the Postgres db service; password from DB_SA_PASSWORD, user from DB_USER.
-      - ConnectionStrings__Shuffull=Host=shuffull-db;Port=5432;Database=Shuffull;Username=${DB_USER:-postgres};Password=${DB_SA_PASSWORD:-Password!}
+      # DB connection points at the Postgres db service; password from DB_PASSWORD, user from DB_USER.
+      - ConnectionStrings__Shuffull=Host=shuffull-db;Port=5432;Database=Shuffull;Username=${DB_USER:-postgres};Password=${DB_PASSWORD:-${DB_SA_PASSWORD:-Password!}}
       # Token-signing key — the committed appsettings.json value is a public dummy; MUST override in prod.
       - Jwt__Secret=${JWT_SECRET}
       # Shared secret the producer sends as X-Import-Key (song POST + replacement-queue GET). Empty => rejected.
