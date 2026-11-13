@@ -4,6 +4,7 @@ using Nut.Results;
 using Shuffull.Core.Errors;
 using Shuffull.Core.Models.Dtos;
 using Shuffull.Core.Persistence;
+using Shuffull.Core.Services;
 
 namespace Shuffull.Core.Features.Playback.TakeOverPlaybackSession;
 

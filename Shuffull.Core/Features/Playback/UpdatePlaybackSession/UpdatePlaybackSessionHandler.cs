@@ -5,20 +5,22 @@ using Shuffull.Core.Errors;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Dtos;
 using Shuffull.Core.Persistence;
+using Shuffull.Core.Services;
 
 namespace Shuffull.Core.Features.Playback.UpdatePlaybackSession;
 
 /// <summary>
 /// Upserts the device's session row and stamps <c>PositionAt</c> and <c>UpdatedAt</c> with the server's clock. It never
 /// writes the takeover or command fields, so a PUT that was in flight when another device took over can't erase the
-/// takeover: the answer carries it back instead. Signals the user's other devices once the row is saved.
+/// takeover. The answer is the row read back after the save, so it carries any takeover that committed first. Signals the
+/// user's other devices once the row is saved.
 /// </summary>
 public class UpdatePlaybackSessionHandler(ShuffullContext context, TimeProvider timeProvider, IPlaybackNotifier notifier)
     : IRequestHandler<UpdatePlaybackSessionCommand, Result<PlaybackSessionDto>>
 {
     public async Task<Result<PlaybackSessionDto>> Handle(UpdatePlaybackSessionCommand request, CancellationToken cancellationToken)
     {
-        PlaybackSession session;
+        PlaybackSession saved;
         DateTime now;
         try
         {
@@ -37,7 +39,7 @@ public class UpdatePlaybackSessionHandler(ShuffullContext context, TimeProvider 
                 now = PlaybackRules.Now(timeProvider);
                 var existing = await context.PlaybackSessions
                     .SingleOrDefaultAsync(s => s.UserId == request.UserId && s.DeviceId == request.DeviceId, cancellationToken);
-                session = existing ?? new PlaybackSession { UserId = request.UserId, DeviceId = request.DeviceId };
+                var session = existing ?? new PlaybackSession { UserId = request.UserId, DeviceId = request.DeviceId };
                 if (existing is null)
                 {
                     context.PlaybackSessions.Add(session);
@@ -62,6 +64,9 @@ public class UpdatePlaybackSessionHandler(ShuffullContext context, TimeProvider 
                     context.ChangeTracker.Clear();
                 }
             }
+
+            saved = await context.PlaybackSessions.AsNoTracking()
+                .SingleAsync(s => s.UserId == request.UserId && s.DeviceId == request.DeviceId, cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -69,6 +74,6 @@ public class UpdatePlaybackSessionHandler(ShuffullContext context, TimeProvider 
         }
 
         await notifier.SessionChangedAsync(request.UserId, request.DeviceId, writerDeviceId: request.DeviceId);
-        return Result.Ok(PlaybackSessionDto.Create(session, now));
+        return Result.Ok(PlaybackSessionDto.Create(saved, now));
     }
 }

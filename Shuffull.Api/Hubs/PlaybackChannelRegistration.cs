@@ -1,5 +1,5 @@
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Shuffull.Core.Features.Playback;
+using Shuffull.Core.Services;
 
 namespace Shuffull.Api.Hubs;
 

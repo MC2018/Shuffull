@@ -1,7 +1,10 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using Shuffull.Api.Commands.Playback;
+using Shuffull.Api.Commands.Playback.SendPlaybackCommand;
+using Shuffull.Api.Commands.Playback.TakeOverPlaybackSession;
+using Shuffull.Api.Commands.Playback.UpdatePlaybackSession;
 using Shuffull.Api.Extensions;
 using Shuffull.Api.Tools.Authorization;
 using Shuffull.Core.Features.Playback.AckPlaybackCommand;
@@ -22,6 +25,10 @@ namespace Shuffull.Api.Controllers;
 [Route("api/v1/playback/sessions")]
 public class PlaybackController : ControllerBase
 {
+    /// <summary>Compact, with non-ASCII text kept as is rather than as <c>\uXXXX</c>, so a scope naming Japanese tags
+    /// costs its real length against <see cref="PlaybackSession.MaxScopeLength"/>. The API escapes again on the way out.</summary>
+    private static readonly JsonSerializerOptions ScopeJson = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
+
     private readonly IMediator _mediator;
 
     public PlaybackController(IMediator mediator)
@@ -51,7 +58,7 @@ public class PlaybackController : ControllerBase
         CancellationToken cancellationToken)
     {
         var scope = request.Scope is { ValueKind: not (JsonValueKind.Null or JsonValueKind.Undefined) } element
-            ? JsonSerializer.Serialize(element)
+            ? JsonSerializer.Serialize(element, ScopeJson)
             : null;
         return this.ToActionResult(await _mediator.Send(new UpdatePlaybackSessionCommand(
             user.UserId, deviceId, request.SongId, request.PositionSeconds, request.IsPlaying, scope,

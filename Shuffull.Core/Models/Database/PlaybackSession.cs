@@ -12,12 +12,13 @@ namespace Shuffull.Core.Models.Database;
 /// <list type="bullet">
 /// <item>The device itself, with <c>PUT /api/v1/playback/sessions/{deviceId}</c>: song, position, playing, scope,
 /// history and queue. Last write wins. That PUT never touches the takeover or command fields, so a stale PUT that
-/// lands after a takeover can't erase it; the PUT's answer carries the takeover back to the device instead.</item>
+/// lands after a takeover can't erase it; the device sees the takeover in the PUT's answer or its next read.</item>
 /// <item>Another of the user's devices, with <c>.../takeover</c>: <see cref="TakenOverBy"/> and
 /// <see cref="TakenOverAt"/>, and the row is paused at its estimated position. Conditional on <see cref="UpdatedAt"/>.
 /// <see cref="TakenOverAt"/> doubles as the takeover's id: a device acts on a takeover it hasn't seen before.</item>
 /// <item>Any of the user's devices, with <c>.../command</c>: a pending remote command for this device, which it clears
-/// with <c>.../command/{commandId}/ack</c>. A newer command replaces an unacked one.</item>
+/// with <c>.../command/{commandId}/ack</c>. A newer command replaces an unacked one, and one older than
+/// <see cref="CommandLifetime"/> is no longer handed out.</item>
 /// </list>
 ///
 /// <para>Rows not updated in <see cref="RetentionPeriod"/> are pruned; the <see cref="UserDevice"/> row stays.</para>
@@ -38,6 +39,13 @@ public class PlaybackSession
 
     /// <summary>A row not updated for this long is deleted, and a device inactive this long is left out of the listing.</summary>
     public static readonly TimeSpan RetentionPeriod = TimeSpan.FromDays(30);
+
+    /// <summary>
+    /// How long a pending command is handed out after it was sent. A remote press is meant for now: a laptop that was
+    /// shut when "play" was pressed must not start playing when it is next opened. The row keeps the command until it is
+    /// acked or replaced; only the answers leave it out.
+    /// </summary>
+    public static readonly TimeSpan CommandLifetime = TimeSpan.FromSeconds(60);
 
     [Required]
     public string UserId { get; set; }

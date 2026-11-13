@@ -1,3 +1,4 @@
+using Shuffull.Core.Services;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -8,7 +9,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shuffull.Api.Services;
 using Shuffull.Core.Behaviors;
-using Shuffull.Core.Features.Playback;
 using Shuffull.Core.Features.Playback.GetPlaybackSessions;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Dtos;
@@ -343,6 +343,22 @@ public class PlaybackControllerTest : IAsyncDisposable
     }
 
     [Fact]
+    public async Task TakeOver_WithUpdatedAtReadIntoAMillisecondDate_Lands()
+    {
+        // A server clock with sub-millisecond ticks, and a client (the app) that parses updatedAt into a JavaScript
+        // Date, which keeps only milliseconds, then sends that Date back.
+        var user = await SeedUserAsync("a", "phone", "laptop");
+        _clock.UtcNow = T0.AddTicks(12_345);
+        var response = await PutAsync(user, "phone", State());
+        var raw = JsonNode.Parse(await response.Content.ReadAsStringAsync())!["updatedAt"]!.GetValue<string>();
+        var asDate = DateTimeOffset.FromUnixTimeMilliseconds(DateTimeOffset.Parse(raw).ToUnixTimeMilliseconds()).UtcDateTime;
+
+        Assert.Equal("2026-11-13T12:00:00.001Z", raw);
+        Assert.Equal(T0.AddMilliseconds(1), (await RowAsync(user.UserId, "phone"))!.UpdatedAt);
+        Assert.Equal(HttpStatusCode.OK, (await TakeOverAsync(user, "phone", "laptop", asDate)).StatusCode);
+    }
+
+    [Fact]
     public async Task TakeOver_OfASessionThatDoesntExist_Is404()
     {
         var user = await SeedUserAsync("a", "phone", "laptop");
@@ -371,6 +387,19 @@ public class PlaybackControllerTest : IAsyncDisposable
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Null((await RowAsync(user.UserId, "phone"))!.TakenOverBy);
+    }
+
+    [Fact]
+    public async Task Put_KeepsNonAsciiScopeTextAsIs_SoItCostsItsRealLength()
+    {
+        // 3,000 characters of Japanese would be 18,000 as \uXXXX escapes, over the 8,192 cap.
+        var user = await SeedUserAsync("a", "phone");
+        var tag = string.Concat(Enumerable.Repeat("ロック", 1000));
+
+        var answer = await PutOkAsync(user, "phone", State(scope: new { tags = new[] { tag } }));
+
+        Assert.Equal($"{{\"tags\":[\"{tag}\"]}}", (await RowAsync(user.UserId, "phone"))!.Scope);
+        Assert.Equal(tag, answer.Scope!.Value.GetProperty("tags")[0].GetString());
     }
 
     // --- Commands -------------------------------------------------------------------------------------------------
@@ -427,6 +456,25 @@ public class PlaybackControllerTest : IAsyncDisposable
 
         Assert.Equal(T0, (await RowAsync(user.UserId, "phone"))!.UpdatedAt);
         Assert.Equal(HttpStatusCode.OK, (await TakeOverAsync(user, "phone", "laptop", read.UpdatedAt)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Command_OlderThanItsLifetime_IsNoLongerHandedOut_ButItsAckStillClearsIt()
+    {
+        var user = await SeedUserAsync("a", "phone", "laptop");
+        await PutOkAsync(user, "phone", State());
+        Assert.Equal(HttpStatusCode.OK, (await CommandAsync(user, "phone", "cmd-1", PlaybackCommandKinds.Play)).StatusCode);
+
+        _clock.UtcNow = T0 + PlaybackSession.CommandLifetime;
+        Assert.Equal("cmd-1", (await GetOkAsync(user)).Devices.Single(d => d.DeviceId == "phone").Session!.Command?.CommandId);
+
+        // The phone was asleep; it wakes after the press has gone stale.
+        _clock.UtcNow = T0 + PlaybackSession.CommandLifetime + TimeSpan.FromMilliseconds(1);
+        Assert.Null((await GetOkAsync(user)).Devices.Single(d => d.DeviceId == "phone").Session!.Command);
+        Assert.Null((await PutOkAsync(user, "phone", State())).Command);
+
+        Assert.Equal(HttpStatusCode.OK, (await AckAsync(user, "phone", "cmd-1")).StatusCode);
+        Assert.Null((await RowAsync(user.UserId, "phone"))!.CommandId);
     }
 
     [Fact]

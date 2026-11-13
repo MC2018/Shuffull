@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace Shuffull.Api.Commands.Playback;
+namespace Shuffull.Api.Commands.Playback.UpdatePlaybackSession;
 
 /// <summary>
 /// Body for a device's own playback state (Shuffull#6). <paramref name="Scope"/> is the app's song filters, any JSON
@@ -14,9 +14,3 @@ public record UpdatePlaybackSessionRequest(
     JsonElement? Scope,
     List<string>? History,
     List<string>? QueuedNext);
-
-/// <summary>Body for a takeover: the device taking over, and the source session's <c>updatedAt</c> as it read it.</summary>
-public record TakeOverPlaybackSessionRequest(string? ByDeviceId, DateTime? ExpectedUpdatedAt);
-
-/// <summary>Body for a remote command: the sender's id for it, its kind, and for a seek, where to.</summary>
-public record SendPlaybackCommandRequest(string? CommandId, string? Kind, double? SeekSeconds);

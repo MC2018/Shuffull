@@ -5,6 +5,7 @@ using Shuffull.Core.Errors;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Dtos;
 using Shuffull.Core.Persistence;
+using Shuffull.Core.Services;
 
 namespace Shuffull.Core.Features.Playback.GetPlaybackSessions;
 
@@ -34,6 +35,7 @@ public class GetPlaybackSessionsHandler(ShuffullContext context, TimeProvider ti
                 {
                     var session = sessions.GetValueOrDefault(device.DeviceId);
                     var lastActive = session is not null && session.UpdatedAt > device.LastSeenAt ? session.UpdatedAt : device.LastSeenAt;
+                    lastActive = PlaybackSessionDto.Utc(lastActive);
                     return new PlaybackDeviceDto(
                         device.DeviceId,
                         device.Name,
