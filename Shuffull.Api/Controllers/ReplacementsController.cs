@@ -39,11 +39,15 @@ public class ReplacementsController : ControllerBase
             return Ok();
         }
 
-        // This endpoint answers with a plain-text message, not ToActionResult's { error } object.
+        // A refusal answers with a plain-text message, not ToActionResult's { error } object, as it always has. Any
+        // other kind (none today) keeps its own status, so a server fault is never sent to the app's outbox as a 4xx.
         var error = result.GetError();
-        return ResultErrors.KindOf(error) == ErrorKind.NotFound
-            ? NotFound(error.Message)
-            : BadRequest(error.Message);
+        return ResultErrors.KindOf(error) switch
+        {
+            ErrorKind.NotFound => NotFound(error.Message),
+            ErrorKind.Invalid => BadRequest(error.Message),
+            _ => this.ToActionResult(result),
+        };
     }
 
     /// <summary>Producer: pull the replacement queue at a given status (shared-secret guarded).</summary>
