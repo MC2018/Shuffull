@@ -30,8 +30,10 @@ public class GetDeletedSongsHandler(ShuffullContext context)
 
             // Keyset on (DeletedAt, SongId), newest first. One purge stamps every song it removes with the same
             // DeletedAt, so the id breaks the tie; without it a page boundary inside one purge would skip or repeat.
-            query = query.Where(t => t.DeletedAt < deletedAt
-                || (t.DeletedAt == deletedAt && string.Compare(t.SongId, songId) < 0));
+            // The leading `<=` changes no result: it is a plain range Postgres can start the index scan from, which it
+            // can't do with the OR alone, so a later page doesn't re-read every page before it.
+            query = query.Where(t => t.DeletedAt <= deletedAt
+                && (t.DeletedAt < deletedAt || (t.DeletedAt == deletedAt && string.Compare(t.SongId, songId) < 0)));
         }
 
         // One extra row tells us whether there is a next page without a separate COUNT.

@@ -616,6 +616,8 @@ namespace Shuffull.Api.Migrations
 
                     b.HasIndex("FileHash");
 
+                    b.HasIndex("DeletedByUserId", "DeletedAt", "SongId");
+
                     b.ToTable("SongTombstones");
                 });
 
