@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using Nut.Results;
 using Shuffull.Api.Commands.Devices.CheckInDevice;
 using Shuffull.Api.Commands.Listens.RecordListens;
+using Shuffull.Api.Commands.Playback;
 using Shuffull.Api.Commands.Replacements.FlagSongReplacement;
 using Shuffull.Api.Commands.SongRequests;
 using Shuffull.Api.Commands.Songs.HoldTagSongs;
@@ -24,6 +25,7 @@ using Shuffull.Core.Features.Capabilities.GetCapabilities;
 using Shuffull.Core.Features.Listens.GetListenStats;
 using Shuffull.Core.Features.Listens.GetRecap;
 using Shuffull.Core.Features.Listens.RecordListens;
+using Shuffull.Core.Features.Playback.GetPlaybackSessions;
 using Shuffull.Core.Features.Playlists.CreatePlaylist;
 using Shuffull.Core.Features.Playlists.GetPlaylists;
 using Shuffull.Core.Features.Playlists.GetUserPlaylists;
@@ -121,6 +123,24 @@ public class ApiContractGoldenFilesTest
             SongIds: [], IsExploratory: true),
     ];
 
+    private static readonly System.Text.Json.JsonElement ScopeJson =
+        JsonDocument.Parse("""{"kind":"playlist","playlistId":"playlist-full","tags":["Rock"]}""").RootElement.Clone();
+
+    private static readonly PlaybackSessionDto TakenOverSession = new(
+        DeviceId: "device-1",
+        SongId: "song-full",
+        PositionSeconds: 42.5,
+        PositionAt: V2,
+        IsPlaying: false,
+        EstimatedPositionSeconds: 42.5,
+        Scope: ScopeJson,
+        History: ["song-old", "song-sparse"],
+        QueuedNext: ["song-next"],
+        UpdatedAt: V2,
+        TakenOverBy: "device-2",
+        TakenOverAt: V2,
+        Command: new PlaybackCommandDto("cmd-1", "seek", SeekSeconds: 90, At: V2));
+
     private static readonly UserDto Curator = new("user-1", "listener", V1, IsCurator: true);
 
     /// <summary>File name (without .json) → the value the endpoint returns (or, for a request, accepts).</summary>
@@ -199,6 +219,25 @@ public class ApiContractGoldenFilesTest
         ["devices-checkin-request"] = new CheckInDeviceRequest("Pixel 8", "android"),
         // PUT /api/v1/devices/{deviceId}. The caller's device row after the check-in.
         ["devices-checkin"] = new UserDeviceDto("device-1", "Pixel 8", "android", CreatedAt: V1, LastSeenAt: V2),
+        // PUT /api/v1/playback/sessions/{deviceId} — a REQUEST body: a device's own playback state (Shuffull#6,
+        // ShuffullApp#194). `scope` is the app's own JSON object, stored and handed back as sent.
+        ["playback-session-request"] = new UpdatePlaybackSessionRequest("song-full", 42.5, IsPlaying: true,
+            Scope: ScopeJson, History: ["song-old", "song-sparse"], QueuedNext: ["song-next"]),
+        // PUT /api/v1/playback/sessions/{deviceId}, and the takeover, command and ack answers: the device's session.
+        // This one was taken over and has a seek waiting for its ack.
+        ["playback-session"] = TakenOverSession,
+        // GET /api/v1/playback/sessions. The caller's devices, most recently active first, with their sessions.
+        ["playback-sessions"] = new GetPlaybackSessionsResponse(V2,
+        [
+            new PlaybackDeviceDto("device-1", "Pixel 8", "android", LastActiveAt: V2, Online: true, Session: TakenOverSession),
+            // Checked in, never played: no session.
+            new PlaybackDeviceDto("device-2", "Laptop", null, LastActiveAt: V1, Online: false, Session: null),
+        ]),
+        // POST /api/v1/playback/sessions/{deviceId}/takeover — a REQUEST body: the taking device, and the source's
+        // updatedAt as it read it (the takeover is refused with 409 if the row moved since).
+        ["playback-takeover-request"] = new TakeOverPlaybackSessionRequest("device-2", ExpectedUpdatedAt: V1),
+        // POST /api/v1/playback/sessions/{deviceId}/command — a REQUEST body: a remote command for that device.
+        ["playback-command-request"] = new SendPlaybackCommandRequest("cmd-1", "seek", SeekSeconds: 90),
         // GET /api/v1/listens/stats. Per-song stats and the "maybe drop this" flag (ShuffullApp#115).
         ["listens-stats"] = new GetListenStatsResponse(
             MaybeDropRule.Default,
@@ -497,8 +536,14 @@ public class ApiContractGoldenFilesTest
         "listens-request", "users-authenticate-request", "users-me-password-request", "songs-list-request",
         "playlists-list-request", "user-songs-create", "user-songs-last-played", "user-songs-like", "songs-update",
         "songs-keep-request", "songs-retag-request", "replacements-request", "song-requests-create-request",
-        "devices-checkin-request",
+        "devices-checkin-request", "playback-session-request", "playback-takeover-request", "playback-command-request",
     ];
+
+    /// <summary>
+    /// Requests whose PascalCase spelling isn't tested: the app (the only sender) writes camelCase, and they carry an
+    /// opaque JSON object (the playback scope) that the API stores as sent, so renaming its keys changes the value.
+    /// </summary>
+    private static readonly HashSet<string> CamelCaseOnly = ["playback-session-request"];
 
     /// <summary>
     /// Requests the API reads with Newtonsoft rather than MVC's System.Text.Json binder: SongImportsController takes
@@ -525,7 +570,7 @@ public class ApiContractGoldenFilesTest
 
                 // A body with no keys (a bare id array, the like status) has no PascalCase spelling to test.
                 var body = JsonSerializer.SerializeToNode(Cases[name], Cases[name].GetType(), ApiJsonOptions());
-                if (!JsonNode.DeepEquals(body, PascalCaseNames(body)))
+                if (!CamelCaseOnly.Contains(name) && !JsonNode.DeepEquals(body, PascalCaseNames(body)))
                 {
                     data.Add(name, true);
                 }

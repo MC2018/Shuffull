@@ -17,6 +17,8 @@ request bodies, when the API stops binding them.
 | `songs-keep` | `POST /api/v1/songs/keep` | app |
 | `listens` | `POST /api/v1/listens` | app (ShuffullApp#57) |
 | `devices-checkin` | `PUT /api/v1/devices/{deviceId}` | app (ShuffullApp#58) |
+| `playback-session` | `PUT /api/v1/playback/sessions/{deviceId}`, and `POST .../takeover`, `.../command` and `.../command/{commandId}/ack` | app (ShuffullApp#194) |
+| `playback-sessions` | `GET /api/v1/playback/sessions` | app (ShuffullApp#194) |
 | `listens-stats` | `GET /api/v1/listens/stats` | app (ShuffullApp#115) |
 | `recap` | `GET /api/v1/recap/{year}` | app (ShuffullApp#116) |
 | `songs-retag` | `POST /api/v1/songs/retag` | app |
@@ -55,6 +57,9 @@ request bodies, when the API stops binding them.
 | `replacements-request` | `POST /api/v1/replacements` (request body) | app sends |
 | `song-requests-create-request` | `POST /api/v1/song-requests` (request body) | app sends (ShuffullApp#107) |
 | `devices-checkin-request` | `PUT /api/v1/devices/{deviceId}` (request body) | app sends (ShuffullApp#58) |
+| `playback-session-request` | `PUT /api/v1/playback/sessions/{deviceId}` (request body) | app sends (ShuffullApp#194) |
+| `playback-takeover-request` | `POST /api/v1/playback/sessions/{deviceId}/takeover` (request body) | app sends (ShuffullApp#194) |
+| `playback-command-request` | `POST /api/v1/playback/sessions/{deviceId}/command` (request body) | app sends (ShuffullApp#194) |
 
 Only the endpoints in the table are pinned. Calls that send no body are not: playlist create, add song, remove song and
 delete, and `songs/retag-stale`, which carry only route and query values (shuffull-workspace#92).
