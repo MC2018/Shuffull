@@ -65,7 +65,7 @@ public class SongLyricsEndpointTest : IDisposable
         Assert.Equal("new", song.PlainLyrics);
         Assert.False(song.LyricsInstrumental);
         Assert.Equal("lrclib", song.LyricsSource);
-        Assert.True(song.Version > OldVersion);
+        Assert.Equal(ProducerEndpointsHost.Now, song.Version);
     }
 
     [Fact]

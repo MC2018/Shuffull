@@ -173,7 +173,6 @@ public class YoutubeRatingsAckTest : IDisposable
     {
         var row = await SeedAsync();
         await using var host = await StartAsync();
-        var before = DateTime.UtcNow;
 
         var (status, body) = await AckAsync(host, $"[{Ack(row.YoutubeRatingRequestId, "like")}]");
 
@@ -181,7 +180,7 @@ public class YoutubeRatingsAckTest : IDisposable
         Assert.Equal("""{"completed":1,"skipped":0}""", body);
         var saved = await ReloadAsync(row.YoutubeRatingRequestId);
         Assert.Equal(YoutubeRatingStatus.Completed, saved.Status);
-        Assert.True(saved.UpdatedAt >= before.AddSeconds(-1), $"UpdatedAt {saved.UpdatedAt:o} not stamped");
+        Assert.Equal(ProducerEndpointsHost.Now, saved.UpdatedAt);
     }
 
     [Fact]

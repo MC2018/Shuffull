@@ -89,7 +89,6 @@ public class ReplacementsEndpointTest : IDisposable
     {
         await SeedSongAsync("song-1", "video-1");
         await using var host = await StartAsync();
-        var before = DateTime.UtcNow;
 
         var response = await FlagAsync(host, """{"songId":"song-1","note":"clipped intro"}""");
 
@@ -102,7 +101,7 @@ public class ReplacementsEndpointTest : IDisposable
         Assert.Equal("video-1", row.OriginalExternalSongId);
         Assert.Null(row.ResolvedAt);
         Assert.False(string.IsNullOrWhiteSpace(row.SongReplacementId));
-        Assert.True(row.CreatedAt >= before.AddSeconds(-1), $"CreatedAt {row.CreatedAt:o}");
+        Assert.Equal(ProducerEndpointsHost.Now, row.CreatedAt);
     }
 
     [Fact]

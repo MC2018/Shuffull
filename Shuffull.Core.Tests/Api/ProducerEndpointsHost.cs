@@ -22,6 +22,9 @@ public static class ProducerEndpointsHost
 {
     public const string Key = "import-key";
 
+    /// <summary>The handlers' clock: every timestamp they write is exactly this.</summary>
+    public static readonly DateTime Now = new(2026, 11, 13, 12, 0, 0, DateTimeKind.Utc);
+
     public static Task<ApiTestHost> StartAsync(DatabaseFixture database, IHealthSignals signals, User? signedInAs = null,
         params IInterceptor[] interceptors) => ApiTestHost.StartAsync(services =>
     {
@@ -31,7 +34,7 @@ public static class ProducerEndpointsHost
             .Build());
         services.AddScoped<ShuffullContext>(_ => database.CreateContext(interceptors));
         services.AddSingleton(signals);
-        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<TimeProvider>(new ManualTimeProvider(Now));
         services.AddValidatorsFromAssemblies([coreAssembly]);
         services.AddMediatR(cfg =>
         {
