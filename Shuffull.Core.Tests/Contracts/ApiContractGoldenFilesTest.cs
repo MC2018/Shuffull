@@ -26,6 +26,7 @@ using Shuffull.Core.Features.Listens.RecordListens;
 using Shuffull.Core.Features.Playlists.CreatePlaylist;
 using Shuffull.Core.Features.Playlists.GetPlaylists;
 using Shuffull.Core.Features.Playlists.GetUserPlaylists;
+using Shuffull.Core.Features.Songs.GetDeletedSongs;
 using Shuffull.Core.Features.Songs.GetLibrarySongs;
 using Shuffull.Core.Features.Songs.GetPendingTagSongs;
 using Shuffull.Core.Features.Songs.GetSongList;
@@ -356,6 +357,14 @@ public class ApiContractGoldenFilesTest
                 new LibrarySong("song-sparse", null, "Untitled", [], "9e107d9d372bb6826bd81d3542a419d6", ".m4a"),
             ],
             NextAfterSongId: "song-sparse"),
+        // GET /api/v1/songs/deleted. The app's deleted-songs screen (ShuffullApp#59). The second row is a tombstone written
+        // before the names were recorded.
+        ["songs-deleted"] = new DeletedSongsPage(
+            [
+                new DeletedSong("song-full", "Everybody Wants You", "Billy Squier, Burnard", "dQw4w9WgXcQ", "Audition · week of Oct 20", V2),
+                new DeletedSong("song-sparse", "Untitled", null, null, null, V1),
+            ],
+            NextBefore: "639264548961234560_song-sparse"),
         // GET /api/v1/youtube-ratings. The funnel's like-parity queue.
         ["youtube-ratings"] = new List<YoutubeRatingDto>
         {

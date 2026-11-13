@@ -58,7 +58,7 @@ public class DeletePlaylistHandler(ShuffullContext context)
         var playlist = await context.Playlists
             .AsNoTracking()
             .Where(p => p.PlaylistId == request.PlaylistId && p.UserId == request.UserId)
-            .Select(p => new { p.PlaylistId, p.IsExploratory })
+            .Select(p => new { p.PlaylistId, p.Name, p.IsExploratory })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (playlist is null)
@@ -130,7 +130,17 @@ public class DeletePlaylistHandler(ShuffullContext context)
                 var purged = await context.Songs
                     .AsNoTracking()
                     .Where(s => purgedSongIds.Contains(s.SongId))
-                    .Select(s => new { s.SongId, s.Name, s.ExternalSongId, s.FileHash, s.FileExtension })
+                    .Select(s => new
+                    {
+                        s.SongId,
+                        s.Name,
+                        s.ExternalSongId,
+                        s.FileHash,
+                        s.FileExtension,
+                        // Read before SongArtists is cleared below: the tombstone keeps the names so the user can
+                        // still find the song in their deleted list (ShuffullApp#59).
+                        Artists = s.SongArtists.Select(sa => sa.Artist.Name).ToList(),
+                    })
                     .ToListAsync(cancellationToken);
 
                 // The claimed rows stay locked until commit, so these deletes act only on songs that passed the
@@ -154,10 +164,12 @@ public class DeletePlaylistHandler(ShuffullContext context)
                     SongId = s.SongId,
                     Name = s.Name,
                     ExternalSongId = s.ExternalSongId,
+                    ArtistNames = s.Artists.Count > 0 ? string.Join(", ", s.Artists.Order(StringComparer.Ordinal)) : null,
                     FileHash = s.FileHash,
                     FileExtension = s.FileExtension,
                     DeletedByUserId = userId,
                     PlaylistId = playlistId,
+                    PlaylistName = playlist.Name,
                     DeletedAt = now,
                 }));
             }

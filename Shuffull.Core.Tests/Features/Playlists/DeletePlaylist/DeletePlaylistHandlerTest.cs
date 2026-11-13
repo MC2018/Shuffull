@@ -229,6 +229,9 @@ public class DeletePlaylistHandlerTest : IDisposable
         Assert.Equal(unkept.Name, tombstone.Name);
         Assert.Equal(user.UserId, tombstone.DeletedByUserId);
         Assert.Equal(playlist.PlaylistId, tombstone.PlaylistId);
+        // The names survive the purge, so the user can still find the song in their deleted list (ShuffullApp#59).
+        Assert.Equal("Artist", tombstone.ArtistNames);
+        Assert.Equal(playlist.Name, tombstone.PlaylistName);
         Assert.Null(tombstone.MediaSweptAt);
         Assert.False(tombstone.MediaDeleted);
     }
