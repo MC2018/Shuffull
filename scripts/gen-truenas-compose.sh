@@ -63,16 +63,18 @@ for tier in Weak Strong; do
 done
 
 # DB_PASSWORD was called DB_SA_PASSWORD (a SQL Server leftover) before shuffull-workspace#115. docker-compose.yml
-# still falls back to the old name for one release, so the render is the same either way; this only nags.
-# Neither set is an error: compose would quietly render the local-dev default password, and the api could not
-# log in to the existing prod database (a typo while renaming the key would do exactly that).
-if [ -z "$(envval DB_PASSWORD)" ] && [ -z "$(envval DB_SA_PASSWORD)" ]; then
+# still falls back to the old name until shuffull-workspace#132, so the render is the same either way; this only nags.
+# Having neither key set is an error: compose would quietly render the local-dev default password, and the api
+# could not log in to the existing prod database (a typo while renaming the key would do exactly that).
+db_pw="$(envval DB_PASSWORD)"
+db_sa_pw="$(envval DB_SA_PASSWORD)"
+if [ -z "$db_pw" ] && [ -z "$db_sa_pw" ]; then
   echo "ERROR: $ENVFILE has no DB_PASSWORD (the Postgres password; DB_SA_PASSWORD before shuffull-workspace#115)." >&2
   exit 1
-elif [ -z "$(envval DB_PASSWORD)" ]; then
+elif [ -z "$db_pw" ]; then
   echo "WARNING: $ENVFILE sets DB_SA_PASSWORD, the old name. Rename it to DB_PASSWORD;" >&2
-  echo "         the old name is only read for one more release." >&2
-elif [ -n "$(envval DB_PASSWORD)" ] && [ -n "$(envval DB_SA_PASSWORD)" ]; then
+  echo "         support for the old name goes with shuffull-workspace#132." >&2
+elif [ -n "$db_sa_pw" ]; then
   echo "WARNING: $ENVFILE sets both DB_PASSWORD and DB_SA_PASSWORD. DB_PASSWORD wins; delete DB_SA_PASSWORD." >&2
 fi
 

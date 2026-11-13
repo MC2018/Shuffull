@@ -8,8 +8,8 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
-      # DB_SA_PASSWORD is the pre-shuffull-workspace#115 name, still read for one release so an
-      # un-renamed .env keeps working. Drop the inner fallback once both .env.production files use DB_PASSWORD.
+      # DB_SA_PASSWORD is the pre-shuffull-workspace#115 name, still read so an un-renamed .env keeps
+      # working. The inner fallback goes with shuffull-workspace#132.
       POSTGRES_PASSWORD: ${DB_PASSWORD:-${DB_SA_PASSWORD:-Password!}}
       POSTGRES_DB: Shuffull
       # Store data in a SUBDIR of the mount, not the mount root. initdb chmods PGDATA to 0700; on a bind
