@@ -23,6 +23,9 @@ public class JwtMiddleware
     /// </summary>
     public const string AuthUnavailableKey = "AuthUnavailable";
 
+    /// <summary>The <c>HttpContext.Items</c> key the signed-in <see cref="User"/> is attached under.</summary>
+    public const string UserKey = "User";
+
     /// <summary>
     /// Constructor
     /// </summary>
@@ -126,6 +129,6 @@ public class JwtMiddleware
             return;
         }
 
-        httpContext.Items["User"] = user;
+        httpContext.Items[UserKey] = user;
     }
 }

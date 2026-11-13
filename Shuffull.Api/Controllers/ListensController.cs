@@ -31,13 +31,9 @@ public class ListensController : ControllerBase
     /// </summary>
     [HttpPost]
     [Authorize]
-    public async Task<IActionResult> Record([FromBody] RecordListensRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> Record([FromCurrentUser] User user, [FromBody] RecordListensRequest request,
+        CancellationToken cancellationToken)
     {
-        if (HttpContext.Items["User"] is not User user)
-        {
-            return Unauthorized();
-        }
-
         return this.ToActionResult(await _mediator.Send(new RecordListensCommand(user.UserId, request.Listens ?? []), cancellationToken));
     }
 
@@ -48,13 +44,8 @@ public class ListensController : ControllerBase
     /// </summary>
     [HttpGet("stats")]
     [Authorize]
-    public async Task<IActionResult> Stats(CancellationToken cancellationToken)
+    public async Task<IActionResult> Stats([FromCurrentUser] User user, CancellationToken cancellationToken)
     {
-        if (HttpContext.Items["User"] is not User user)
-        {
-            return Unauthorized();
-        }
-
         return this.ToActionResult(await _mediator.Send(new GetListenStatsQuery(user.UserId, MaybeDropRule.Default), cancellationToken));
     }
 }

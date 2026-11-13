@@ -28,13 +28,9 @@ public class SongUploadsController : ControllerBase
     [HttpPost]
     [Authorize]
     [RequestSizeLimit(1_000_000_000)]
-    public async Task<IActionResult> Upload([FromForm] string? playlistName, [FromForm] IEnumerable<IFormFile> files)
+    public async Task<IActionResult> Upload([FromCurrentUser] User user, [FromForm] string? playlistName,
+        [FromForm] IEnumerable<IFormFile> files)
     {
-        if (HttpContext.Items["User"] is not User user)
-        {
-            return Unauthorized();
-        }
-
         var result = await new UploadSongHandler(_services).Handle(new UploadSongRequest(user.UserId, playlistName, files));
         return this.ToActionResult(result);
     }

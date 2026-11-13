@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Shuffull.Api.Controllers;
 using Shuffull.Api.Extensions;
+using Shuffull.Api.Tools.Authorization;
 using Shuffull.Core.Models.Database;
 
 namespace Shuffull.Core.Tests.Api;
@@ -18,6 +19,8 @@ public sealed class ApiTestHost : IAsyncDisposable
     private readonly WebApplication _app;
 
     public HttpClient Client { get; }
+
+    public IServiceProvider Services => _app.Services;
 
     private ApiTestHost(WebApplication app)
     {
@@ -38,7 +41,7 @@ public sealed class ApiTestHost : IAsyncDisposable
         {
             app.Use((HttpContext context, Func<Task> next) =>
             {
-                context.Items["User"] = signedInAs;
+                context.Items[JwtMiddleware.UserKey] = signedInAs;
                 return next();
             });
         }

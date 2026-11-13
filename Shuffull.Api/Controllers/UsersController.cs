@@ -56,13 +56,8 @@ public class UsersController : ControllerBase
 
     [HttpGet("me")]
     [Authorize]
-    public async Task<IActionResult> GetCurrent(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetCurrent([FromCurrentUser] User user, CancellationToken cancellationToken)
     {
-        if (HttpContext.Items["User"] is not User user)
-        {
-            return Unauthorized();
-        }
-
         return this.ToActionResult(await _mediator.Send(new GetCurrentUserQuery(user.UserId), cancellationToken));
     }
 
@@ -70,13 +65,9 @@ public class UsersController : ControllerBase
     // for this device. A wrong current password is a 400, so the app doesn't log out over a typo.
     [HttpPost("me/password")]
     [Authorize]
-    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest body, CancellationToken cancellationToken)
+    public async Task<IActionResult> ChangePassword([FromCurrentUser] User user, [FromBody] ChangePasswordRequest body,
+        CancellationToken cancellationToken)
     {
-        if (HttpContext.Items["User"] is not User user)
-        {
-            return Unauthorized();
-        }
-
         return this.ToActionResult(await _mediator.Send(
             new ChangePasswordCommand(user.UserId, body.CurrentUserHash ?? "", body.NewUserHash ?? ""), cancellationToken));
     }

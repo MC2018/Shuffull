@@ -17,5 +17,5 @@ public class CurrentUser : ICurrentUser
         _httpContextAccessor = httpContextAccessor;
     }
 
-    public User? User => _httpContextAccessor.HttpContext?.Items["User"] as User;
+    public User? User => _httpContextAccessor.HttpContext?.Items[JwtMiddleware.UserKey] as User;
 }

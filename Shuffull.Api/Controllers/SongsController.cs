@@ -89,13 +89,9 @@ public class SongsController : ControllerBase
     /// </summary>
     [HttpPost("keep")]
     [Authorize]
-    public async Task<IActionResult> KeepSongs([FromBody] KeepSongsRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> KeepSongs([FromCurrentUser] User user, [FromBody] KeepSongsRequest request,
+        CancellationToken cancellationToken)
     {
-        if (HttpContext.Items["User"] is not User user)
-        {
-            return Unauthorized();
-        }
-
         return this.ToActionResult(await _mediator.Send(new KeepSongsCommand(user.UserId, request.SongIds ?? []), cancellationToken));
     }
 

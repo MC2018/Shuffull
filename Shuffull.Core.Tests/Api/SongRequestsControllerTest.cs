@@ -91,29 +91,24 @@ public class SongRequestsControllerTest : IDisposable
         return song;
     }
 
-    private SongRequestsController Controller(User? user = null)
+    private SongRequestsController Controller()
     {
         var scope = _provider.CreateScope();
         _scopes.Add(scope);
-        var controller = new SongRequestsController(scope.ServiceProvider.GetRequiredService<IMediator>())
+        return new SongRequestsController(scope.ServiceProvider.GetRequiredService<IMediator>())
         {
             ControllerContext = new ControllerContext
             {
                 HttpContext = new DefaultHttpContext { RequestServices = scope.ServiceProvider },
             },
         };
-        if (user is not null)
-        {
-            controller.HttpContext.Items["User"] = user;
-        }
-        return controller;
     }
 
     private static CreateSongRequestRequest Ask(string externalSongId = "yt-1") =>
         new(externalSongId, "Everybody Wants You", ["Billy Squier"], 230, "https://example.test/thumb.jpg");
 
     private async Task<SongRequestDto> CreateOkAsync(User user, string externalSongId = "yt-1") =>
-        Assert.IsType<SongRequestDto>(Assert.IsType<OkObjectResult>(await Controller(user).Create(Ask(externalSongId), CancellationToken.None)).Value);
+        Assert.IsType<SongRequestDto>(Assert.IsType<OkObjectResult>(await Controller().Create(user, Ask(externalSongId), CancellationToken.None)).Value);
 
     private async Task<SongRequestAckResponse> AckAsync(SongRequestAckDto ack, params SongRequestAckDto[] more) =>
         Assert.IsType<SongRequestAckResponse>(Assert.IsType<OkObjectResult>(await Controller().Ack([ack, .. more], CancellationToken.None)).Value);
@@ -283,7 +278,7 @@ public class SongRequestsControllerTest : IDisposable
         var user = await SeedUserAsync("a");
         var first = await CreateOkAsync(user, "yt-new");
 
-        Assert.IsType<ConflictObjectResult>(await Controller(user).Create(Ask("yt-new"), CancellationToken.None));
+        Assert.IsType<ConflictObjectResult>(await Controller().Create(user, Ask("yt-new"), CancellationToken.None));
 
         Assert.Equal(first.SongRequestId, (await _database.CreateContext().SongRequests.SingleAsync()).SongRequestId);
 
@@ -372,7 +367,7 @@ public class SongRequestsControllerTest : IDisposable
             await CreateOkAsync(user, $"yt-{i}");
         }
 
-        Assert.IsType<ConflictObjectResult>(await Controller(user).Create(Ask("yt-one-more"), CancellationToken.None));
+        Assert.IsType<ConflictObjectResult>(await Controller().Create(user, Ask("yt-one-more"), CancellationToken.None));
         Assert.Equal(CreateSongRequestHandler.MaxOpenPerUser, await _database.CreateContext().SongRequests.CountAsync());
     }
 
@@ -397,7 +392,7 @@ public class SongRequestsControllerTest : IDisposable
     {
         var user = await SeedUserAsync("a");
 
-        var result = await Controller(user).Create(request, CancellationToken.None);
+        var result = await Controller().Create(user, request, CancellationToken.None);
 
         Assert.True(result is BadRequestObjectResult, $"{name}: got {result.GetType().Name}");
         Assert.Equal(0, await _database.CreateContext().SongRequests.CountAsync());
@@ -409,7 +404,7 @@ public class SongRequestsControllerTest : IDisposable
         var user = await SeedUserAsync("a");
 
         var dto = Assert.IsType<SongRequestDto>(Assert.IsType<OkObjectResult>(
-            await Controller(user).Create(Ask() with { ThumbnailUrl = null, Artists = [] }, CancellationToken.None)).Value);
+            await Controller().Create(user, Ask() with { ThumbnailUrl = null, Artists = [] }, CancellationToken.None)).Value);
 
         Assert.Null(dto.ThumbnailUrl);
         Assert.Empty(dto.Artists);
@@ -426,19 +421,19 @@ public class SongRequestsControllerTest : IDisposable
         var failed = await CreateOkAsync(user, "yt-3");
         await SetStatusAsync(failed.SongRequestId, SongRequestStatus.Failed, "Video unavailable");
 
-        Assert.IsType<NotFoundObjectResult>(await Controller(other).Cancel(pending.SongRequestId, CancellationToken.None));
+        Assert.IsType<NotFoundObjectResult>(await Controller().Cancel(other, pending.SongRequestId, CancellationToken.None));
         Assert.Equal(SongRequestStatus.Pending, (await ReloadAsync(pending.SongRequestId)).Status);
 
         var cancelled = Assert.IsType<SongRequestDto>(Assert.IsType<OkObjectResult>(
-            await Controller(user).Cancel(pending.SongRequestId, CancellationToken.None)).Value);
+            await Controller().Cancel(user, pending.SongRequestId, CancellationToken.None)).Value);
         Assert.Equal(SongRequestStatus.Cancelled, cancelled.Status);
         Assert.Equal(SongRequestStatus.Cancelled, (await ReloadAsync(pending.SongRequestId)).Status);
 
-        Assert.IsType<ConflictObjectResult>(await Controller(user).Cancel(claimed.SongRequestId, CancellationToken.None));
+        Assert.IsType<ConflictObjectResult>(await Controller().Cancel(user, claimed.SongRequestId, CancellationToken.None));
         Assert.Equal(SongRequestStatus.Accepted, (await ReloadAsync(claimed.SongRequestId)).Status);
 
         // A Failed request may still be completed by a producer that keeps trying, so it isn't cancelled either.
-        Assert.IsType<ConflictObjectResult>(await Controller(user).Cancel(failed.SongRequestId, CancellationToken.None));
+        Assert.IsType<ConflictObjectResult>(await Controller().Cancel(user, failed.SongRequestId, CancellationToken.None));
         Assert.Equal(SongRequestStatus.Failed, (await ReloadAsync(failed.SongRequestId)).Status);
     }
 
@@ -450,7 +445,7 @@ public class SongRequestsControllerTest : IDisposable
         var mine = await CreateOkAsync(user, "yt-1");
         await CreateOkAsync(other, "yt-2");
 
-        var list = Assert.IsType<List<SongRequestDto>>(Assert.IsType<OkObjectResult>(await Controller(user).GetMine(CancellationToken.None)).Value);
+        var list = Assert.IsType<List<SongRequestDto>>(Assert.IsType<OkObjectResult>(await Controller().GetMine(user, CancellationToken.None)).Value);
 
         Assert.Equal(mine.SongRequestId, Assert.Single(list).SongRequestId);
     }
