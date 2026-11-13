@@ -39,7 +39,7 @@ public class GetLibrarySongsHandlerTest : IDisposable
         {
             var artist = new Artist { ArtistId = $"artist-{songId}-{artistName}", Name = artistName };
             _database.Context.Add(artist);
-            _database.Context.Add(new SongArtist { SongArtistId = $"sa-{songId}-{artistName}", SongId = songId, ArtistId = artist.ArtistId });
+            _database.Context.Add(new SongArtist { SongId = songId, ArtistId = artist.ArtistId });
         }
 
         await _database.Context.SaveChangesAsync();

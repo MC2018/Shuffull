@@ -137,6 +137,24 @@ public class SongImportServiceImportToDbTest : IDisposable
     }
 
     [Fact]
+    public async Task ImportToDbCoreAsync_ArtistListedTwice_LinksItOnce()
+    {
+        // (SongId, ArtistId) is the join's key: a repeated credit must collapse, not fail the import.
+        var user = await SeedUserAsync();
+        var existingArtist = new Artist { ArtistId = "existing-artist", Name = "Known" };
+        await _database.Context.Artists.AddAsync(existingArtist);
+        await _database.Context.SaveChangesAsync();
+
+        var song = NewSong();
+
+        var result = await ImportAsync(song, user.UserId,
+            existingArtists: new List<Artist> { existingArtist, existingArtist });
+
+        Assert.True(result.IsOk, result.IsError ? result.GetError().Message : null);
+        Assert.Equal(1, await _database.Context.SongArtists.AsNoTracking().CountAsync(sa => sa.SongId == song.SongId));
+    }
+
+    [Fact]
     public async Task ImportToDbCoreAsync_NewTagCreatedByAnotherWriterBeforeTheWrite_LinksToThatTag()
     {
         // "Klingon" was new when the import generated its tags, before moving the file. A curator re-tag committed

@@ -1,27 +1,22 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Shuffull.Core.Models.Database
 {
-    [Index(nameof(SongId)), Index(nameof(ArtistId))]
+    /// <summary>
+    /// Links a song to one of its artists. The key is the pair (SongId, ArtistId), set in ShuffullContext, so a song
+    /// can't list the same artist twice. Its leading SongId column also serves lookups by song, so only ArtistId
+    /// needs its own index.
+    /// </summary>
+    [Index(nameof(ArtistId))]
     public class SongArtist
     {
-        [Key]
-        public string SongArtistId { get; set; }
         [Required]
         public string SongId { get; set; }
         [Required]
         public string ArtistId { get; set; }
 
-        [Key]
         public Artist Artist { get; set; }
-        [Key]
         public Song Song { get; set; }
     }
 }

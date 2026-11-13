@@ -181,7 +181,7 @@ public class DeletePlaylistHandlerTest : IDisposable
         var mood = new Mood { TagId = Guid.NewGuid().ToString(), Name = $"Mood-{Guid.NewGuid():N}" };
         await _database.Context.Artists.AddAsync(artist);
         await _database.Context.AddAsync(mood);
-        await _database.Context.SongArtists.AddAsync(new SongArtist { SongArtistId = Guid.NewGuid().ToString(), SongId = song.SongId, ArtistId = artist.ArtistId });
+        await _database.Context.SongArtists.AddAsync(new SongArtist { SongId = song.SongId, ArtistId = artist.ArtistId });
         await _database.Context.SongTags.AddAsync(new SongTag { SongTagId = Guid.NewGuid().ToString(), SongId = song.SongId, TagId = mood.TagId });
         await _database.Context.UserSongs.AddAsync(new UserSong { UserId = userId, SongId = song.SongId, LastPlayed = DateTime.MinValue, Version = DateTime.UtcNow, LikeStatus = LikeStatus.Neutral });
         await _database.Context.SongReplacements.AddAsync(new SongReplacement { SongReplacementId = Guid.NewGuid().ToString(), SongId = song.SongId, Status = SongReplacementStatus.Pending, CreatedAt = DateTime.UtcNow });

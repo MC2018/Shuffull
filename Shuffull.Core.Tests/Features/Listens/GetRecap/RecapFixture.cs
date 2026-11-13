@@ -42,7 +42,7 @@ internal sealed class RecapFixture(ShuffullContext context, string userId)
             {
                 context.Artists.Add(new Artist { ArtistId = artistId, Name = artist });
             }
-            context.SongArtists.Add(new SongArtist { SongArtistId = $"{songId}-{artistId}", SongId = songId, ArtistId = artistId });
+            context.SongArtists.Add(new SongArtist { SongId = songId, ArtistId = artistId });
         }
         foreach (var tag in tags ?? [])
         {

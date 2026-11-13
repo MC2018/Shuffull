@@ -431,6 +431,8 @@ public partial class SongImportService : BackgroundService
         var existingArtists = new List<Artist>();
         var newArtists = new List<Artist>();
 
+        var seenNames = new HashSet<string>(StringComparer.Ordinal);
+
         for (int i = 0; i < performerNames.Length; i++)
         {
             var performerName = performerNames[i];
@@ -440,6 +442,12 @@ public partial class SongImportService : BackgroundService
             {
                 performerName += $"/{nextPerformerName}";
                 i++;
+            }
+
+            // A name listed twice would create two Artist rows, or link one artist to the song twice.
+            if (!seenNames.Add(performerName))
+            {
+                continue;
             }
 
             // TODO: try figuring out a better way of pulling this data from SQL
@@ -609,17 +617,11 @@ public partial class SongImportService : BackgroundService
         var tags = await TagStore.GetOrCreateAsync(dbContext, wantedTags, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        // Add relationships to the db
-        var artists = existingArtists.Concat(newArtists).ToList();
+        // Add relationships to the db. A song lists each artist once: (SongId, ArtistId) is the key.
+        var artists = existingArtists.Concat(newArtists).DistinctBy(a => a.ArtistId).ToList();
         foreach (var artist in artists)
         {
-            var songArtist = new SongArtist
-            {
-                SongArtistId = IdGenerator.Generate(),
-                SongId = song.SongId,
-                ArtistId = artist.ArtistId
-            };
-            dbContext.SongArtists.Add(songArtist);
+            dbContext.SongArtists.Add(new SongArtist { SongId = song.SongId, ArtistId = artist.ArtistId });
         }
 
         foreach (var tag in tags)
@@ -749,14 +751,9 @@ public partial class SongImportService : BackgroundService
             dbContext.Artists.AddRange(newArtists);
             await dbContext.SaveChangesAsync(cancellationToken);
 
-            foreach (var artist in existingArtists.Concat(newArtists))
+            foreach (var artist in existingArtists.Concat(newArtists).DistinctBy(a => a.ArtistId))
             {
-                dbContext.SongArtists.Add(new SongArtist
-                {
-                    SongArtistId = IdGenerator.Generate(),
-                    SongId = song.SongId,
-                    ArtistId = artist.ArtistId
-                });
+                dbContext.SongArtists.Add(new SongArtist { SongId = song.SongId, ArtistId = artist.ArtistId });
             }
             foreach (var tag in tags)
             {

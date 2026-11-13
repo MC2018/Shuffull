@@ -56,7 +56,6 @@ public class UpdateSongHandler(IUnitOfWork unitOfWork, ShuffullContext context) 
         {
             await unitOfWork.Repository<SongArtist>().AddAsync(new SongArtist
             {
-                SongArtistId = IdGenerator.Generate(),
                 SongId = song.SongId,
                 ArtistId = artist.ArtistId,
             }, cancellationToken);

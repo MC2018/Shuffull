@@ -80,7 +80,6 @@ public class GetSongHandlerTest : IDisposable
         await _database.Context.Tags.AddAsync(genre);
         await _database.Context.SongArtists.AddAsync(new SongArtist
         {
-            SongArtistId = Guid.NewGuid().ToString(),
             SongId = song.SongId,
             ArtistId = artist.ArtistId,
             Song = song,
