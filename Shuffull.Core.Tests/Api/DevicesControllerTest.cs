@@ -133,6 +133,7 @@ public class DevicesControllerTest : IAsyncDisposable
         { "device-1", new string('n', UserDevice.MaxNameLength + 1), "android" },
         { "device-1", "Pixel\n8", "android" },
         { "device-1", "Pixel 8", new string('p', Listen.MaxPlatformLength + 1) },
+        { "device-1", "Pixel 8", "and\troid" },
     };
 
     [Theory]
