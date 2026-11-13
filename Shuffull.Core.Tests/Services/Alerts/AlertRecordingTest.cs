@@ -10,6 +10,7 @@ using Shuffull.Core.Alerts;
 using Shuffull.Core.Features.SongRequests.GetSongRequestQueue;
 using Shuffull.Core.Features.Songs.GetPendingTagSongs;
 using Shuffull.Core.Models.Enums;
+using Shuffull.Core.Tests.Api;
 using Shuffull.Core.Tests.Infrastructure;
 using Shuffull.Metadata.Contracts;
 
@@ -105,19 +106,25 @@ public class AlertRecordingTest : IDisposable
         Assert.Equal([ShuffullSignalRules.PendingTagsPoll], _signals.Successes);
     }
 
-    private YoutubeRatingsController Ratings() => new(_database.CreateContext(), _signals);
+    private async Task GetRatingQueueAsync(string status)
+    {
+        await using var host = await ProducerEndpointsHost.StartAsync(_database, _signals);
+        var response = await host.Client.SendAsync(
+            ProducerEndpointsHost.Producer(HttpMethod.Get, $"api/v1/youtube-ratings?status={status}"));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
 
     [Fact]
     public async Task YoutubeRatingsPoll_ForPending_IsRecorded()
     {
-        await Ratings().GetQueue(YoutubeRatingStatus.Pending, CancellationToken.None);
+        await GetRatingQueueAsync(nameof(YoutubeRatingStatus.Pending));
         Assert.Equal([ShuffullSignalRules.YoutubeRatingsPoll], _signals.Successes);
     }
 
     [Fact]
     public async Task YoutubeRatingsPoll_ForAnotherStatus_IsNotRecorded()
     {
-        await Ratings().GetQueue(YoutubeRatingStatus.Completed, CancellationToken.None);
+        await GetRatingQueueAsync(nameof(YoutubeRatingStatus.Completed));
         Assert.Empty(_signals.Successes);
     }
 
