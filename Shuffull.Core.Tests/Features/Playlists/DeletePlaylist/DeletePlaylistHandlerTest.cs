@@ -229,8 +229,38 @@ public class DeletePlaylistHandlerTest : IDisposable
         Assert.Equal(unkept.Name, tombstone.Name);
         Assert.Equal(user.UserId, tombstone.DeletedByUserId);
         Assert.Equal(playlist.PlaylistId, tombstone.PlaylistId);
+        // The names survive the purge, so the user can still find the song in their deleted list (ShuffullApp#59).
+        Assert.Equal("Artist", tombstone.ArtistNames);
+        Assert.Equal(playlist.Name, tombstone.PlaylistName);
         Assert.Null(tombstone.MediaSweptAt);
         Assert.False(tombstone.MediaDeleted);
+    }
+
+    [Fact]
+    public async Task Delete_ExploratoryPlaylist_TombstoneArtistNamesSortedOrNull()
+    {
+        // The deleted-songs list shows ArtistNames as-is (ShuffullApp#59): ordinal order whatever the insert order,
+        // ", " between names, and null for a song with no artists.
+        var user = await SeedUserAsync();
+        var playlist = await SeedPlaylistAsync(user.UserId, isExploratory: true);
+        var duet = await SeedSongAsync(exploratory: true);
+        var solo = await SeedSongAsync(exploratory: true);
+        await AddJoinAsync(playlist.PlaylistId, duet.SongId);
+        await AddJoinAsync(playlist.PlaylistId, solo.SongId);
+        foreach (var name in new[] { "Zed", "Alpha" })
+        {
+            var artist = new Artist { ArtistId = Guid.NewGuid().ToString(), Name = name };
+            await _database.Context.Artists.AddAsync(artist);
+            await _database.Context.SongArtists.AddAsync(new SongArtist { SongId = duet.SongId, ArtistId = artist.ArtistId });
+        }
+        await _database.Context.SaveChangesAsync();
+
+        var result = await _handler.Handle(new DeletePlaylistCommand(user.UserId, playlist.PlaylistId), CancellationToken.None);
+
+        Assert.True(result.IsOk);
+        var names = await _database.Context.SongTombstones.AsNoTracking().ToDictionaryAsync(t => t.SongId, t => t.ArtistNames);
+        Assert.Equal("Alpha, Zed", names[duet.SongId]);
+        Assert.Null(names[solo.SongId]);
     }
 
     [Theory]

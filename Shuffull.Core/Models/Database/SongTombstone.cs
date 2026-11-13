@@ -7,11 +7,13 @@ namespace Shuffull.Core.Models.Database;
 /// The record left behind when a song row is purged (today: an un-kept audition song, when its exploratory
 /// playlist is deleted). Written in the same transaction as the delete, so a purge is never silent.
 /// <para>
-/// It does two jobs. First, it holds the media back: the purge does not delete the audio/album-art file. A sweep
+/// It does three jobs. First, it holds the media back: the purge does not delete the audio/album-art file. A sweep
 /// deletes it only after <see cref="MediaGracePeriod"/>, and only when no live song shares
 /// <see cref="FileHash"/>. That leaves time to recover a wrong purge from the file and these columns (on
 /// 2026-08-22, 34 kept songs had their media hard-deleted on the spot). Second, it is the deletion signal for
-/// clients, which otherwise only ever see songs being added.
+/// clients, which otherwise only ever see songs being added. Third, it is the user's record of what they deleted:
+/// <c>GET /api/v1/songs/deleted</c> lists their tombstones so a regretted delete can be looked up again
+/// (ShuffullApp#59). Rows are never removed, only their media.
 /// </para>
 /// </summary>
 [Index(nameof(DeletedAt))]
@@ -36,8 +38,15 @@ public class SongTombstone
     /// <summary>The user whose action caused the purge.</summary>
     [Required]
     public string DeletedByUserId { get; set; }
+    /// <summary>The song's artists at purge time, joined with ", ". Null on rows written before it was recorded.</summary>
+    public string? ArtistNames { get; set; }
     /// <summary>The audition playlist whose deletion purged it.</summary>
     public string? PlaylistId { get; set; }
+    /// <summary>
+    /// That playlist's name at purge time. The playlist row is deleted in the same transaction, so this is the only
+    /// place it survives. Null on rows written before it was recorded.
+    /// </summary>
+    public string? PlaylistName { get; set; }
     [Required]
     public DateTime DeletedAt { get; set; }
     /// <summary>When the media sweep handled this row; null while it is still inside the grace window.</summary>

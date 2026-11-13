@@ -14,6 +14,7 @@ using Shuffull.Core.Features.Songs.RetagSongs;
 using Shuffull.Core.Features.Songs.ApplySongTags;
 using Shuffull.Core.Features.Songs.GetPendingTagSongs;
 using Shuffull.Core.Features.Songs.GetLibrarySongs;
+using Shuffull.Core.Features.Songs.GetDeletedSongs;
 using Shuffull.Core.Features.Songs.HoldTagSongs;
 using Shuffull.Core.Features.Songs.RetagStaleSongs;
 using Shuffull.Core.Features.Songs.UpdateSong;
@@ -58,6 +59,16 @@ public class SongsController : ControllerBase
     [Authorize]
     public async Task<IActionResult> GetSongsChanged([FromQuery] DateTime afterDate, [FromQuery] string? afterId, CancellationToken cancellationToken)
         => this.ToActionResult(await _mediator.Send(new GetSongsChangedQuery(afterDate, afterId), cancellationToken));
+
+    /// <summary>
+    /// The caller's own deleted songs (from song tombstones), newest first, so a regretted delete can be looked up
+    /// (ShuffullApp#59). Send the previous page's <c>nextBefore</c> as <c>before</c>; it is null on the last page.
+    /// </summary>
+    [HttpGet("deleted")]
+    [Authorize]
+    public async Task<IActionResult> GetDeletedSongs([FromCurrentUser] User user, [FromQuery] string? before,
+        [FromQuery] int limit, CancellationToken cancellationToken)
+        => this.ToActionResult(await _mediator.Send(new GetDeletedSongsQuery(user.UserId, before, limit), cancellationToken));
 
     [HttpGet("{songId}")]
     [Authorize]

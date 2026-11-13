@@ -566,6 +566,9 @@ namespace Shuffull.Api.Migrations
                     b.Property<string>("SongId")
                         .HasColumnType("text");
 
+                    b.Property<string>("ArtistNames")
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("DeletedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -598,6 +601,9 @@ namespace Shuffull.Api.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("PlaylistId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("PlaylistName")
                         .HasColumnType("text");
 
                     b.HasKey("SongId");

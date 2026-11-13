@@ -23,6 +23,7 @@ request bodies, when the API stops binding them.
 | `tags` | `GET /api/v1/tags` | app |
 | `songs-pending-tags` | `GET /api/v1/songs/pending-tags` | funnel |
 | `songs-library` | `GET /api/v1/songs/library` | funnel |
+| `songs-deleted` | `GET /api/v1/songs/deleted` | app (ShuffullApp#59) |
 | `youtube-ratings` | `GET /api/v1/youtube-ratings` | funnel |
 | `replacements` | `GET /api/v1/replacements` | funnel |
 | `song-requests` | `GET /api/v1/song-requests` | app |
