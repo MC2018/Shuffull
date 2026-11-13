@@ -100,7 +100,7 @@ public class SongEnrichmentServiceTest : IDisposable
         var artist = new Artist { ArtistId = IdGenerator.Generate(), Name = "Test Artist" };
         _database.Context.Add(song);
         _database.Context.Add(artist);
-        _database.Context.Add(new SongArtist { SongArtistId = IdGenerator.Generate(), SongId = song.SongId, ArtistId = artist.ArtistId });
+        _database.Context.Add(new SongArtist { SongId = song.SongId, ArtistId = artist.ArtistId });
 
         // A stale machine tag from the previous model (a distinct name, not in the vocab); enrichment replaces it.
         var oldTag = new Mood { TagId = IdGenerator.Generate(), Name = "StaleOldMood" };

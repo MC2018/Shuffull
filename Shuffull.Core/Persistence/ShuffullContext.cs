@@ -43,6 +43,9 @@ public class ShuffullContext : DbContext
         modelBuilder.Entity<UserSong>()
             .HasKey(us => new { us.UserId, us.SongId });
 
+        modelBuilder.Entity<SongArtist>()
+            .HasKey(sa => new { sa.SongId, sa.ArtistId });
+
         modelBuilder.Entity<GenreRelation>()
             .HasOne(gr => gr.MainGenre)
             .WithMany(gr => gr.GenreRelationsAsMain)

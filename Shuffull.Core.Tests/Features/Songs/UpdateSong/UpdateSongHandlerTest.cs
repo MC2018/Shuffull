@@ -60,7 +60,6 @@ public class UpdateSongHandlerTest : IDisposable
         {
             await _database.Context.SongArtists.AddAsync(new SongArtist
             {
-                SongArtistId = Guid.NewGuid().ToString(),
                 SongId = song.SongId,
                 ArtistId = artist.ArtistId,
             });
@@ -140,6 +139,23 @@ public class UpdateSongHandlerTest : IDisposable
                 .Where(sa => sa.SongId == song.SongId)
                 .Join(_database.Context.Artists.Where(a => a.Name == "Shared Artist"), sa => sa.ArtistId, a => a.ArtistId, (sa, _) => sa.ArtistId)
                 .SingleAsync());
+    }
+
+    [Fact]
+    public async Task Handle_KeepsAnArtistTheSongAlreadyHad()
+    {
+        // (SongId, ArtistId) is the join's key, so the handler deletes and re-adds a row with the SAME key in one save.
+        var keptArtist = await SeedArtistAsync("Kept Artist");
+        var droppedArtist = await SeedArtistAsync("Dropped Artist");
+        var song = await SeedSongAsync(DateTime.UtcNow.AddDays(-1), artists: [keptArtist, droppedArtist]);
+
+        var result = await _handler.Handle(
+            new UpdateSongCommand(song.SongId, "Name", null, null,
+                Artists: ["Kept Artist", "Kept Artist", "New Artist"], Tags: []),
+            CancellationToken.None);
+
+        Assert.True(result.IsOk, result.IsError ? result.GetError().Message : null);
+        Assert.Equal(["Kept Artist", "New Artist"], await ArtistNamesForAsync(song.SongId));
     }
 
     [Fact]

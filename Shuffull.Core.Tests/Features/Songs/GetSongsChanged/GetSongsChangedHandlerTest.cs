@@ -114,7 +114,6 @@ public class GetSongsChangedHandlerTest : IDisposable
         await _database.Context.Tags.AddAsync(tag);
         await _database.Context.SongArtists.AddAsync(new SongArtist
         {
-            SongArtistId = "sa-1",
             SongId = song.SongId,
             ArtistId = artist.ArtistId,
         });

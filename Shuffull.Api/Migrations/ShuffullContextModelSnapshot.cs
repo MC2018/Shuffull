@@ -323,22 +323,15 @@ namespace Shuffull.Api.Migrations
 
             modelBuilder.Entity("Shuffull.Core.Models.Database.SongArtist", b =>
                 {
-                    b.Property<string>("SongArtistId")
+                    b.Property<string>("SongId")
                         .HasColumnType("text");
 
                     b.Property<string>("ArtistId")
-                        .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("SongId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("SongArtistId");
+                    b.HasKey("SongId", "ArtistId");
 
                     b.HasIndex("ArtistId");
-
-                    b.HasIndex("SongId");
 
                     b.ToTable("SongArtists");
                 });
