@@ -18,9 +18,9 @@ namespace Shuffull.Core.Models.Database;
 /// </summary>
 [Index(nameof(DeletedAt))]
 [Index(nameof(FileHash))]
-// GET /songs/deleted: the caller's tombstones, keyset-paged newest first on (DeletedAt, SongId). Equality on the user
-// then the page order, so a page is a range read of this index that stops at the page size (Postgres walks it
-// backwards for the DESC order). Later pages start the range at the cursor's DeletedAt (see GetDeletedSongsHandler).
+// GET /songs/deleted: the caller's tombstones, keyset-paged newest first on (DeletedAt, SongId). This index narrows a
+// page's read to the caller's rows at or older than the cursor's DeletedAt (see GetDeletedSongsHandler), instead of the
+// whole table. Postgres may still read all of those rows and sort them rather than stop at the page size.
 [Index(nameof(DeletedByUserId), nameof(DeletedAt), nameof(SongId))]
 public class SongTombstone
 {
