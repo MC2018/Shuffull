@@ -387,7 +387,6 @@ public class ApiContractGoldenFilesTest
             "Loud", GenreJam.Whitelists, GenreJam.Blacklists, HeavinessMin: 6, HeavinessMax: 10),
     };
 
-
     /// <summary>
     /// The request bodies among <see cref="Cases"/>. The funnel writes its bodies with no naming policy, so their keys
     /// arrive PascalCase or mixed (songs-tags wraps PascalCase tags in a camelCase object, song-lyrics is all

@@ -20,11 +20,7 @@ public class SaveGenreJamValidator : AbstractValidator<SaveGenreJamCommand>
         RuleFor(x => x.UserId)
             .NotEmpty().WithMessage("User is required.");
 
-        // Postgres text can't hold a NUL; the save would fail as a server error instead of a clear 400.
-        RuleFor(x => x.GenreJamId)
-            .NotEmpty().WithMessage("Genre Jam id is required.")
-            .MaximumLength(GenreJam.MaxIdLength).WithMessage($"Genre Jam id is longer than {GenreJam.MaxIdLength} characters.")
-            .Must(id => !id.Contains('\0')).WithMessage("Genre Jam id can't contain a NUL character.");
+        RuleFor(x => x.GenreJamId).MustBeGenreJamId();
 
         RuleFor(x => x.Name)
             .Must(name => !string.IsNullOrWhiteSpace(name)).WithMessage("Name is required.")
@@ -41,16 +37,15 @@ public class SaveGenreJamValidator : AbstractValidator<SaveGenreJamCommand>
             .Must(x => x.HeavinessMin <= x.HeavinessMax).When(x => x.HeavinessMin.HasValue && x.HeavinessMax.HasValue)
             .WithMessage("The lowest heaviness can't be above the highest.");
 
-        RuleFor(x => x.Whitelists).Must(BeValidFilters!).When(x => x.Whitelists is not null)
-            .WithMessage(FiltersMessage);
-        RuleFor(x => x.Blacklists).Must(BeValidFilters!).When(x => x.Blacklists is not null)
-            .WithMessage(FiltersMessage);
+        RuleFor(x => x.Whitelists).Must(BeValidFilters).WithMessage(FiltersMessage);
+        RuleFor(x => x.Blacklists).Must(BeValidFilters).WithMessage(FiltersMessage);
     }
 
     private static readonly string FiltersMessage =
         $"Each filter list holds at most {MaxIdsPerList} ids, each non-empty, at most {MaxFilterIdLength} characters, with no NUL.";
 
-    private static bool BeValidFilters(GenreJamFilters filters) =>
-        filters.AllLists().All(list => list.Count <= MaxIdsPerList
+    // Null is a jam with no filters on that side.
+    private static bool BeValidFilters(GenreJamFilters? filters) =>
+        filters is null || filters.AllLists().All(list => list.Count <= MaxIdsPerList
             && list.All(id => !string.IsNullOrEmpty(id) && id.Length <= MaxFilterIdLength && !id.Contains('\0')));
 }

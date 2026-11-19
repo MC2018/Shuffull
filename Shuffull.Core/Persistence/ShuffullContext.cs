@@ -71,7 +71,7 @@ public class ShuffullContext : DbContext
             filters => GenreJamFilters.ToJson(filters),
             json => GenreJamFilters.FromJson(json));
         var filtersComparer = new ValueComparer<GenreJamFilters>(
-            (a, b) => GenreJamFilters.ToJson(a!) == GenreJamFilters.ToJson(b!),
+            (a, b) => a == null ? b == null : b != null && GenreJamFilters.ToJson(a) == GenreJamFilters.ToJson(b),
             filters => GenreJamFilters.ToJson(filters).GetHashCode(),
             filters => GenreJamFilters.FromJson(GenreJamFilters.ToJson(filters)));
         modelBuilder.Entity<GenreJam>().Property(j => j.Whitelists).HasConversion(filtersConverter, filtersComparer);

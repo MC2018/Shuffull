@@ -15,6 +15,10 @@ namespace Shuffull.Core.Features.GenreJams.SaveGenreJam;
 /// <para>An id that belongs to another user is refused as a <see cref="ErrorKind.Conflict"/> and that row is left
 /// alone. So is a create that loses a race with another create of the same id: the app keeps the request and sends it
 /// again on its next sync, when it replaces the row the other request made.</para>
+///
+/// <para>A delete leaves no trace, so a save that reaches the server after it creates the jam again. That happens only
+/// when another device sends an older save it had queued while offline, and the jam then returns on every device. Like
+/// "the last save wins" for concurrent edits, this is accepted (shuffull-workspace#137, "Not in scope").</para>
 /// </summary>
 public class SaveGenreJamHandler(ShuffullContext context) : IRequestHandler<SaveGenreJamCommand, Result<SaveGenreJamResponse>>
 {

@@ -1,7 +1,7 @@
 using Shuffull.Core.Features.GenreJams.SaveGenreJam;
 using Shuffull.Core.Models.Dtos;
 
-namespace Shuffull.Core.Tests.Features.GenreJams;
+namespace Shuffull.Core.Tests.Features.GenreJams.SaveGenreJam;
 
 public class SaveGenreJamValidatorTest
 {
