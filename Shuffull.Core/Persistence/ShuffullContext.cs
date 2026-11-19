@@ -1,5 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Shuffull.Core.Models.Database;
+using Shuffull.Core.Models.Dtos;
 using Shuffull.Shared.Enums;
 
 namespace Shuffull.Core.Persistence;
@@ -31,6 +34,7 @@ public class ShuffullContext : DbContext
     public DbSet<HealthSignal> HealthSignals { get; set; }
     public DbSet<AlertState> AlertStates { get; set; }
     public DbSet<Listen> Listens { get; set; }
+    public DbSet<GenreJam> GenreJams { get; set; }
 
     public ShuffullContext(DbContextOptions options) : base(options) { }
 
@@ -60,5 +64,17 @@ public class ShuffullContext : DbContext
             .HasValue<TimePeriod>(TagType.TimePeriod)
             .HasValue<Mood>(TagType.Mood)
             .HasValue<Theme>(TagType.Theme);
+
+        // A jam's filters are one JSON text column per side. Compared by their JSON, so editing a list in place is
+        // seen as a change too.
+        var filtersConverter = new ValueConverter<GenreJamFilters, string>(
+            filters => GenreJamFilters.ToJson(filters),
+            json => GenreJamFilters.FromJson(json));
+        var filtersComparer = new ValueComparer<GenreJamFilters>(
+            (a, b) => GenreJamFilters.ToJson(a!) == GenreJamFilters.ToJson(b!),
+            filters => GenreJamFilters.ToJson(filters).GetHashCode(),
+            filters => GenreJamFilters.FromJson(GenreJamFilters.ToJson(filters)));
+        modelBuilder.Entity<GenreJam>().Property(j => j.Whitelists).HasConversion(filtersConverter, filtersComparer);
+        modelBuilder.Entity<GenreJam>().Property(j => j.Blacklists).HasConversion(filtersConverter, filtersComparer);
     }
 }
