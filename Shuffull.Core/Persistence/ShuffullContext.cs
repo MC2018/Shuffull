@@ -35,6 +35,9 @@ public class ShuffullContext : DbContext
     public DbSet<AlertState> AlertStates { get; set; }
     public DbSet<Listen> Listens { get; set; }
     public DbSet<GenreJam> GenreJams { get; set; }
+    public DbSet<SongDuplicateReport> SongDuplicateReports { get; set; }
+    public DbSet<SongDuplicateReportAlias> SongDuplicateReportAliases { get; set; }
+    public DbSet<SongDuplicateVerdict> SongDuplicateVerdicts { get; set; }
 
     public ShuffullContext(DbContextOptions options) : base(options) { }
 

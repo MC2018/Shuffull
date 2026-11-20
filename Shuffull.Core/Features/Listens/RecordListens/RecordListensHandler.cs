@@ -181,11 +181,11 @@ public class RecordListensHandler(ShuffullContext context)
         {
             return Reject("songDurationSeconds must be zero or more.");
         }
-        if (ParseName<ListenEndReason>(item.EndReason) is not { } endReason)
+        if (EnumNames.Parse<ListenEndReason>(item.EndReason) is not { } endReason)
         {
             return Reject($"Unknown endReason '{item.EndReason}'.");
         }
-        if (ParseName<ListenContext>(item.Context) is not { } listenContext)
+        if (EnumNames.Parse<ListenContext>(item.Context) is not { } listenContext)
         {
             return Reject($"Unknown context '{item.Context}'.");
         }
@@ -221,11 +221,4 @@ public class RecordListensHandler(ShuffullContext context)
         DateTimeKind.Unspecified => DateTime.SpecifyKind(value, DateTimeKind.Utc),
         _ => value.ToUniversalTime(),
     };
-
-    /// <summary>
-    /// Matches an enum member by name only, ignoring case. Unlike <c>Enum.TryParse</c> it refuses numbers, so "7"
-    /// is rejected rather than stored as a value no member has.
-    /// </summary>
-    private static T? ParseName<T>(string? value) where T : struct, Enum
-        => Enum.GetValues<T>().Cast<T?>().FirstOrDefault(v => string.Equals(v.ToString(), value, StringComparison.OrdinalIgnoreCase));
 }

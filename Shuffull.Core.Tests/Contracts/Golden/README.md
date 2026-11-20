@@ -20,6 +20,11 @@ request bodies, when the API stops binding them.
 | `recap` | `GET /api/v1/recap/{year}` | app (ShuffullApp#116) |
 | `genre-jams` | `GET /api/v1/genre-jams` | app (ShuffullApp#214) |
 | `genre-jams-save` | `PUT /api/v1/genre-jams/{id}` | app (ShuffullApp#214) |
+| `song-duplicate-reports` | `POST /api/v1/song-duplicate-reports` | app (ShuffullApp#219) |
+| `song-duplicate-reports-mine` | `GET /api/v1/song-duplicate-reports/mine` | app (ShuffullApp#219) |
+| `song-duplicate-reports-withdraw` | `DELETE /api/v1/song-duplicate-reports/{id}` | app (ShuffullApp#219) |
+| `song-duplicate-reports-queue` | `GET /api/v1/song-duplicate-reports/queue` (curator) | app (ShuffullApp#221) |
+| `song-duplicate-reports-resolve` | `POST /api/v1/song-duplicate-reports/resolve` (curator) | app (ShuffullApp#221) |
 | `songs-retag` | `POST /api/v1/songs/retag` | app |
 | `songs-retag-stale` | `POST /api/v1/songs/retag-stale` | app |
 | `tags` | `GET /api/v1/tags` | app |
@@ -44,6 +49,8 @@ request bodies, when the API stops binding them.
 | `songs-retag-request` | `POST /api/v1/songs/retag` (request body) | app sends |
 | `replacements-request` | `POST /api/v1/replacements` (request body) | app sends |
 | `genre-jams-save-request` | `PUT /api/v1/genre-jams/{id}` (request body) | app sends (ShuffullApp#214) |
+| `song-duplicate-reports-request` | `POST /api/v1/song-duplicate-reports` (request body) | app sends (ShuffullApp#219) |
+| `song-duplicate-reports-resolve-request` | `POST /api/v1/song-duplicate-reports/resolve` (request body) | app sends (ShuffullApp#221) |
 
 Only the endpoints in the table are pinned. Calls that send no body are not: playlist create, add song, remove song and
 delete, Genre Jam delete, and `songs/retag-stale`, which carry only route and query values (shuffull-workspace#92).

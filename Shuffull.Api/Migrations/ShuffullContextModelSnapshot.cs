@@ -377,6 +377,113 @@ namespace Shuffull.Api.Migrations
                     b.ToTable("SongArtists");
                 });
 
+            modelBuilder.Entity("Shuffull.Core.Models.Database.SongDuplicateReport", b =>
+                {
+                    b.Property<string>("ReportId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("HiddenSongId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("OtherSongId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("PairKey")
+                        .IsRequired()
+                        .HasMaxLength(129)
+                        .HasColumnType("character varying(129)");
+
+                    b.Property<string>("PreferredSongId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ReporterUserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ResolvedByUserId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SongId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ReportId");
+
+                    b.HasIndex("ReporterUserId", "PairKey")
+                        .IsUnique();
+
+                    b.HasIndex("ReporterUserId", "Version");
+
+                    b.HasIndex("Status", "PairKey");
+
+                    b.ToTable("SongDuplicateReports");
+                });
+
+            modelBuilder.Entity("Shuffull.Core.Models.Database.SongDuplicateReportAlias", b =>
+                {
+                    b.Property<string>("AliasId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ReportId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("AliasId");
+
+                    b.HasIndex("ReportId");
+
+                    b.ToTable("SongDuplicateReportAliases");
+                });
+
+            modelBuilder.Entity("Shuffull.Core.Models.Database.SongDuplicateVerdict", b =>
+                {
+                    b.Property<string>("PairKey")
+                        .HasMaxLength(129)
+                        .HasColumnType("character varying(129)");
+
+                    b.Property<DateTime>("DecidedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DecidedByUserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Verdict")
+                        .HasColumnType("integer");
+
+                    b.HasKey("PairKey");
+
+                    b.ToTable("SongDuplicateVerdicts");
+                });
+
             modelBuilder.Entity("Shuffull.Core.Models.Database.SongImport", b =>
                 {
                     b.Property<string>("SongImportId")
@@ -828,6 +935,28 @@ namespace Shuffull.Api.Migrations
                     b.Navigation("Artist");
 
                     b.Navigation("Song");
+                });
+
+            modelBuilder.Entity("Shuffull.Core.Models.Database.SongDuplicateReport", b =>
+                {
+                    b.HasOne("Shuffull.Core.Models.Database.User", "Reporter")
+                        .WithMany()
+                        .HasForeignKey("ReporterUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Reporter");
+                });
+
+            modelBuilder.Entity("Shuffull.Core.Models.Database.SongDuplicateReportAlias", b =>
+                {
+                    b.HasOne("Shuffull.Core.Models.Database.SongDuplicateReport", "Report")
+                        .WithMany()
+                        .HasForeignKey("ReportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Report");
                 });
 
             modelBuilder.Entity("Shuffull.Core.Models.Database.SongImport", b =>
