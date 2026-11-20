@@ -23,10 +23,20 @@ namespace Shuffull.Core.Features.Songs.MergeSongs;
 /// turns a kept song back into an audition.</item>
 /// </list>
 /// The loser leaves a <see cref="SongTombstone"/>, so its media goes through the same 7-day sweep as a purge, and a
-/// <see cref="SongMerge"/> row for devices and the importer. Open reports on the pair close as merged.
+/// <see cref="SongMerge"/> row for devices and the importer.
 /// <para>
-/// Every row whose Version changes gets its own millisecond, so the app's 500-row Version paging never sees a tie
-/// (the bulk-write house rule in the hub CLAUDE.md).
+/// Duplicate reports follow the loser too. A report on this pair that still hides a copy closes as merged: the merge
+/// has decided which copy stays. Any other report naming the loser is re-pointed at the survivor, so a reporter's hide
+/// keeps hiding the same recording. Where that reporter already has a report on the new pair, the newer of the two
+/// decisions wins and the other id becomes an alias of it, as when the app sends a second id for one pair.
+/// </para>
+/// <para>
+/// Every row whose Version changes gets its own millisecond, so the app's 500-row Version paging never sees a tie.
+/// </para>
+/// <para>
+/// Merges run one at a time (a transaction-scoped advisory lock), and each starts its Versions after the last merge's.
+/// So <see cref="SongMerge.Version"/> follows commit order, and a device paging the feed can't move past a merge
+/// that commits later with an earlier Version. A merge row is never sent again, so missing one would be for good.
 /// </para>
 /// <para>
 /// Both song rows are locked first (<c>FOR UPDATE</c>), then their <c>UserSong</c> rows, as
@@ -38,7 +48,8 @@ namespace Shuffull.Core.Features.Songs.MergeSongs;
 public class MergeSongsHandler(ShuffullContext context)
     : IRequestHandler<MergeSongsCommand, Result<MergeSongsResponse>>
 {
-    private const string NpgsqlProviderName = "Npgsql.EntityFrameworkCore.PostgreSQL";
+    /// <summary>The advisory lock key that serializes merges ("SMRG").</summary>
+    public const long MergeLockKey = 0x534D_5247;
 
     public async Task<Result<MergeSongsResponse>> Handle(MergeSongsCommand request, CancellationToken cancellationToken)
     {
@@ -86,7 +97,8 @@ public class MergeSongsHandler(ShuffullContext context)
             }
 
             var now = DateTime.UtcNow;
-            var versions = new VersionClock(now);
+            var lastMerge = await context.SongMerges.MaxAsync(m => (DateTime?)m.Version, cancellationToken);
+            var versions = new VersionClock(lastMerge is { } last && last >= now ? last.AddMilliseconds(1) : now);
             var affectedUserIds = new HashSet<string>();
 
             // Sentiment and play history: one row per user, on the survivor.
@@ -217,19 +229,7 @@ public class MergeSongsHandler(ShuffullContext context)
                 DeletedAt = now,
             });
 
-            var pairKey = SongDuplicateReport.PairKeyOf(survivorId, loserId);
-            var closed = await context.SongDuplicateReports
-                .Where(r => r.PairKey == pairKey && r.Status == SongDuplicateReportStatus.Pending)
-                .OrderBy(r => r.CreatedAt)
-                .ThenBy(r => r.ReportId)
-                .ToListAsync(cancellationToken);
-            foreach (var report in closed)
-            {
-                report.Status = SongDuplicateReportStatus.Merged;
-                report.ResolvedAt = now;
-                report.ResolvedByUserId = request.UserId;
-                report.Version = versions.Next();
-            }
+            var closed = await FollowReportsAsync(request.UserId, survivorId, loserId, now, versions, cancellationToken);
 
             // Every affected user's sync notices the change.
             var users = await context.Users.Where(u => affectedUserIds.Contains(u.UserId)).ToListAsync(cancellationToken);
@@ -282,22 +282,110 @@ public class MergeSongsHandler(ShuffullContext context)
     };
 
     /// <summary>
-    /// Locks both song rows, then their <c>UserSong</c> rows, each in key order. Locking the song rows makes an insert
-    /// that references the loser (a library add, a playlist add) wait and then fail, rather than be cascaded away by
-    /// the delete. Locking the <c>UserSong</c> rows makes a Like or Keep on them commit before they are read, or wait
-    /// until the merge is done. SQLite takes a database-wide write lock and has no FOR UPDATE, so it is skipped there.
+    /// Closes the reports on the pair that still hide a copy, and re-points every other report naming the loser at the
+    /// survivor. Returns the closed ones. Merged reports elsewhere are history and stay as they are. Withdrawn ones are
+    /// re-pointed too, so a resend the app maps to the survivor still finds its report.
+    /// </summary>
+    private async Task<List<SongDuplicateReport>> FollowReportsAsync(
+        string curatorId, string survivorId, string loserId, DateTime now, VersionClock versions, CancellationToken cancellationToken)
+    {
+        // A report's preferred and hidden songs are always its SongId or OtherSongId.
+        var pairKey = SongDuplicateReport.PairKeyOf(survivorId, loserId);
+        var naming = await context.SongDuplicateReports
+            .Where(r => r.SongId == loserId || r.OtherSongId == loserId)
+            .OrderBy(r => r.CreatedAt)
+            .ThenBy(r => r.ReportId)
+            .ToListAsync(cancellationToken);
+
+        var closed = new List<SongDuplicateReport>();
+        foreach (var report in naming.Where(r => r.PairKey == pairKey && HidesSomething(r.Status)))
+        {
+            report.Status = SongDuplicateReportStatus.Merged;
+            report.ResolvedAt = now;
+            report.ResolvedByUserId = curatorId;
+            report.Version = versions.Next();
+            closed.Add(report);
+        }
+
+        string Swap(string id) => id == loserId ? survivorId : id;
+        var moving = naming
+            .Where(r => r.PairKey != pairKey && r.Status != SongDuplicateReportStatus.Merged)
+            .Select(r => (Report: r, PairKey: SongDuplicateReport.PairKeyOf(Swap(r.SongId), r.OtherSongId is null ? null : Swap(r.OtherSongId))))
+            .ToList();
+        if (moving.Count == 0)
+        {
+            return closed;
+        }
+
+        var reporterIds = moving.Select(m => m.Report.ReporterUserId).Distinct().ToList();
+        var newPairKeys = moving.Select(m => m.PairKey).Distinct().ToList();
+        var onNewPairs = (await context.SongDuplicateReports
+                .Where(r => reporterIds.Contains(r.ReporterUserId) && newPairKeys.Contains(r.PairKey))
+                .ToListAsync(cancellationToken))
+            .ToDictionary(r => (r.ReporterUserId, r.PairKey));
+
+        foreach (var (report, newPairKey) in moving)
+        {
+            if (!onNewPairs.TryGetValue((report.ReporterUserId, newPairKey), out var kept))
+            {
+                CopyDecision(report, report);
+                report.PairKey = newPairKey;
+                report.Version = versions.Next();
+                continue;
+            }
+
+            // The reporter already reported the survivor's pair. The newer decision wins, unless that report is merged.
+            if (kept.Status != SongDuplicateReportStatus.Merged && report.Version > kept.Version)
+            {
+                CopyDecision(report, kept);
+                kept.Version = versions.Next();
+            }
+            context.SongDuplicateReportAliases.Add(new SongDuplicateReportAlias { AliasId = report.ReportId, ReportId = kept.ReportId });
+            context.SongDuplicateReports.Remove(report);
+
+            // Aliases of the folded report follow it.
+            foreach (var alias in await context.SongDuplicateReportAliases.Where(a => a.ReportId == report.ReportId).ToListAsync(cancellationToken))
+            {
+                alias.ReportId = kept.ReportId;
+            }
+        }
+
+        return closed;
+
+        void CopyDecision(SongDuplicateReport from, SongDuplicateReport to)
+        {
+            to.SongId = Swap(from.SongId);
+            to.OtherSongId = from.OtherSongId is null ? null : Swap(from.OtherSongId);
+            to.Kind = from.Kind;
+            to.PreferredSongId = from.PreferredSongId is null ? null : Swap(from.PreferredSongId);
+            to.HiddenSongId = Swap(from.HiddenSongId);
+            to.Note = from.Note;
+            to.Status = from.Status;
+            to.ResolvedAt = from.ResolvedAt;
+            to.ResolvedByUserId = from.ResolvedByUserId;
+        }
+    }
+
+    /// <summary>The statuses whose report hides a copy for its reporter.</summary>
+    private static bool HidesSomething(SongDuplicateReportStatus status) => status is SongDuplicateReportStatus.Pending
+        or SongDuplicateReportStatus.NotDuplicate or SongDuplicateReportStatus.KeptBoth;
+
+    /// <summary>
+    /// Takes the merge lock, then locks both song rows and their <c>UserSong</c> rows, each in key order. Locking the
+    /// song rows makes an insert that references the loser (a library add, a playlist add) wait and then fail, rather
+    /// than be cascaded away by the delete. Locking the <c>UserSong</c> rows makes a Like or Keep on them commit before
+    /// they are read, or wait until the merge is done. All of it is Postgres only (see <see cref="SongRowLocks"/>).
     /// </summary>
     private async Task LockRowsAsync(string survivorId, string loserId, CancellationToken cancellationToken)
     {
-        if (context.Database.ProviderName != NpgsqlProviderName)
+        if (!SongRowLocks.IsPostgres(context))
         {
             return;
         }
 
+        await context.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({MergeLockKey})", cancellationToken);
         var ids = new[] { survivorId, loserId };
-        await context.Database.ExecuteSqlInterpolatedAsync(
-            $"SELECT 1 FROM \"Songs\" WHERE \"SongId\" = ANY({ids}) ORDER BY \"SongId\" FOR UPDATE",
-            cancellationToken);
+        await SongRowLocks.LockSongsAsync(context, ids, cancellationToken);
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"SELECT 1 FROM \"UserSongs\" WHERE \"SongId\" = ANY({ids}) ORDER BY \"UserId\", \"SongId\" FOR UPDATE",
             cancellationToken);

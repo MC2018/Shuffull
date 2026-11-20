@@ -23,11 +23,13 @@ namespace Shuffull.Core.Models.Database;
 [Index(nameof(LoserFileHash))]
 public class SongMerge
 {
-    [Key, MaxLength(SongDuplicateReport.MaxIdLength)]
+    public const int MaxIdLength = 64;
+
+    [Key, MaxLength(MaxIdLength)]
     public string LoserSongId { get; set; }
 
     /// <summary>The song the loser became. A plain column: the survivor can be deleted later, and this row stays.</summary>
-    [Required, MaxLength(SongDuplicateReport.MaxIdLength)]
+    [Required, MaxLength(MaxIdLength)]
     public string SurvivorSongId { get; set; }
 
     /// <summary>The loser's source id (a YouTube video id), when it had one.</summary>

@@ -122,4 +122,30 @@ public class CreateUserSongsHandlerTest : IDisposable
             .CountAsync(us => us.UserId == user.UserId);
         Assert.Equal(2, total);
     }
+
+    /// <summary>Records that <paramref name="loserId"/> was merged into <paramref name="survivorId"/> (the loser row is gone).</summary>
+    private async Task SeedMergeAsync(string loserId, string survivorId)
+    {
+        _database.Context.SongMerges.Add(new SongMerge
+        {
+            LoserSongId = loserId, SurvivorSongId = survivorId, LoserFileHash = Guid.NewGuid().ToString(), MergedByUserId = "curator",
+            MergedAt = DateTime.UtcNow, Version = DateTime.UtcNow,
+        });
+        await _database.Context.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task Handle_ForAMergedAwaySong_AddsTheSongItBecame()
+    {
+        var user = await SeedUserAsync();
+        var survivor = await SeedSongAsync();
+        await SeedMergeAsync("merged-away", survivor.SongId);
+
+        var result = await _handler.Handle(new CreateUserSongsCommand(user.UserId, new[] { "merged-away", survivor.SongId }), CancellationToken.None);
+
+        Assert.True(result.IsOk);
+        Assert.Equal(survivor.SongId, Assert.Single(result.Get().Created).SongId);
+        Assert.True(await _database.Context.UserSongs.AnyAsync(us => us.UserId == user.UserId && us.SongId == survivor.SongId));
+    }
+
 }

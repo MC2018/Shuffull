@@ -1,6 +1,7 @@
 using MediatR;
 using Nut.Results;
 using Shuffull.Core.Errors;
+using Shuffull.Core.Features.SongMerges;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Persistence.Repositories;
@@ -24,7 +25,29 @@ public class SetSongLikeStatusHandler(IUnitOfWork unitOfWork)
             return Result.Error<SetSongLikeStatusResponse>(userSongsResult.GetError());
         }
 
+        var songId = request.SongId;
         var userSong = userSongsResult.Get().FirstOrDefault();
+        if (userSong is null)
+        {
+            // A song merged away after the device queued the Like: the Like applies to the song it became, where the
+            // merge moved the user's row. The response keeps the id the app sent, so its outbox row clears.
+            var followed = await SongMergeAliases.FollowMergesAsync(unitOfWork, [request.SongId], cancellationToken);
+            if (followed.IsError)
+            {
+                return Result.Error<SetSongLikeStatusResponse>(followed.GetError());
+            }
+            if (followed.Get().TryGetValue(request.SongId, out var survivorId))
+            {
+                songId = survivorId;
+                var survivorRows = await userSongRepository
+                    .ListAsync(new UserSongsByUserAndSongIdsSpec(request.UserId, [songId]), cancellationToken);
+                if (survivorRows.IsError)
+                {
+                    return Result.Error<SetSongLikeStatusResponse>(survivorRows.GetError());
+                }
+                userSong = survivorRows.Get().FirstOrDefault();
+            }
+        }
         if (userSong is null)
         {
             return Result.Error<SetSongLikeStatusResponse>(ResultErrors.NotFound("No matching song was found for this user."));
@@ -32,7 +55,7 @@ public class SetSongLikeStatusHandler(IUnitOfWork unitOfWork)
 
         // Tracked (FindAsync) so the promotion below is persisted by the same SaveChanges as the like. Null only
         // for a dangling UserSong; the like still saves, there is just nothing to promote or mirror.
-        var songResult = await unitOfWork.Repository<Song>().GetByIdAsync(request.SongId, cancellationToken);
+        var songResult = await unitOfWork.Repository<Song>().GetByIdAsync(songId, cancellationToken);
         var song = songResult.IsOk ? songResult.Get() : null;
 
         var statusChanged = userSong.LikeStatus != request.LikeStatus;

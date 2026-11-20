@@ -12,11 +12,11 @@ public class MergeSongsValidator : AbstractValidator<MergeSongsCommand>
 
         RuleFor(x => x.SurvivorSongId)
             .NotEmpty().WithMessage("survivorSongId is required.")
-            .MaximumLength(SongDuplicateReport.MaxIdLength).WithMessage($"survivorSongId is longer than {SongDuplicateReport.MaxIdLength} characters.");
+            .MaximumLength(SongMerge.MaxIdLength).WithMessage($"survivorSongId is longer than {SongMerge.MaxIdLength} characters.");
 
         RuleFor(x => x.LoserSongId)
             .NotEmpty().WithMessage("loserSongId is required.")
-            .MaximumLength(SongDuplicateReport.MaxIdLength).WithMessage($"loserSongId is longer than {SongDuplicateReport.MaxIdLength} characters.")
+            .MaximumLength(SongMerge.MaxIdLength).WithMessage($"loserSongId is longer than {SongMerge.MaxIdLength} characters.")
             .NotEqual(x => x.SurvivorSongId).WithMessage("loserSongId must be a different song from survivorSongId.");
     }
 }

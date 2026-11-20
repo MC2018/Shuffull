@@ -271,4 +271,45 @@ public class KeepSongsHandlerTest : IDisposable
 
         Assert.Equal([mine.SongId], Assert.Single(spy.Calls));
     }
+
+    /// <summary>Records that <paramref name="loserId"/> was merged into <paramref name="survivorId"/> (the loser row is gone).</summary>
+    private async Task SeedMergeAsync(string loserId, string survivorId)
+    {
+        _database.Context.SongMerges.Add(new SongMerge
+        {
+            LoserSongId = loserId, SurvivorSongId = survivorId, LoserFileHash = Guid.NewGuid().ToString(), MergedByUserId = "curator",
+            MergedAt = DateTime.UtcNow, Version = DateTime.UtcNow,
+        });
+        await _database.Context.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task KeepOfAMergedAwaySong_KeepsTheSongItBecame_AndAnswersForTheIdSent()
+    {
+        // The device queued a Keep for the loser before the merge reached it; the user owns the survivor now.
+        var user = await SeedUserAsync();
+        var survivor = await SeedSongAsync(exploratory: true, owner: user);
+        await SeedMergeAsync("merged-away", survivor.SongId);
+
+        var result = await RunAsync(user.UserId, "merged-away");
+
+        Assert.True(result.IsOk);
+        Assert.Equal(new SongKeepResult("merged-away", KeepOutcomes.Kept), Assert.Single(result.Get().Results));
+        Assert.False((await ReloadAsync(survivor.SongId)).Exploratory);
+    }
+
+    [Fact]
+    public async Task KeepOfAMergedAwaySong_ThatTheCallerDoesNotOwn_StillFails()
+    {
+        var caller = await SeedUserAsync();
+        var other = await SeedUserAsync();
+        var survivor = await SeedSongAsync(exploratory: true, owner: other);
+        await SeedMergeAsync("merged-away", survivor.SongId);
+
+        var result = await RunAsync(caller.UserId, "merged-away");
+
+        Assert.Equal(KeepOutcomes.Failed, Assert.Single(result.Get().Results).Outcome);
+        Assert.True((await ReloadAsync(survivor.SongId)).Exploratory);
+    }
+
 }

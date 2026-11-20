@@ -159,4 +159,31 @@ public class MergeSongsHandlerPostgresTest : IAsyncLifetime
         Assert.True(result.IsOk, result.IsError ? result.GetError().Message : null);
         Assert.NotNull(await UserSongAsync(other.UserId, survivor.SongId));
     }
+
+    [PostgresFact]
+    public async Task Merges_RunOneAtATime()
+    {
+        var curator = await SeedUserAsync(curator: true);
+        var survivor = await SeedSongAsync();
+        var loser = await SeedSongAsync();
+
+        // Another merge holds the lock and hasn't committed. This one waits for it, so its Version can't land before
+        // a merge that commits ahead of it.
+        await using var otherConnection = await Database.OpenConnectionAsync();
+        await using var other = await otherConnection.BeginTransactionAsync();
+        await using (var hold = new NpgsqlCommand("SELECT pg_advisory_xact_lock(@key)", otherConnection, other))
+        {
+            hold.Parameters.AddWithValue("key", MergeSongsHandler.MergeLockKey);
+            await hold.ExecuteNonQueryAsync();
+        }
+
+        var merge = MergeAsync(curator.UserId, survivor.SongId, loser.SongId);
+        Assert.True(await Database.WaitForLockWaiterAsync());
+        Assert.False(merge.IsCompleted);
+        await other.CommitAsync();
+        var result = await merge;
+
+        Assert.True(result.IsOk, result.IsError ? result.GetError().Message : null);
+    }
+
 }

@@ -79,8 +79,8 @@ public class MergeSongsHandlerTest : IDisposable
         return playlist;
     }
 
-    private async Task<SongDuplicateReport> SeedReportAsync(User reporter, string songId, string otherSongId,
-        SongDuplicateReportStatus status = SongDuplicateReportStatus.Pending)
+    private async Task<SongDuplicateReport> SeedReportAsync(User reporter, string songId, string? otherSongId,
+        SongDuplicateReportStatus status = SongDuplicateReportStatus.Pending, string? preferredSongId = null, DateTime? version = null)
     {
         var report = new SongDuplicateReport
         {
@@ -88,12 +88,13 @@ public class MergeSongsHandlerTest : IDisposable
             ReporterUserId = reporter.UserId,
             SongId = songId,
             OtherSongId = otherSongId,
-            Kind = SongDuplicateReportKind.Duplicate,
-            HiddenSongId = SongDuplicateReport.HiddenSongOf(songId, otherSongId, null),
+            Kind = otherSongId is null ? SongDuplicateReportKind.DifferentVersion : SongDuplicateReportKind.Duplicate,
+            PreferredSongId = preferredSongId,
+            HiddenSongId = SongDuplicateReport.HiddenSongOf(songId, otherSongId, preferredSongId),
             PairKey = SongDuplicateReport.PairKeyOf(songId, otherSongId),
             Status = status,
             CreatedAt = T0,
-            Version = T0,
+            Version = version ?? T0,
         };
         _database.Context.SongDuplicateReports.Add(report);
         await _database.Context.SaveChangesAsync();
@@ -337,7 +338,39 @@ public class MergeSongsHandlerTest : IDisposable
     }
 
     [Fact]
-    public async Task OpenReportsOnThePair_CloseAsMerged_AndNothingElseChanges()
+    public async Task ReportsOnThePair_ThatStillHideACopy_CloseAsMerged()
+    {
+        var curator = await SeedUserAsync(curator: true);
+        var me = await SeedUserAsync();
+        var you = await SeedUserAsync();
+        var them = await SeedUserAsync();
+        var survivor = await SeedSongAsync("survivor");
+        var loser = await SeedSongAsync("loser");
+        var mine = await SeedReportAsync(me, loser.SongId, survivor.SongId);
+        var yours = await SeedReportAsync(you, survivor.SongId, loser.SongId);
+        // A curator said "keep both" and this reporter's hide of the survivor still held. Left open, it would now hide
+        // their only copy.
+        var keptBoth = await SeedReportAsync(them, loser.SongId, survivor.SongId, SongDuplicateReportStatus.KeptBoth, preferredSongId: loser.SongId);
+        var withdrawn = await SeedReportAsync(curator, survivor.SongId, loser.SongId, SongDuplicateReportStatus.Withdrawn);
+
+        var response = await MergeOkAsync(curator.UserId, survivor.SongId, loser.SongId);
+
+        Assert.Equal(new[] { mine.ReportId, yours.ReportId, keptBoth.ReportId }.Order(), response.Reports.Select(r => r.ReportId).Order());
+        await using var read = _database.CreateContext();
+        var reports = await read.SongDuplicateReports.AsNoTracking().ToDictionaryAsync(r => r.ReportId);
+        foreach (var closed in new[] { mine, yours, keptBoth })
+        {
+            Assert.Equal(SongDuplicateReportStatus.Merged, reports[closed.ReportId].Status);
+            Assert.Equal(curator.UserId, reports[closed.ReportId].ResolvedByUserId);
+            Assert.NotNull(reports[closed.ReportId].ResolvedAt);
+        }
+        Assert.Equal(3, new[] { mine, yours, keptBoth }.Select(r => reports[r.ReportId].Version).Distinct().Count());
+        Assert.Equal(SongDuplicateReportStatus.Withdrawn, reports[withdrawn.ReportId].Status);
+        Assert.Equal(T0, reports[withdrawn.ReportId].Version);
+    }
+
+    [Fact]
+    public async Task ReportsNamingTheLoserOnOtherPairs_FollowItToTheSurvivor()
     {
         var curator = await SeedUserAsync(curator: true);
         var me = await SeedUserAsync();
@@ -345,24 +378,85 @@ public class MergeSongsHandlerTest : IDisposable
         var survivor = await SeedSongAsync("survivor");
         var loser = await SeedSongAsync("loser");
         var third = await SeedSongAsync("third");
-        var mine = await SeedReportAsync(me, loser.SongId, survivor.SongId);
-        var yours = await SeedReportAsync(you, survivor.SongId, loser.SongId);
-        var withdrawn = await SeedReportAsync(curator, survivor.SongId, loser.SongId, SongDuplicateReportStatus.Withdrawn);
-        var otherPair = await SeedReportAsync(me, loser.SongId, third.SongId);
+        // I kept "third" and hid the loser. After the merge the survivor is that recording, so it is hidden instead.
+        var pair = await SeedReportAsync(me, loser.SongId, third.SongId, preferredSongId: third.SongId);
+        var single = await SeedReportAsync(me, loser.SongId, null);
+        var merged = await SeedReportAsync(you, third.SongId, loser.SongId, SongDuplicateReportStatus.Merged, version: T0);
+        var elsewhere = await SeedSongAsync("elsewhere");
+        var unrelated = await SeedReportAsync(me, third.SongId, elsewhere.SongId);
+
+        await MergeOkAsync(curator.UserId, survivor.SongId, loser.SongId);
+
+        await using var read = _database.CreateContext();
+        var reports = await read.SongDuplicateReports.AsNoTracking().ToDictionaryAsync(r => r.ReportId);
+        var movedPair = reports[pair.ReportId];
+        Assert.Equal((survivor.SongId, third.SongId, third.SongId, survivor.SongId),
+            (movedPair.SongId, movedPair.OtherSongId, movedPair.PreferredSongId, movedPair.HiddenSongId));
+        Assert.Equal(SongDuplicateReport.PairKeyOf(survivor.SongId, third.SongId), movedPair.PairKey);
+        Assert.Equal(SongDuplicateReportStatus.Pending, movedPair.Status);
+        Assert.True(movedPair.Version > T0);
+
+        var movedSingle = reports[single.ReportId];
+        Assert.Equal((survivor.SongId, survivor.SongId, survivor.SongId), (movedSingle.SongId, movedSingle.HiddenSongId, movedSingle.PairKey));
+        Assert.NotEqual(movedPair.Version, movedSingle.Version);
+
+        // Merged reports are history, and reports that don't name the loser are untouched.
+        Assert.Equal(loser.SongId, reports[merged.ReportId].OtherSongId);
+        Assert.Equal(T0, reports[merged.ReportId].Version);
+        Assert.Equal(T0, reports[unrelated.ReportId].Version);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ReporterWithReportsOnBothCopiesPairs_KeepsOne_WithTheNewerDecision(bool loserSideIsNewer)
+    {
+        var curator = await SeedUserAsync(curator: true);
+        var me = await SeedUserAsync();
+        var survivor = await SeedSongAsync("survivor");
+        var loser = await SeedSongAsync("loser");
+        var third = await SeedSongAsync("third");
+        var onLoser = await SeedReportAsync(me, loser.SongId, third.SongId, preferredSongId: third.SongId,
+            version: loserSideIsNewer ? T0.AddMinutes(5) : T0);
+        var onSurvivor = await SeedReportAsync(me, survivor.SongId, third.SongId, SongDuplicateReportStatus.Withdrawn,
+            version: loserSideIsNewer ? T0 : T0.AddMinutes(5));
+        _database.Context.SongDuplicateReportAliases.Add(new SongDuplicateReportAlias { AliasId = "older-id", ReportId = onLoser.ReportId });
+        await _database.Context.SaveChangesAsync();
+
+        await MergeOkAsync(curator.UserId, survivor.SongId, loser.SongId);
+
+        await using var read = _database.CreateContext();
+        var kept = await read.SongDuplicateReports.AsNoTracking().SingleAsync(r => r.ReporterUserId == me.UserId);
+        Assert.Equal(onSurvivor.ReportId, kept.ReportId);
+        Assert.Equal(SongDuplicateReport.PairKeyOf(survivor.SongId, third.SongId), kept.PairKey);
+        if (loserSideIsNewer)
+        {
+            Assert.Equal(SongDuplicateReportStatus.Pending, kept.Status);
+            Assert.Equal((third.SongId, survivor.SongId), (kept.PreferredSongId, kept.HiddenSongId));
+            Assert.True(kept.Version > T0.AddMinutes(5));
+        }
+        else
+        {
+            Assert.Equal(SongDuplicateReportStatus.Withdrawn, kept.Status);
+            Assert.Equal(T0.AddMinutes(5), kept.Version);
+        }
+        var aliases = await read.SongDuplicateReportAliases.AsNoTracking().ToDictionaryAsync(a => a.AliasId, a => a.ReportId);
+        Assert.Equal(onSurvivor.ReportId, aliases[onLoser.ReportId]);
+        Assert.Equal(onSurvivor.ReportId, aliases["older-id"]);
+    }
+
+    [Fact]
+    public async Task MergeVersion_StartsAfterTheLastMerge_EvenWhenThatOneIsAhead()
+    {
+        var curator = await SeedUserAsync(curator: true);
+        var survivor = await SeedSongAsync("survivor");
+        var loser = await SeedSongAsync("loser");
+        var ahead = DateTime.UtcNow.AddMinutes(10);
+        await SeedMergeRowsAsync(1, ahead);
 
         var response = await MergeOkAsync(curator.UserId, survivor.SongId, loser.SongId);
 
-        Assert.Equal(new[] { mine.ReportId, yours.ReportId }.Order(), response.Reports.Select(r => r.ReportId).Order());
-        await using var read = _database.CreateContext();
-        var reports = await read.SongDuplicateReports.AsNoTracking().ToDictionaryAsync(r => r.ReportId);
-        Assert.Equal(SongDuplicateReportStatus.Merged, reports[mine.ReportId].Status);
-        Assert.Equal(curator.UserId, reports[mine.ReportId].ResolvedByUserId);
-        Assert.NotNull(reports[mine.ReportId].ResolvedAt);
-        Assert.NotEqual(reports[mine.ReportId].Version, reports[yours.ReportId].Version);
-        Assert.Equal(SongDuplicateReportStatus.Merged, reports[yours.ReportId].Status);
-        Assert.Equal(SongDuplicateReportStatus.Withdrawn, reports[withdrawn.ReportId].Status);
-        Assert.Equal(SongDuplicateReportStatus.Pending, reports[otherPair.ReportId].Status);
-        Assert.Equal(T0, reports[otherPair.ReportId].Version);
+        Assert.True(response.Merge.Version > ahead);
     }
 
     [Fact]
