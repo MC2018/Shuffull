@@ -9,6 +9,7 @@ using Shuffull.Core.Errors;
 using Shuffull.Core.Features.SongDuplicateReports.GetSongDuplicateQueue;
 using Shuffull.Core.Features.SongDuplicateReports.ReportSongDuplicates;
 using Shuffull.Core.Features.SongDuplicateReports.ResolveSongDuplicateReports;
+using Shuffull.Core.Features.Songs.MergeSongs;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Persistence;
@@ -19,7 +20,7 @@ namespace Shuffull.Core.Tests.Features.SongDuplicateReports;
 
 /// <summary>
 /// The duplicate-report commands through the real MediatR pipeline (validation + role authorization, wired as in
-/// Program.cs): anyone can report, but only a curator can read the queue or resolve a pair.
+/// Program.cs): anyone can report, but only a curator can read the queue, resolve a pair or merge it.
 /// </summary>
 public class SongDuplicateReportsPipelineTest : IDisposable
 {
@@ -146,5 +147,47 @@ public class SongDuplicateReportsPipelineTest : IDisposable
 
         Assert.True(result.IsError);
         Assert.Contains("resolution must be", result.GetError().Message);
+    }
+
+    [Fact]
+    public async Task NonCurator_IsForbiddenFromMerging_AndBothSongsStay()
+    {
+        await ReportAsListenerAsync();
+
+        var result = await SendAsAsync(_listener, new MergeSongsCommand(_listener.UserId, _a.SongId, _b.SongId));
+
+        Assert.True(result.IsError);
+        Assert.Equal(ErrorKind.Forbidden, ResultErrors.KindOf(result.GetError()));
+        await using var context = _database.CreateContext();
+        Assert.Equal(2, await context.Songs.CountAsync());
+        Assert.Equal(SongDuplicateReportStatus.Pending, (await context.SongDuplicateReports.SingleAsync()).Status);
+    }
+
+    [Fact]
+    public async Task Curator_MergesThePair_AndTheReportClosesAsMerged()
+    {
+        await ReportAsListenerAsync();
+
+        var result = await SendAsAsync(_curator, new MergeSongsCommand(_curator.UserId, _a.SongId, _b.SongId));
+
+        Assert.True(result.IsOk, result.IsError ? result.GetError().Message : null);
+        Assert.Equal("merged", Assert.Single(result.Get().Reports).Status);
+        await using var context = _database.CreateContext();
+        Assert.Equal(_a.SongId, (await context.Songs.SingleAsync()).SongId);
+        Assert.Equal(_a.SongId, (await context.UserSongs.SingleAsync(us => us.UserId == _listener.UserId)).SongId);
+    }
+
+    [Theory]
+    [InlineData(null, "b")]
+    [InlineData("a", null)]
+    [InlineData("a", "a")]
+    public async Task Merge_NeedsTwoDifferentSongs(string? survivor, string? loser)
+    {
+        var ids = new Dictionary<string, string> { ["a"] = _a.SongId, ["b"] = _b.SongId };
+        var result = await SendAsAsync(_curator, new MergeSongsCommand(_curator.UserId,
+            survivor is null ? null : ids[survivor], loser is null ? null : ids[loser]));
+
+        Assert.True(result.IsError);
+        Assert.Equal(ErrorKind.Invalid, ResultErrors.KindOf(result.GetError()));
     }
 }

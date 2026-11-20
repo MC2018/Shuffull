@@ -587,6 +587,47 @@ namespace Shuffull.Api.Migrations
                     b.ToTable("SongImports");
                 });
 
+            modelBuilder.Entity("Shuffull.Core.Models.Database.SongMerge", b =>
+                {
+                    b.Property<string>("LoserSongId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("LoserExternalSongId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("LoserFileHash")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("MergedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("MergedByUserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("SurvivorSongId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("Version")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("LoserSongId");
+
+                    b.HasIndex("LoserExternalSongId");
+
+                    b.HasIndex("LoserFileHash");
+
+                    b.HasIndex("SurvivorSongId");
+
+                    b.HasIndex("Version", "LoserSongId");
+
+                    b.ToTable("SongMerges");
+                });
+
             modelBuilder.Entity("Shuffull.Core.Models.Database.SongReplacement", b =>
                 {
                     b.Property<string>("SongReplacementId")

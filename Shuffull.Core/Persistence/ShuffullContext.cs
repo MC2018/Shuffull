@@ -38,6 +38,7 @@ public class ShuffullContext : DbContext
     public DbSet<SongDuplicateReport> SongDuplicateReports { get; set; }
     public DbSet<SongDuplicateReportAlias> SongDuplicateReportAliases { get; set; }
     public DbSet<SongDuplicateVerdict> SongDuplicateVerdicts { get; set; }
+    public DbSet<SongMerge> SongMerges { get; set; }
 
     public ShuffullContext(DbContextOptions options) : base(options) { }
 

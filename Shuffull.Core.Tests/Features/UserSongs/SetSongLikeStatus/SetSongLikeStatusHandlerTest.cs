@@ -368,4 +368,32 @@ public class SetSongLikeStatusHandlerTest : IDisposable
         Assert.Equal(YoutubeRating.Like, row.Rating);
         Assert.Equal(YoutubeRatingStatus.Pending, row.Status);
     }
+
+    /// <summary>Records that <paramref name="loserId"/> was merged into <paramref name="survivorId"/> (the loser row is gone).</summary>
+    private async Task SeedMergeAsync(string loserId, string survivorId)
+    {
+        _database.Context.SongMerges.Add(new SongMerge
+        {
+            LoserSongId = loserId, SurvivorSongId = survivorId, LoserFileHash = Guid.NewGuid().ToString(), MergedByUserId = "curator",
+            MergedAt = DateTime.UtcNow, Version = DateTime.UtcNow,
+        });
+        await _database.Context.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task Handle_ForAMergedAwaySong_LikesTheSongItBecame()
+    {
+        var user = await SeedUserAsync(DateTime.UtcNow.AddDays(-10));
+        var survivor = await SeedUserSongAsync(user.UserId, LikeStatus.Neutral, DateTime.UtcNow.AddDays(-5));
+        await SeedMergeAsync("merged-away", survivor.SongId);
+
+        var result = await _handler.Handle(new SetSongLikeStatusCommand(user.UserId, "merged-away", LikeStatus.Like), CancellationToken.None);
+
+        Assert.True(result.IsOk, result.IsError ? result.GetError().Message : null);
+        Assert.Equal(("merged-away", LikeStatus.Like), (result.Get().SongId, result.Get().LikeStatus));
+        var saved = await _database.Context.UserSongs.AsNoTracking()
+            .SingleAsync(us => us.UserId == user.UserId && us.SongId == survivor.SongId);
+        Assert.Equal(LikeStatus.Like, saved.LikeStatus);
+    }
+
 }

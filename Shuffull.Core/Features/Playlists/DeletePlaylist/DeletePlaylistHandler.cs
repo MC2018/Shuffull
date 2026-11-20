@@ -66,7 +66,7 @@ public class DeletePlaylistHandler(ShuffullContext context)
                     .Distinct()
                     .ToListAsync(cancellationToken);
 
-                await LockSongRowsAsync(songIds, cancellationToken);
+                await SongRowLocks.LockSongsAsync(context, songIds, cancellationToken);
 
                 foreach (var songId in songIds)
                 {
@@ -148,29 +148,5 @@ public class DeletePlaylistHandler(ShuffullContext context)
         }
 
         return Result.Ok(new DeletePlaylistResponse(playlistId, Deleted: true, purgedSongIds));
-    }
-
-    private const string NpgsqlProviderName = "Npgsql.EntityFrameworkCore.PostgreSQL";
-
-    /// <summary>
-    /// Takes a FOR UPDATE lock on the candidate songs. The claim's UPDATE alone isn't enough on Postgres: it only
-    /// changes a non-key column, and the lock that takes doesn't conflict with the one an insert takes on the row
-    /// its foreign key references. So a <c>UserSong</c> or <c>PlaylistSong</c> added during the purge would neither
-    /// wait nor fail, and the song delete would then cascade it away without an error. FOR UPDATE does conflict, so
-    /// such an insert either commits before this lock (and the claim sees it) or waits and then fails on its foreign
-    /// key. Rows are locked in id order so two purges sharing songs can't deadlock. SQLite takes a database-wide
-    /// write lock and has no FOR UPDATE, so it is skipped there.
-    /// </summary>
-    private async Task LockSongRowsAsync(List<string> songIds, CancellationToken cancellationToken)
-    {
-        if (songIds.Count == 0 || context.Database.ProviderName != NpgsqlProviderName)
-        {
-            return;
-        }
-
-        var ids = songIds.ToArray();
-        await context.Database.ExecuteSqlInterpolatedAsync(
-            $"SELECT 1 FROM \"Songs\" WHERE \"SongId\" = ANY({ids}) ORDER BY \"SongId\" FOR UPDATE",
-            cancellationToken);
     }
 }
