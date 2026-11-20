@@ -69,6 +69,45 @@ namespace Shuffull.Api.Migrations
                     b.ToTable("Artists");
                 });
 
+            modelBuilder.Entity("Shuffull.Core.Models.Database.GenreJam", b =>
+                {
+                    b.Property<string>("GenreJamId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Blacklists")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int?>("HeavinessMax")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("HeavinessMin")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("Version")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Whitelists")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("GenreJamId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("GenreJams");
+                });
+
             modelBuilder.Entity("Shuffull.Core.Models.Database.GenreRelation", b =>
                 {
                     b.Property<string>("GenreRelationId")
@@ -699,6 +738,17 @@ namespace Shuffull.Api.Migrations
                     b.HasBaseType("Shuffull.Core.Models.Database.Tag");
 
                     b.HasDiscriminator().HasValue(1);
+                });
+
+            modelBuilder.Entity("Shuffull.Core.Models.Database.GenreJam", b =>
+                {
+                    b.HasOne("Shuffull.Core.Models.Database.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Shuffull.Core.Models.Database.GenreRelation", b =>

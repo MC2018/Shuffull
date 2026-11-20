@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Shuffull.Api.Commands.GenreJams.SaveGenreJam;
 using Shuffull.Api.Commands.Listens.RecordListens;
 using Shuffull.Api.Commands.Songs.HoldTagSongs;
 using Shuffull.Api.Commands.Songs.KeepSongs;
@@ -12,6 +13,8 @@ using Shuffull.Api.Commands.Songs.UpdateSongLyrics;
 using Shuffull.Api.Commands.Users.Credentials;
 using Shuffull.Api.Controllers;
 using Shuffull.Api.Extensions;
+using Shuffull.Core.Features.GenreJams.GetGenreJams;
+using Shuffull.Core.Features.GenreJams.SaveGenreJam;
 using Shuffull.Core.Features.Listens.GetListenStats;
 using Shuffull.Core.Features.Listens.GetRecap;
 using Shuffull.Core.Features.Listens.RecordListens;
@@ -113,6 +116,16 @@ public class ApiContractGoldenFilesTest
     ];
 
     private static readonly UserDto Curator = new("user-1", "listener", V1, IsCurator: true);
+
+    private static readonly GenreJamDto GenreJam = new(
+        "jam-loud",
+        "Loud",
+        new GenreJamFilters(ArtistIds: ["a1b2c3d4e5f6g"], PlaylistIds: ["playlist-full"], GenreIds: ["tag-rock", "tag-metal"],
+            TimePeriodIds: ["tag-1980s"], LanguageIds: ["tag-english"], MoodIds: ["tag-energetic"], ThemeIds: ["tag-rebellion"]),
+        new GenreJamFilters(ArtistIds: [], PlaylistIds: [], GenreIds: ["tag-ballad"], TimePeriodIds: [], LanguageIds: [], MoodIds: ["tag-calm"], ThemeIds: []),
+        HeavinessMin: 6,
+        HeavinessMax: 10,
+        Version: V1);
 
     /// <summary>File name (without .json) → the value the endpoint returns (or, for a request, accepts).</summary>
     private static readonly Dictionary<string, object> Cases = new()
@@ -365,6 +378,13 @@ public class ApiContractGoldenFilesTest
         },
         // POST /api/v1/replacements — a REQUEST body: the app flags a song's audio. It never sends a note.
         ["replacements-request"] = new FlagReplacementRequest("song-full", Note: null),
+        // GET /api/v1/genre-jams — the app replaces its saved jams with this on each sync (ShuffullApp#214).
+        ["genre-jams"] = new GetGenreJamsResponse([GenreJam, GenreJam with { GenreJamId = "jam-any", Name = "Anything", Whitelists = GenreJamFilters.Empty, Blacklists = GenreJamFilters.Empty, HeavinessMin = null, HeavinessMax = null, Version = V2 }]),
+        // PUT /api/v1/genre-jams/{id}
+        ["genre-jams-save"] = new SaveGenreJamResponse(GenreJam),
+        // PUT /api/v1/genre-jams/{id} — a REQUEST body: the whole jam, from the app's outbox.
+        ["genre-jams-save-request"] = new SaveGenreJamRequest(
+            "Loud", GenreJam.Whitelists, GenreJam.Blacklists, HeavinessMin: 6, HeavinessMax: 10),
     };
 
     /// <summary>
@@ -379,7 +399,7 @@ public class ApiContractGoldenFilesTest
         // The app's.
         "listens-request", "users-authenticate-request", "songs-list-request", "playlists-list-request", "user-songs-create",
         "user-songs-last-played", "user-songs-like", "songs-update", "songs-keep-request", "songs-retag-request",
-        "replacements-request",
+        "replacements-request", "genre-jams-save-request",
     ];
 
     /// <summary>

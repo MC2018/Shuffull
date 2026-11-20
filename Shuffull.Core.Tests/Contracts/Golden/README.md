@@ -18,6 +18,8 @@ request bodies, when the API stops binding them.
 | `listens` | `POST /api/v1/listens` | app (ShuffullApp#57) |
 | `listens-stats` | `GET /api/v1/listens/stats` | app (ShuffullApp#115) |
 | `recap` | `GET /api/v1/recap/{year}` | app (ShuffullApp#116) |
+| `genre-jams` | `GET /api/v1/genre-jams` | app (ShuffullApp#214) |
+| `genre-jams-save` | `PUT /api/v1/genre-jams/{id}` | app (ShuffullApp#214) |
 | `songs-retag` | `POST /api/v1/songs/retag` | app |
 | `songs-retag-stale` | `POST /api/v1/songs/retag-stale` | app |
 | `tags` | `GET /api/v1/tags` | app |
@@ -41,9 +43,10 @@ request bodies, when the API stops binding them.
 | `songs-keep-request` | `POST /api/v1/songs/keep` (request body) | app sends |
 | `songs-retag-request` | `POST /api/v1/songs/retag` (request body) | app sends |
 | `replacements-request` | `POST /api/v1/replacements` (request body) | app sends |
+| `genre-jams-save-request` | `PUT /api/v1/genre-jams/{id}` (request body) | app sends (ShuffullApp#214) |
 
 Only the endpoints in the table are pinned. Calls that send no body are not: playlist create, add song, remove song and
-delete, and `songs/retag-stale`, which carry only route and query values (shuffull-workspace#92).
+delete, Genre Jam delete, and `songs/retag-stale`, which carry only route and query values (shuffull-workspace#92).
 
 Copies live in the consumers, and their tests parse them:
 
