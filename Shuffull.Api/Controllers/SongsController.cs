@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Shuffull.Api.Commands.Songs.HoldTagSongs;
 using Shuffull.Api.Commands.Songs.KeepSongs;
+using Shuffull.Api.Commands.Songs.MergeSongs;
 using Shuffull.Api.Commands.Songs.RetagSongs;
 using Shuffull.Api.Commands.Songs.UpdateSong;
 using Shuffull.Api.Extensions;
@@ -10,6 +11,7 @@ using Shuffull.Core.Features.Songs.GetSongList;
 using Shuffull.Core.Features.Songs.GetSongPage;
 using Shuffull.Core.Features.Songs.GetSongsChanged;
 using Shuffull.Core.Features.Songs.KeepSongs;
+using Shuffull.Core.Features.Songs.MergeSongs;
 using Shuffull.Core.Features.Songs.RetagSongs;
 using Shuffull.Core.Features.Songs.ApplySongTags;
 using Shuffull.Core.Features.Songs.GetPendingTagSongs;
@@ -97,6 +99,25 @@ public class SongsController : ControllerBase
         }
 
         return this.ToActionResult(await _mediator.Send(new KeepSongsCommand(user.UserId, request.SongIds ?? []), cancellationToken));
+    }
+
+    /// <summary>
+    /// Curator-only: merge two copies of one song (Shuffull#142). Everything users decided about the loser (likes,
+    /// Keeps, playlists, listens, library) moves to the survivor in one transaction, the loser is deleted, and the
+    /// merge appears on <c>GET /api/v1/song-merges</c>. Resending a merge that already happened succeeds with
+    /// <c>alreadyMerged</c> set.
+    /// </summary>
+    [HttpPost("merge")]
+    [Authorize]
+    public async Task<IActionResult> MergeSongs([FromBody] MergeSongsRequest request, CancellationToken cancellationToken)
+    {
+        if (HttpContext.Items["User"] is not User user)
+        {
+            return Unauthorized();
+        }
+
+        var command = new MergeSongsCommand(user.UserId, request.SurvivorSongId, request.LoserSongId);
+        return this.ToActionResult(await _mediator.Send(command, cancellationToken));
     }
 
     /// <summary>

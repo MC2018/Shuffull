@@ -319,4 +319,76 @@ public class SongImportDuplicateLinkTest : IDisposable
         Assert.True(result.IsError);
         Assert.False(await _database.CreateContext().UserSongs.AnyAsync());
     }
+
+    /// <summary>A curator merged an earlier copy ("song-loser", from <c>yt-loser</c>) into song-1 (Shuffull#142).</summary>
+    private async Task SeedMergedLoserAsync(string loserHash)
+    {
+        _database.Context.SongMerges.Add(new SongMerge
+        {
+            LoserSongId = "song-loser", SurvivorSongId = "song-1", LoserExternalSongId = "yt-loser", LoserFileHash = loserHash,
+            MergedByUserId = "curator", MergedAt = SongVersion, Version = SongVersion,
+        });
+        await _database.Context.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task ImportNext_ReimportOfAMergedAwayVideo_LinksTheSurvivor_InsteadOfBringingTheDuplicateBack()
+    {
+        var userA = await SeedUserAsync("a");
+        var userB = await SeedUserAsync("b");
+        await SeedOwnedSongAsync(userA.UserId);
+        await SeedMergedLoserAsync(loserHash: "old-loser-hash");
+        var reimport = NewImport(userB.UserId);
+        reimport.ExternalSongId = "yt-loser";
+
+        // Different audio from both copies: only the merge record ties it to song-1.
+        var import = await RunImportAsync(reimport, Mp3Frames(fill: 9));
+
+        using var read = _database.CreateContext();
+        Assert.Equal(SongImportState.Completed, import.State);
+        Assert.Equal("song-1", import.SongId);
+        var song = await read.Songs.AsNoTracking().SingleAsync();
+        Assert.Equal(AudioHash, song.FileHash);
+        Assert.True(await read.UserSongs.AnyAsync(us => us.UserId == userB.UserId && us.SongId == "song-1"));
+    }
+
+    [Fact]
+    public async Task ImportNext_ReuploadOfAMergedAwayFile_LinksTheSurvivor()
+    {
+        var userA = await SeedUserAsync("a");
+        var userB = await SeedUserAsync("b");
+        await SeedOwnedSongAsync(userA.UserId);
+        var loserAudio = Mp3Frames(fill: 9);
+        await SeedMergedLoserAsync(loserHash: Hasher.ShaHash(loserAudio).Substring(0, 32));
+        var reupload = NewImport(userB.UserId);
+        reupload.ExternalSongId = null;
+
+        var import = await RunImportAsync(reupload, loserAudio);
+
+        using var read = _database.CreateContext();
+        Assert.Equal(SongImportState.Completed, import.State);
+        Assert.Equal("song-1", import.SongId);
+        Assert.Equal(1, await read.Songs.CountAsync());
+    }
+
+    [Fact]
+    public async Task ImportNext_ReplacementOfAMergedAwaySong_ReplacesTheSurvivor()
+    {
+        // The producer was re-sourcing song-loser when a curator merged it into song-1; the merge moved the request.
+        var userA = await SeedUserAsync("a");
+        var curator = await SeedUserAsync("curator");
+        await SeedOwnedSongAsync(userA.UserId);
+        await SeedMergedLoserAsync(loserHash: "old-loser-hash");
+        var replacement = NewImport(curator.UserId);
+        replacement.ExternalSongId = "yt-new";
+        replacement.ReplacesSongId = "song-loser";
+
+        var import = await RunImportAsync(replacement, Mp3Frames(fill: 7));
+
+        using var read = _database.CreateContext();
+        Assert.Equal(SongImportState.Completed, import.State);
+        Assert.Equal("song-1", import.SongId);
+        var song = await read.Songs.AsNoTracking().SingleAsync();
+        Assert.NotEqual(AudioHash, song.FileHash);
+    }
 }

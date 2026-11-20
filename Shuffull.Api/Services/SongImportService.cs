@@ -7,6 +7,7 @@ using Shuffull.Metadata.Models;
 using Shuffull.Metadata.Models.AI;
 using Shuffull.Metadata.Services.AI;
 using Shuffull.Api.Configuration;
+using Shuffull.Core.Features.SongMerges;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Persistence;
@@ -167,6 +168,15 @@ public partial class SongImportService : BackgroundService
             }
             var fileBytes = fileBytesResult.Get();
             var fileHash = Hasher.ShaHash(fileBytes).Substring(0, 32);
+
+            if (!string.IsNullOrEmpty(songImport.ReplacesSongId)
+                && await ResolveReplacementTargetAsync(songImport.ReplacesSongId, cancellationToken) is { } target
+                && target != songImport.ReplacesSongId)
+            {
+                _logger.LogInformation("SongImport {SongImportId} replaces song {SongId}, which was merged into {SurvivorSongId}; replacing that instead.",
+                    songImport.SongImportId, songImport.ReplacesSongId, target);
+                songImport.ReplacesSongId = target;
+            }
 
             // Check for uniqueness — only for brand-new imports. A replacement intentionally reuses an existing
             // song's id and brings new audio/tags, so the dedup-by-hash/external-id guard would reject it.
@@ -366,7 +376,23 @@ public partial class SongImportService : BackgroundService
         using var scope = _services.CreateScope();
         using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
         var existingSong = await context.Songs.Where(x => x.FileHash == fileHash || (x.ExternalSongId != null && x.ExternalSongId == songImport.ExternalSongId)).FirstOrDefaultAsync(cancellationToken);
+        // A curator merged this source's song into another copy (Shuffull#142): it is a duplicate of the survivor, or
+        // a re-import of the losing upload would bring the duplicate straight back.
+        existingSong ??= await SongMergeAliases.FindSurvivorOfSourceAsync(context, songImport.ExternalSongId, fileHash, cancellationToken);
         return Result.Ok(new DuplicateProbe(existingSong));
+    }
+
+    /// <summary>
+    /// The song a replacement import should overwrite. A curator may have merged the requested song into another copy
+    /// while the producer was re-sourcing it (Shuffull#142); the merge moved its open request to the survivor, so the
+    /// new audio goes there too, rather than failing as "not found".
+    /// </summary>
+    private async Task<string?> ResolveReplacementTargetAsync(string songId, CancellationToken cancellationToken)
+    {
+        using var scope = _services.CreateScope();
+        using var context = scope.ServiceProvider.GetRequiredService<ShuffullContext>();
+        var live = await SongMergeAliases.FindLiveSongAsync(context, songId, cancellationToken);
+        return live?.SongId;
     }
 
     /// <summary>The (at most one) existing song a new import collides with; null when the import is unique.</summary>
