@@ -5,6 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Shuffull.Api.Commands.GenreJams.SaveGenreJam;
 using Shuffull.Api.Commands.Listens.RecordListens;
+using Shuffull.Api.Commands.SongDuplicateReports.ReportSongDuplicates;
+using Shuffull.Api.Commands.SongDuplicateReports.ResolveSongDuplicateReports;
 using Shuffull.Api.Commands.Songs.HoldTagSongs;
 using Shuffull.Api.Commands.Songs.KeepSongs;
 using Shuffull.Api.Commands.Songs.RetagSongs;
@@ -21,6 +23,11 @@ using Shuffull.Core.Features.Listens.RecordListens;
 using Shuffull.Core.Features.Playlists.CreatePlaylist;
 using Shuffull.Core.Features.Playlists.GetPlaylists;
 using Shuffull.Core.Features.Playlists.GetUserPlaylists;
+using Shuffull.Core.Features.SongDuplicateReports.GetMySongDuplicateReports;
+using Shuffull.Core.Features.SongDuplicateReports.GetSongDuplicateQueue;
+using Shuffull.Core.Features.SongDuplicateReports.ReportSongDuplicates;
+using Shuffull.Core.Features.SongDuplicateReports.ResolveSongDuplicateReports;
+using Shuffull.Core.Features.SongDuplicateReports.WithdrawSongDuplicateReport;
 using Shuffull.Core.Features.Songs.GetLibrarySongs;
 using Shuffull.Core.Features.Songs.GetPendingTagSongs;
 using Shuffull.Core.Features.Songs.GetSongList;
@@ -116,6 +123,19 @@ public class ApiContractGoldenFilesTest
     ];
 
     private static readonly UserDto Curator = new("user-1", "listener", V1, IsCurator: true);
+
+    /// <summary>A pending report that names both copies and leaves the choice to the curator, so it hides the song
+    /// reported from.</summary>
+    private static readonly SongDuplicateReportDto DuplicateReport = new(
+        ReportId: "report-1", ReporterUserId: "user-1", SongId: "song-full", OtherSongId: "song-sparse", Kind: "duplicate",
+        PreferredSongId: null, HiddenSongId: "song-full", Status: "pending", Note: "Same upload twice", CreatedAt: V1,
+        ResolvedAt: null, ResolvedByUserId: null, Version: V1);
+
+    /// <summary>"Different version, hide this one", withdrawn by the reporter.</summary>
+    private static readonly SongDuplicateReportDto WithdrawnVersionReport = new(
+        ReportId: "report-2", ReporterUserId: "user-1", SongId: "song-sparse", OtherSongId: null, Kind: "differentVersion",
+        PreferredSongId: null, HiddenSongId: "song-sparse", Status: "withdrawn", Note: null, CreatedAt: V1,
+        ResolvedAt: V2, ResolvedByUserId: "user-1", Version: V2);
 
     private static readonly GenreJamDto GenreJam = new(
         "jam-loud",
@@ -385,6 +405,40 @@ public class ApiContractGoldenFilesTest
         // PUT /api/v1/genre-jams/{id} — a REQUEST body: the whole jam, from the app's outbox.
         ["genre-jams-save-request"] = new SaveGenreJamRequest(
             "Loud", GenreJam.Whitelists, GenreJam.Blacklists, HeavinessMin: 6, HeavinessMax: 10),
+        // POST /api/v1/song-duplicate-reports — one outcome per item (ShuffullApp#219). "updated" carries the earlier
+        // report on that pair, whose id is the one to withdraw by.
+        ["song-duplicate-reports"] = new ReportSongDuplicatesResponse(
+        [
+            new SongDuplicateReportResult("report-1", SongDuplicateReportOutcomes.Recorded, Report: DuplicateReport),
+            new SongDuplicateReportResult("report-3", SongDuplicateReportOutcomes.Updated, Report: DuplicateReport with { PreferredSongId = "song-sparse" }),
+            new SongDuplicateReportResult("report-4", SongDuplicateReportOutcomes.Rejected, "Song 'song-x' is not in your library."),
+        ]),
+        // POST /api/v1/song-duplicate-reports — a REQUEST body, from the app's outbox.
+        ["song-duplicate-reports-request"] = new ReportSongDuplicatesRequest(
+        [
+            new SongDuplicateReportItem("report-1", "song-full", "song-sparse", "duplicate", null, "Same upload twice"),
+            new SongDuplicateReportItem("report-2", "song-sparse", null, "differentVersion", null, null),
+        ]),
+        // GET /api/v1/song-duplicate-reports/mine — the caller's reports, every status, paged on (version, reportId).
+        ["song-duplicate-reports-mine"] = new GetMySongDuplicateReportsResponse([DuplicateReport, WithdrawnVersionReport], EndOfList: true),
+        // DELETE /api/v1/song-duplicate-reports/{id}
+        ["song-duplicate-reports-withdraw"] = new WithdrawSongDuplicateReportResponse(
+            DuplicateReport with { Status = "withdrawn", ResolvedAt = V2, ResolvedByUserId = "user-1", Version = V2 }),
+        // GET /api/v1/song-duplicate-reports/queue — curator only.
+        ["song-duplicate-reports-queue"] = new GetSongDuplicateQueueResponse(
+        [
+            new SongDuplicateQueuePair(
+                new SongDuplicateQueueSong("song-full", "Everybody Wants You", ["Billy Squier"], 283.5, "dQw4w9WgXcQ", 3),
+                new SongDuplicateQueueSong("song-sparse", "Untitled", [], null, null, 0),
+                FileHashMatch: false,
+                ReportCount: 1,
+                [new SongDuplicateQueueReport("report-1", "user-1", "duplicate", null, "Same upload twice", V1)]),
+        ], Remaining: 0),
+        // POST /api/v1/song-duplicate-reports/resolve — curator only.
+        ["song-duplicate-reports-resolve"] = new ResolveSongDuplicateReportsResponse(
+            [DuplicateReport with { Status = "keptBoth", ResolvedAt = V2, ResolvedByUserId = "curator-1", Version = V2 }]),
+        // POST /api/v1/song-duplicate-reports/resolve — a REQUEST body.
+        ["song-duplicate-reports-resolve-request"] = new ResolveSongDuplicateReportsRequest("song-full", "song-sparse", "keptBoth"),
     };
 
     /// <summary>
@@ -399,7 +453,7 @@ public class ApiContractGoldenFilesTest
         // The app's.
         "listens-request", "users-authenticate-request", "songs-list-request", "playlists-list-request", "user-songs-create",
         "user-songs-last-played", "user-songs-like", "songs-update", "songs-keep-request", "songs-retag-request",
-        "replacements-request", "genre-jams-save-request",
+        "replacements-request", "genre-jams-save-request", "song-duplicate-reports-request", "song-duplicate-reports-resolve-request",
     ];
 
     /// <summary>
