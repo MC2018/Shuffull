@@ -406,7 +406,7 @@ public class ApiContractGoldenFilesTest
         ["genre-jams-save-request"] = new SaveGenreJamRequest(
             "Loud", GenreJam.Whitelists, GenreJam.Blacklists, HeavinessMin: 6, HeavinessMax: 10),
         // POST /api/v1/song-duplicate-reports — one outcome per item (ShuffullApp#219). "updated" carries the earlier
-        // report on that pair, whose id is the one to withdraw by.
+        // report on that pair; the id the app sent stays an alias of it, so a withdraw by either id works.
         ["song-duplicate-reports"] = new ReportSongDuplicatesResponse(
         [
             new SongDuplicateReportResult("report-1", SongDuplicateReportOutcomes.Recorded, Report: DuplicateReport),
@@ -424,7 +424,7 @@ public class ApiContractGoldenFilesTest
         // DELETE /api/v1/song-duplicate-reports/{id}
         ["song-duplicate-reports-withdraw"] = new WithdrawSongDuplicateReportResponse(
             DuplicateReport with { Status = "withdrawn", ResolvedAt = V2, ResolvedByUserId = "user-1", Version = V2 }),
-        // GET /api/v1/song-duplicate-reports/queue — curator only.
+        // GET /api/v1/song-duplicate-reports/queue — curator only (ShuffullApp#221).
         ["song-duplicate-reports-queue"] = new GetSongDuplicateQueueResponse(
         [
             new SongDuplicateQueuePair(
@@ -434,7 +434,7 @@ public class ApiContractGoldenFilesTest
                 ReportCount: 1,
                 [new SongDuplicateQueueReport("report-1", "user-1", "duplicate", null, "Same upload twice", V1)]),
         ], Remaining: 0),
-        // POST /api/v1/song-duplicate-reports/resolve — curator only.
+        // POST /api/v1/song-duplicate-reports/resolve — curator only (ShuffullApp#221).
         ["song-duplicate-reports-resolve"] = new ResolveSongDuplicateReportsResponse(
             [DuplicateReport with { Status = "keptBoth", ResolvedAt = V2, ResolvedByUserId = "curator-1", Version = V2 }]),
         // POST /api/v1/song-duplicate-reports/resolve — a REQUEST body.

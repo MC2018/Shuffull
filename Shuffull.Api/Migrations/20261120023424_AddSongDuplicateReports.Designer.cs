@@ -12,7 +12,7 @@ using Shuffull.Core.Persistence;
 namespace Shuffull.Api.Migrations
 {
     [DbContext(typeof(ShuffullContext))]
-    [Migration("20261120021937_AddSongDuplicateReports")]
+    [Migration("20261120023424_AddSongDuplicateReports")]
     partial class AddSongDuplicateReports
     {
         /// <inheritdoc />
@@ -446,6 +446,45 @@ namespace Shuffull.Api.Migrations
                     b.HasIndex("Status", "PairKey");
 
                     b.ToTable("SongDuplicateReports");
+                });
+
+            modelBuilder.Entity("Shuffull.Core.Models.Database.SongDuplicateReportAlias", b =>
+                {
+                    b.Property<string>("AliasId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ReportId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("AliasId");
+
+                    b.HasIndex("ReportId");
+
+                    b.ToTable("SongDuplicateReportAliases");
+                });
+
+            modelBuilder.Entity("Shuffull.Core.Models.Database.SongDuplicateVerdict", b =>
+                {
+                    b.Property<string>("PairKey")
+                        .HasMaxLength(129)
+                        .HasColumnType("character varying(129)");
+
+                    b.Property<DateTime>("DecidedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DecidedByUserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Verdict")
+                        .HasColumnType("integer");
+
+                    b.HasKey("PairKey");
+
+                    b.ToTable("SongDuplicateVerdicts");
                 });
 
             modelBuilder.Entity("Shuffull.Core.Models.Database.SongImport", b =>
@@ -910,6 +949,17 @@ namespace Shuffull.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Reporter");
+                });
+
+            modelBuilder.Entity("Shuffull.Core.Models.Database.SongDuplicateReportAlias", b =>
+                {
+                    b.HasOne("Shuffull.Core.Models.Database.SongDuplicateReport", "Report")
+                        .WithMany()
+                        .HasForeignKey("ReportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Report");
                 });
 
             modelBuilder.Entity("Shuffull.Core.Models.Database.SongImport", b =>

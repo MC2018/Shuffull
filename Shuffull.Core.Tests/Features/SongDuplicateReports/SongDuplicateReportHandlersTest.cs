@@ -125,6 +125,12 @@ public class SongDuplicateReportHandlersTest : IDisposable
         return result.Get();
     }
 
+    private async Task<List<SongDuplicateVerdict>> VerdictsAsync()
+    {
+        await using var context = _database.CreateContext();
+        return await context.SongDuplicateVerdicts.AsNoTracking().ToListAsync();
+    }
+
     private async Task<GetSongDuplicateQueueResponse> QueueAsync()
     {
         await using var context = _database.CreateContext();
@@ -182,6 +188,7 @@ public class SongDuplicateReportHandlersTest : IDisposable
             Item("bad-kind", a.SongId, b.SongId, kind: "sameish"),
             Item("needs-other", a.SongId, null, kind: "duplicate"),
             Item("bad-preferred", a.SongId, b.SongId, preferred: notMine.SongId),
+            Item("lone-preferred", a.SongId, null, kind: "differentVersion", preferred: a.SongId),
             Item("", a.SongId, b.SongId));
 
         Assert.Equal(
@@ -193,6 +200,7 @@ public class SongDuplicateReportHandlersTest : IDisposable
                 ("bad-kind", SongDuplicateReportOutcomes.Rejected, "Unknown kind 'sameish'."),
                 ("needs-other", SongDuplicateReportOutcomes.Rejected, "A duplicate report needs otherSongId."),
                 ("bad-preferred", SongDuplicateReportOutcomes.Rejected, "preferredSongId must be one of the reported songs."),
+                ("lone-preferred", SongDuplicateReportOutcomes.Rejected, "preferredSongId needs otherSongId."),
                 ("", SongDuplicateReportOutcomes.Rejected, "reportId is required."),
             ],
             response.Results.Select(r => (r.ReportId, r.Outcome, r.Error)).ToList<(string?, string, string?)>());
@@ -273,6 +281,62 @@ public class SongDuplicateReportHandlersTest : IDisposable
         Assert.Equal(SongDuplicateReportOutcomes.Updated, response.Results[0].Outcome);
         var stored = Assert.Single(await StoredAsync());
         Assert.Equal((SongDuplicateReportStatus.Pending, (DateTime?)null, (string?)null), (stored.Status, stored.ResolvedAt, stored.ResolvedByUserId));
+        // The curator's verdict is still on record for the pair.
+        var verdict = Assert.Single(await VerdictsAsync());
+        Assert.Equal((SongDuplicateReportStatus.KeptBoth, curator.UserId), (verdict.Verdict, verdict.DecidedByUserId));
+    }
+
+    [Fact]
+    public async Task Report_FoldedId_IsAnAliasThatAWithdrawAndAResendStillReach()
+    {
+        var (me, a, b) = await SeedPairAsync();
+        await ReportAsync(me.UserId, Item("from-b", a.SongId, b.SongId));
+        // Another device reported the same pair offline under its own id, then the user undid it there.
+        var folded = await ReportAsync(me.UserId, Item("from-a", a.SongId, b.SongId));
+        Assert.Equal(("from-a", SongDuplicateReportOutcomes.Updated, "from-b"),
+            (folded.Results[0].ReportId, folded.Results[0].Outcome, folded.Results[0].Report!.ReportId));
+
+        var resent = await ReportAsync(me.UserId, Item("from-a", a.SongId, b.SongId));
+        Assert.Equal(SongDuplicateReportOutcomes.Updated, resent.Results[0].Outcome);
+        Assert.Equal(folded.Results[0].Report!.Version, resent.Results[0].Report!.Version);
+
+        var withdrawn = await WithdrawAsync(me.UserId, "from-a");
+
+        Assert.True(withdrawn.IsOk);
+        Assert.Equal(("from-b", "withdrawn"), (withdrawn.Get().Report.ReportId, withdrawn.Get().Report.Status));
+        Assert.Equal(SongDuplicateReportStatus.Withdrawn, Assert.Single(await StoredAsync()).Status);
+        await using var context = _database.CreateContext();
+        Assert.Equal(("from-a", "from-b"), await context.SongDuplicateReportAliases.Select(x => ValueTuple.Create(x.AliasId, x.ReportId)).SingleAsync());
+    }
+
+    [Fact]
+    public async Task Report_AliasOfAnotherUsersReport_IsRejectedAndItsWithdrawIsNotFound()
+    {
+        var (other, c, d) = await SeedPairAsync();
+        await ReportAsync(other.UserId, Item("theirs-1", c.SongId, d.SongId), Item("theirs-2", c.SongId, d.SongId));
+        var (me, a, b) = await SeedPairAsync();
+
+        var response = await ReportAsync(me.UserId, Item("theirs-2", a.SongId, b.SongId));
+
+        Assert.Equal(
+            (SongDuplicateReportOutcomes.Rejected, "This reportId is already used by another report."),
+            (response.Results[0].Outcome, response.Results[0].Error));
+        Assert.Equal(ErrorKind.NotFound, ResultErrors.KindOf((await WithdrawAsync(me.UserId, "theirs-2")).GetError()));
+        Assert.Equal(SongDuplicateReportStatus.Pending, Assert.Single(await StoredAsync()).Status);
+    }
+
+    [Fact]
+    public async Task Report_ResendOfAWithdrawnReport_ReopensIt()
+    {
+        var (me, a, b) = await SeedPairAsync();
+        await ReportAsync(me.UserId, Item("r1", a.SongId, b.SongId));
+        await WithdrawAsync(me.UserId, "r1");
+
+        var again = await ReportAsync(me.UserId, Item("r1", a.SongId, b.SongId));
+
+        Assert.Equal(("recorded", "pending"), (again.Results[0].Outcome, again.Results[0].Report!.Status));
+        var stored = Assert.Single(await StoredAsync());
+        Assert.Equal((SongDuplicateReportStatus.Pending, (DateTime?)null), (stored.Status, stored.ResolvedAt));
     }
 
     [Fact]
@@ -451,5 +515,105 @@ public class SongDuplicateReportHandlersTest : IDisposable
         await ResolveAsync(curator.UserId, a.SongId, b.SongId, "keptBoth");
 
         Assert.Empty((await QueueAsync()).Pairs);
+    }
+
+    [Fact]
+    public async Task Withdraw_AResolvedReport_LiftsTheHideButKeepsTheCuratorsVerdict()
+    {
+        var (me, a, b) = await SeedPairAsync();
+        var curator = await SeedUserAsync(curator: true);
+        await ReportAsync(me.UserId, Item("r1", a.SongId, b.SongId));
+        await ResolveAsync(curator.UserId, a.SongId, b.SongId, "notDuplicate");
+
+        var withdrawn = await WithdrawAsync(me.UserId, "r1");
+
+        Assert.Equal("withdrawn", withdrawn.Get().Report.Status);
+        var verdict = Assert.Single(await VerdictsAsync());
+        Assert.Equal((SongDuplicateReport.PairKeyOf(a.SongId, b.SongId), SongDuplicateReportStatus.NotDuplicate, curator.UserId),
+            (verdict.PairKey, verdict.Verdict, verdict.DecidedByUserId));
+    }
+
+    [Fact]
+    public async Task Withdraw_AMergedReport_ReturnsItUnchanged()
+    {
+        var (me, a, b) = await SeedPairAsync();
+        await ReportAsync(me.UserId, Item("r1", a.SongId, b.SongId));
+        await using (var context = _database.CreateContext())
+        {
+            // Merging is Shuffull#142; set the status it will write.
+            var row = await context.SongDuplicateReports.SingleAsync();
+            row.Status = SongDuplicateReportStatus.Merged;
+            await context.SaveChangesAsync();
+        }
+        var before = Assert.Single(await StoredAsync());
+
+        var result = await WithdrawAsync(me.UserId, "r1");
+
+        Assert.Equal("merged", result.Get().Report.Status);
+        var after = Assert.Single(await StoredAsync());
+        Assert.Equal((SongDuplicateReportStatus.Merged, before.Version), (after.Status, after.Version));
+    }
+
+    [Fact]
+    public async Task Resolve_RecordsTheVerdict_AndALaterVerdictReplacesIt()
+    {
+        var (me, a, b) = await SeedPairAsync();
+        var curator = await SeedUserAsync(curator: true);
+        await ReportAsync(me.UserId, Item("r1", a.SongId, b.SongId));
+        await ResolveAsync(curator.UserId, a.SongId, b.SongId, "notDuplicate");
+        Assert.Equal(SongDuplicateReportStatus.NotDuplicate, Assert.Single(await VerdictsAsync()).Verdict);
+
+        // Reported again, judged again.
+        await ReportAsync(me.UserId, Item("r2", b.SongId, a.SongId));
+        await ResolveAsync(curator.UserId, b.SongId, a.SongId, "keptBoth");
+
+        Assert.Equal(SongDuplicateReportStatus.KeptBoth, Assert.Single(await VerdictsAsync()).Verdict);
+    }
+
+    [Fact]
+    public async Task Resolve_CalledWithoutTheValidator_RefusesABadResolutionClearly()
+    {
+        var curator = await SeedUserAsync(curator: true);
+        await using var context = _database.CreateContext();
+
+        var result = await new ResolveSongDuplicateReportsHandler(context)
+            .Handle(new ResolveSongDuplicateReportsCommand(curator.UserId, "a", "b", "merged"), CancellationToken.None);
+
+        Assert.Equal(ErrorKind.Invalid, ResultErrors.KindOf(result.GetError()));
+        Assert.Equal("resolution must be \"notDuplicate\" or \"keptBoth\".", result.GetError().Message);
+    }
+
+    [Fact]
+    public async Task Queue_ReturnsAtMostMaxPairs_OldestFirst_AndCountsTheRest()
+    {
+        var me = await SeedUserAsync();
+        var songs = new List<Song>();
+        for (var i = 0; i < GetSongDuplicateQueueHandler.MaxPairs + 2; i++)
+        {
+            var song = new Song { SongId = $"song-{i:D4}", Name = $"S{i}", FileExtension = ".mp3", FileHash = $"hash-{i}", Version = T0 };
+            songs.Add(song);
+            _database.Context.Songs.Add(song);
+            _database.Context.UserSongs.Add(new UserSong { UserId = me.UserId, SongId = song.SongId, LastPlayed = DateTime.MinValue, Version = T0 });
+        }
+        // Pair i is song i with song i+1, reported (MaxPairs - i) minutes after T0, so the last pair is the oldest.
+        for (var i = 0; i < GetSongDuplicateQueueHandler.MaxPairs + 1; i++)
+        {
+            _database.Context.SongDuplicateReports.Add(new SongDuplicateReport
+            {
+                ReportId = $"r{i:D4}", ReporterUserId = me.UserId, SongId = songs[i].SongId, OtherSongId = songs[i + 1].SongId,
+                Kind = SongDuplicateReportKind.Duplicate, HiddenSongId = songs[i].SongId,
+                PairKey = SongDuplicateReport.PairKeyOf(songs[i].SongId, songs[i + 1].SongId),
+                CreatedAt = T0.AddMinutes(GetSongDuplicateQueueHandler.MaxPairs - i), Version = T0.AddTicks(10 * i),
+            });
+        }
+        await _database.Context.SaveChangesAsync();
+
+        var queue = await QueueAsync();
+
+        Assert.Equal(GetSongDuplicateQueueHandler.MaxPairs, queue.Pairs.Count);
+        Assert.Equal(1, queue.Remaining);
+        // CreatedAt counts down with i, so the newest pair (0) is the one left for the next page.
+        Assert.Equal($"r{GetSongDuplicateQueueHandler.MaxPairs:D4}", queue.Pairs[0].Reports[0].ReportId);
+        Assert.DoesNotContain(queue.Pairs, p => p.Reports[0].ReportId == "r0000");
     }
 }

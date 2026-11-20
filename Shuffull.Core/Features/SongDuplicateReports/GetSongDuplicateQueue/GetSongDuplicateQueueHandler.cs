@@ -14,7 +14,12 @@ namespace Shuffull.Core.Features.SongDuplicateReports.GetSongDuplicateQueue;
 /// <item>A report on one song alone ("different version, hide this one") is a personal hide with no pair to judge,
 /// so it never enters the queue.</item>
 /// <item>A pair where either song no longer exists is left out: there is nothing left to compare.</item>
+/// <item>Pairs come oldest report first, at most <see cref="MaxPairs"/> at a time. The page is picked in SQL, so the
+/// work grows with the page, not the backlog.</item>
 /// </list>
+///
+/// <para>Durations come from the listen log (the longest a device recorded), since a song row has no duration. Listens
+/// have no index that starts with SongId, so that lookup scans them; it runs only when a curator opens the queue.</para>
 /// </summary>
 public class GetSongDuplicateQueueHandler(ShuffullContext context)
     : IRequestHandler<GetSongDuplicateQueueQuery, Result<GetSongDuplicateQueueResponse>>
@@ -25,9 +30,23 @@ public class GetSongDuplicateQueueHandler(ShuffullContext context)
     {
         try
         {
-            var open = await context.SongDuplicateReports
+            var queued = context.SongDuplicateReports
+                .Where(r => r.Status == SongDuplicateReportStatus.Pending
+                    && r.OtherSongId != null
+                    && context.Songs.Any(s => s.SongId == r.SongId)
+                    && context.Songs.Any(s => s.SongId == r.OtherSongId));
+            var pairCount = await queued.Select(r => r.PairKey).Distinct().CountAsync(cancellationToken);
+            var pageKeys = await queued
+                .GroupBy(r => r.PairKey)
+                .Select(g => new { PairKey = g.Key, Oldest = g.Min(r => r.CreatedAt) })
+                .OrderBy(g => g.Oldest)
+                .ThenBy(g => g.PairKey)
+                .Take(MaxPairs)
+                .Select(g => g.PairKey)
+                .ToListAsync(cancellationToken);
+            var open = await queued
                 .AsNoTracking()
-                .Where(r => r.Status == SongDuplicateReportStatus.Pending && r.OtherSongId != null)
+                .Where(r => pageKeys.Contains(r.PairKey))
                 .ToListAsync(cancellationToken);
 
             var songIds = open.SelectMany(r => new[] { r.SongId, r.OtherSongId! }).Distinct().ToList();
@@ -44,13 +63,13 @@ public class GetSongDuplicateQueueHandler(ShuffullContext context)
                 })
                 .ToDictionaryAsync(s => s.SongId, cancellationToken);
 
-            var pairs = open
+            // Re-checked here in case a song was purged between the queries.
+            var page = open
                 .Where(r => songs.ContainsKey(r.SongId) && songs.ContainsKey(r.OtherSongId!))
                 .GroupBy(r => r.PairKey)
                 .OrderBy(g => g.Min(r => r.CreatedAt))
                 .ThenBy(g => g.Key, StringComparer.Ordinal)
                 .ToList();
-            var page = pairs.Take(MaxPairs).ToList();
 
             var pageSongIds = page
                 .SelectMany(g => new[] { g.First().SongId, g.First().OtherSongId! })
@@ -106,7 +125,7 @@ public class GetSongDuplicateQueueHandler(ShuffullContext context)
                     reports);
             }).ToList();
 
-            return Result.Ok(new GetSongDuplicateQueueResponse(result, pairs.Count - page.Count));
+            return Result.Ok(new GetSongDuplicateQueueResponse(result, Math.Max(0, pairCount - pageKeys.Count)));
         }
         catch (Exception ex)
         {

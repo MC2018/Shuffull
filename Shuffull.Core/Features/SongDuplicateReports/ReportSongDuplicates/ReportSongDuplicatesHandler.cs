@@ -18,7 +18,8 @@ namespace Shuffull.Core.Features.SongDuplicateReports.ReportSongDuplicates;
 /// <item>A report id already stored is a resend: its row takes the item's fields again (so nothing changes), and a
 /// withdrawn report is reopened. A curator's verdict on it stands.</item>
 /// <item>A new id on a pair the caller already reported updates that report instead of adding a second one, and
-/// reopens it if it was withdrawn or resolved without a merge: the user is asking again.</item>
+/// reopens it if it was withdrawn or resolved without a merge: the user is asking again. The new id is kept as an
+/// alias of that report, so a withdraw or resend the outbox queued under it still finds it.</item>
 /// <item>A merged report is never changed here.</item>
 /// </list>
 ///
@@ -57,22 +58,30 @@ public class ReportSongDuplicatesHandler(ShuffullContext context)
                 .ToListAsync(cancellationToken)).ToHashSet();
 
             var reportIds = items.Select(i => i?.ReportId).OfType<string>().Where(IsUsableId).Distinct().ToList();
+            var aliases = await context.SongDuplicateReportAliases
+                .Where(a => reportIds.Contains(a.AliasId))
+                .ToListAsync(cancellationToken);
+            var aliasTargets = aliases.Select(a => a.ReportId).Distinct().ToList();
             var pairKeys = items
                 .Where(i => i?.SongId is not null)
                 .Select(i => SongDuplicateReport.PairKeyOf(i!.SongId!, NullIfEmpty(i.OtherSongId)))
                 .Distinct()
                 .ToList();
             var existing = await context.SongDuplicateReports
-                .Where(r => reportIds.Contains(r.ReportId) || (r.ReporterUserId == request.UserId && pairKeys.Contains(r.PairKey)))
+                .Where(r => reportIds.Contains(r.ReportId)
+                    || aliasTargets.Contains(r.ReportId)
+                    || (r.ReporterUserId == request.UserId && pairKeys.Contains(r.PairKey)))
                 .ToListAsync(cancellationToken);
 
+            var byId = existing.ToDictionary(r => r.ReportId);
             var batch = new Batch(
                 request.UserId,
                 known,
                 owned,
-                existing.ToDictionary(r => r.ReportId),
+                byId,
+                aliases.ToDictionary(a => a.AliasId, a => byId[a.ReportId]),
                 existing.Where(r => r.ReporterUserId == request.UserId).ToDictionary(r => r.PairKey),
-                DateTime.UtcNow);
+                SongDuplicateReport.VersionNow());
 
             var applied = items.Select(item => Apply(batch, item)).ToList();
             await context.SaveChangesAsync(cancellationToken);
@@ -90,15 +99,25 @@ public class ReportSongDuplicatesHandler(ShuffullContext context)
         }
     }
 
-    private sealed record Batch(
-        string UserId,
-        HashSet<string> KnownSongs,
-        HashSet<string> OwnedSongs,
-        Dictionary<string, SongDuplicateReport> ById,
-        Dictionary<string, SongDuplicateReport> ByPair,
-        DateTime Now)
+    /// <summary>What one request has loaded, and the rows and aliases it adds as it goes.</summary>
+    private sealed class Batch(
+        string userId,
+        HashSet<string> knownSongs,
+        HashSet<string> ownedSongs,
+        Dictionary<string, SongDuplicateReport> byId,
+        Dictionary<string, SongDuplicateReport> byAlias,
+        Dictionary<string, SongDuplicateReport> byPair,
+        DateTime now)
     {
         private int _written;
+
+        public string UserId { get; } = userId;
+        public HashSet<string> KnownSongs { get; } = knownSongs;
+        public HashSet<string> OwnedSongs { get; } = ownedSongs;
+        public Dictionary<string, SongDuplicateReport> ById { get; } = byId;
+        public Dictionary<string, SongDuplicateReport> ByAlias { get; } = byAlias;
+        public Dictionary<string, SongDuplicateReport> ByPair { get; } = byPair;
+        public DateTime Now { get; } = now;
 
         /// <summary>Each row written gets its own Version, a microsecond apart.</summary>
         public DateTime NextVersion() => Now.AddTicks(10 * _written++);
@@ -134,7 +153,7 @@ public class ReportSongDuplicatesHandler(ShuffullContext context)
             return Reject(reportId, "otherSongId must be a different song from songId.");
         }
 
-        if (SongDuplicateReportWire.Parse<SongDuplicateReportKind>(item.Kind) is not { } kind)
+        if (EnumNames.Parse<SongDuplicateReportKind>(item.Kind) is not { } kind)
         {
             return Reject(reportId, $"Unknown kind '{item.Kind}'.");
         }
@@ -144,6 +163,11 @@ public class ReportSongDuplicatesHandler(ShuffullContext context)
         }
 
         var preferredSongId = NullIfEmpty(item.PreferredSongId);
+        if (preferredSongId is not null && otherSongId is null)
+        {
+            // With one song there is nothing to choose between, and keeping it would mean hiding it.
+            return Reject(reportId, "preferredSongId needs otherSongId.");
+        }
         if (preferredSongId is not null && preferredSongId != songId && preferredSongId != otherSongId)
         {
             return Reject(reportId, "preferredSongId must be one of the reported songs.");
@@ -184,12 +208,25 @@ public class ReportSongDuplicatesHandler(ShuffullContext context)
             outcome = SongDuplicateReportOutcomes.Recorded;
             reopen = row.Status == SongDuplicateReportStatus.Withdrawn;
         }
+        else if (batch.ByAlias.TryGetValue(reportId!, out row))
+        {
+            // A resend of an id that was folded into an earlier report.
+            if (row.ReporterUserId != batch.UserId || row.PairKey != pairKey)
+            {
+                return Reject(reportId, "This reportId is already used by another report.");
+            }
+
+            outcome = SongDuplicateReportOutcomes.Updated;
+            reopen = row.Status == SongDuplicateReportStatus.Withdrawn;
+        }
         else if (batch.ByPair.TryGetValue(pairKey, out row))
         {
             outcome = SongDuplicateReportOutcomes.Updated;
             reopen = row.Status is SongDuplicateReportStatus.Withdrawn
                 or SongDuplicateReportStatus.NotDuplicate
                 or SongDuplicateReportStatus.KeptBoth;
+            context.SongDuplicateReportAliases.Add(new SongDuplicateReportAlias { AliasId = reportId!, ReportId = row.ReportId });
+            batch.ByAlias[reportId!] = row;
         }
         else
         {

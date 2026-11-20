@@ -74,7 +74,8 @@ public class SongDuplicateReport
     [Required]
     public DateTime CreatedAt { get; set; }
 
-    /// <summary>When it was resolved or withdrawn. Null while pending.</summary>
+    /// <summary>When it was resolved or withdrawn. Null while pending. The curator's verdict on the pair is also kept in
+    /// <see cref="SongDuplicateVerdict"/>, which a withdraw or a new report never rewrites.</summary>
     public DateTime? ResolvedAt { get; set; }
 
     /// <summary>The curator who resolved it, or the reporter who withdrew it.</summary>
@@ -89,6 +90,16 @@ public class SongDuplicateReport
 
     [ForeignKey(nameof(ReporterUserId))]
     public User Reporter { get; set; }
+
+    /// <summary>
+    /// Now, cut to the microsecond Postgres stores, so the Version a write returns is the one the <c>mine</c> feed
+    /// later pages on.
+    /// </summary>
+    public static DateTime VersionNow()
+    {
+        var ticks = DateTime.UtcNow.Ticks;
+        return new DateTime(ticks - ticks % 10, DateTimeKind.Utc);
+    }
 
     public static string PairKeyOf(string songId, string? otherSongId)
     {

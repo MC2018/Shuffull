@@ -41,6 +41,43 @@ namespace Shuffull.Api.Migrations
                         onDelete: ReferentialAction.Cascade);
                 });
 
+            migrationBuilder.CreateTable(
+                name: "SongDuplicateVerdicts",
+                columns: table => new
+                {
+                    PairKey = table.Column<string>(type: "character varying(129)", maxLength: 129, nullable: false),
+                    Verdict = table.Column<int>(type: "integer", nullable: false),
+                    DecidedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    DecidedByUserId = table.Column<string>(type: "text", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SongDuplicateVerdicts", x => x.PairKey);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "SongDuplicateReportAliases",
+                columns: table => new
+                {
+                    AliasId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    ReportId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SongDuplicateReportAliases", x => x.AliasId);
+                    table.ForeignKey(
+                        name: "FK_SongDuplicateReportAliases_SongDuplicateReports_ReportId",
+                        column: x => x.ReportId,
+                        principalTable: "SongDuplicateReports",
+                        principalColumn: "ReportId",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SongDuplicateReportAliases_ReportId",
+                table: "SongDuplicateReportAliases",
+                column: "ReportId");
+
             migrationBuilder.CreateIndex(
                 name: "IX_SongDuplicateReports_ReporterUserId_PairKey",
                 table: "SongDuplicateReports",
@@ -61,6 +98,12 @@ namespace Shuffull.Api.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropTable(
+                name: "SongDuplicateReportAliases");
+
+            migrationBuilder.DropTable(
+                name: "SongDuplicateVerdicts");
+
             migrationBuilder.DropTable(
                 name: "SongDuplicateReports");
         }

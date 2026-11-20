@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Nut.Results;
 using Shuffull.Core.Errors;
+using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Dtos;
 using Shuffull.Core.Models.Enums;
 using Shuffull.Core.Persistence;
@@ -14,7 +15,11 @@ namespace Shuffull.Core.Features.SongDuplicateReports.WithdrawSongDuplicateRepor
 /// report is returned as it is. So is a merged one, since a merge is final and leaves nothing to hide.
 ///
 /// <para>One conditional UPDATE, so a curator's resolve landing at the same moment can't undo the withdraw, and a
-/// withdraw can't reopen a merge. A report that doesn't exist or isn't the caller's is a 404.</para>
+/// withdraw can't reopen a merge. Withdrawing a resolved report lifts the hide; the curator's verdict on the pair
+/// stays in <see cref="SongDuplicateVerdict"/>. A report that doesn't exist or isn't the caller's is a 404.</para>
+///
+/// <para>The id may be one the server folded into an earlier report on the same pair (an alias); the withdraw then
+/// reaches that report, and the response carries its id.</para>
 /// </summary>
 public class WithdrawSongDuplicateReportHandler(ShuffullContext context)
     : IRequestHandler<WithdrawSongDuplicateReportCommand, Result<WithdrawSongDuplicateReportResponse>>
@@ -23,9 +28,14 @@ public class WithdrawSongDuplicateReportHandler(ShuffullContext context)
     {
         try
         {
-            var now = DateTime.UtcNow;
+            var reportId = await context.SongDuplicateReportAliases
+                .Where(a => a.AliasId == request.ReportId)
+                .Select(a => a.ReportId)
+                .SingleOrDefaultAsync(cancellationToken) ?? request.ReportId;
+
+            var now = SongDuplicateReport.VersionNow();
             await context.SongDuplicateReports
-                .Where(r => r.ReportId == request.ReportId
+                .Where(r => r.ReportId == reportId
                     && r.ReporterUserId == request.UserId
                     && r.Status != SongDuplicateReportStatus.Withdrawn
                     && r.Status != SongDuplicateReportStatus.Merged)
@@ -37,7 +47,7 @@ public class WithdrawSongDuplicateReportHandler(ShuffullContext context)
 
             var report = await context.SongDuplicateReports
                 .AsNoTracking()
-                .SingleOrDefaultAsync(r => r.ReportId == request.ReportId && r.ReporterUserId == request.UserId, cancellationToken);
+                .SingleOrDefaultAsync(r => r.ReportId == reportId && r.ReporterUserId == request.UserId, cancellationToken);
             if (report is null)
             {
                 return Result.Error<WithdrawSongDuplicateReportResponse>(

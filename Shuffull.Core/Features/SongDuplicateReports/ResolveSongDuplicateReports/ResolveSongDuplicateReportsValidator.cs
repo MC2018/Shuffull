@@ -21,7 +21,7 @@ public class ResolveSongDuplicateReportsValidator : AbstractValidator<ResolveSon
             .NotEqual(x => x.SongId).WithMessage("otherSongId must be a different song from songId.");
 
         RuleFor(x => x.Resolution)
-            .Must(r => SongDuplicateReportWire.Parse<SongDuplicateReportStatus>(r) is { } status
+            .Must(r => EnumNames.Parse<SongDuplicateReportStatus>(r) is { } status
                 && SongDuplicateReportWire.Resolutions.Contains(status))
             .WithMessage("resolution must be \"notDuplicate\" or \"keptBoth\".");
     }
