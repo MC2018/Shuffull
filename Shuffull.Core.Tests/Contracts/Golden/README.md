@@ -15,6 +15,7 @@ request bodies, when the API stops binding them.
 | `users-me` | `GET /api/v1/users/me` | app |
 | `users-authenticate` | `POST /api/v1/users/authenticate` and `POST /api/v1/users` | app |
 | `songs-keep` | `POST /api/v1/songs/keep` | app |
+| `songs-sizes` | `GET /api/v1/songs/sizes` | app (ShuffullApp#226) |
 | `listens` | `POST /api/v1/listens` | app (ShuffullApp#57) |
 | `listens-stats` | `GET /api/v1/listens/stats` | app (ShuffullApp#115) |
 | `recap` | `GET /api/v1/recap/{year}` | app (ShuffullApp#116) |

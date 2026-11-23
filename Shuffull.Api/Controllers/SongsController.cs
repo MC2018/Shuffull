@@ -10,6 +10,7 @@ using Shuffull.Core.Features.Songs.GetSong;
 using Shuffull.Core.Features.Songs.GetSongList;
 using Shuffull.Core.Features.Songs.GetSongPage;
 using Shuffull.Core.Features.Songs.GetSongsChanged;
+using Shuffull.Core.Features.Songs.GetSongSizes;
 using Shuffull.Core.Features.Songs.KeepSongs;
 using Shuffull.Core.Features.Songs.MergeSongs;
 using Shuffull.Core.Features.Songs.RetagSongs;
@@ -60,6 +61,24 @@ public class SongsController : ControllerBase
     [Authorize]
     public async Task<IActionResult> GetSongsChanged([FromQuery] DateTime afterDate, [FromQuery] string? afterId, CancellationToken cancellationToken)
         => this.ToActionResult(await _mediator.Send(new GetSongsChangedQuery(afterDate, afterId), cancellationToken));
+
+    /// <summary>
+    /// Any signed-in user: the download size of every song in their library (their user songs), as
+    /// <c>[{ songId, audioBytes, artBytes }]</c>, for the app's auto-download settings (Shuffull#150). Read from the
+    /// files on each call. A song whose audio file is missing is left out; one without album art has
+    /// <c>artBytes</c> 0. Sizes are deliberately not part of <see cref="GetSongsChanged"/>.
+    /// </summary>
+    [HttpGet("sizes")]
+    [Authorize]
+    public async Task<IActionResult> GetSongSizes(CancellationToken cancellationToken)
+    {
+        if (HttpContext.Items["User"] is not User user)
+        {
+            return Unauthorized();
+        }
+
+        return this.ToActionResult(await _mediator.Send(new GetSongSizesQuery(user.UserId), cancellationToken));
+    }
 
     [HttpGet("{songId}")]
     [Authorize]

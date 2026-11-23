@@ -61,6 +61,12 @@ public interface IFileStorageService
     Task<Result<List<string>>> GetFilesAsync(string directoryPath, string searchPattern = "*", CancellationToken cancellationToken = default!);
 
     /// <summary>
+    /// The size of a file in bytes, or null when there is no file at <paramref name="filePath"/> or it can't be read.
+    /// Only reads the file's metadata (one stat), never its content.
+    /// </summary>
+    long? GetFileSize(string filePath);
+
+    /// <summary>
     /// Deletes a directory and all its contents.
     /// </summary>
     /// <param name="directoryPath"></param>

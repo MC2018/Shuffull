@@ -81,6 +81,8 @@ builder.Services.AddSingleton<IAuditionPromotionService, AuditionPromotionServic
 builder.Services.AddSingleton<ISongEnrichmentService, SongEnrichmentService>();
 // Deletes a purged song's stored media (audio + album art); used by PurgedSongMediaSweepService once a tombstone's grace window has passed.
 builder.Services.AddSingleton<ISongMediaStore, SongMediaStore>();
+// Stats the same two files for GET /api/v1/songs/sizes (Shuffull#150).
+builder.Services.AddSingleton<ISongMediaSizes, SongMediaStore>();
 builder.Services.AddHostedService<PurgedSongMediaSweepService>();
 builder.Services.AddHostedService<SongImportService>();
 builder.Services.AddHostedService<ExternalSongImporterService>();
