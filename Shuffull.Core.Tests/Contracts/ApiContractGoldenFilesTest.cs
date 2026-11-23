@@ -7,6 +7,7 @@ using Shuffull.Api.Commands.GenreJams.SaveGenreJam;
 using Shuffull.Api.Commands.Listens.RecordListens;
 using Shuffull.Api.Commands.SongDuplicateReports.ReportSongDuplicates;
 using Shuffull.Api.Commands.SongDuplicateReports.ResolveSongDuplicateReports;
+using Shuffull.Api.Commands.Songs.MergeSongs;
 using Shuffull.Api.Commands.Songs.HoldTagSongs;
 using Shuffull.Api.Commands.Songs.KeepSongs;
 using Shuffull.Api.Commands.Songs.RetagSongs;
@@ -28,11 +29,13 @@ using Shuffull.Core.Features.SongDuplicateReports.GetSongDuplicateQueue;
 using Shuffull.Core.Features.SongDuplicateReports.ReportSongDuplicates;
 using Shuffull.Core.Features.SongDuplicateReports.ResolveSongDuplicateReports;
 using Shuffull.Core.Features.SongDuplicateReports.WithdrawSongDuplicateReport;
+using Shuffull.Core.Features.SongMerges.GetSongMerges;
 using Shuffull.Core.Features.Songs.GetLibrarySongs;
 using Shuffull.Core.Features.Songs.GetPendingTagSongs;
 using Shuffull.Core.Features.Songs.GetSongList;
 using Shuffull.Core.Features.Songs.GetSongsChanged;
 using Shuffull.Core.Features.Songs.KeepSongs;
+using Shuffull.Core.Features.Songs.MergeSongs;
 using Shuffull.Core.Features.Songs.RetagSongs;
 using Shuffull.Core.Features.Songs.RetagStaleSongs;
 using Shuffull.Core.Features.Songs.UpdateSong;
@@ -439,6 +442,17 @@ public class ApiContractGoldenFilesTest
             [DuplicateReport with { Status = "keptBoth", ResolvedAt = V2, ResolvedByUserId = "curator-1", Version = V2 }]),
         // POST /api/v1/song-duplicate-reports/resolve — a REQUEST body.
         ["song-duplicate-reports-resolve-request"] = new ResolveSongDuplicateReportsRequest("song-full", "song-sparse", "keptBoth"),
+        // POST /api/v1/songs/merge — curator only (Shuffull#142, ShuffullApp#221). The loser is gone; reports on the pair
+        // close as merged. alreadyMerged is true for a resend of a merge that already happened.
+        ["songs-merge"] = new MergeSongsResponse(
+            new SongMergeDto("song-sparse", "song-full", V2, V2),
+            [DuplicateReport with { Status = "merged", ResolvedAt = V2, ResolvedByUserId = "curator-1", Version = V2 }],
+            AlreadyMerged: false),
+        // POST /api/v1/songs/merge — a REQUEST body.
+        ["songs-merge-request"] = new MergeSongsRequest("song-full", "song-sparse"),
+        // GET /api/v1/song-merges?afterDate=&afterId= — every merge, paged on (version, loserSongId). Devices swap the
+        // loser's id for the survivor's (ShuffullApp#220).
+        ["song-merges"] = new GetSongMergesResponse([new SongMergeDto("song-sparse", "song-full", V2, V2)], EndOfList: true),
     };
 
     /// <summary>
@@ -454,6 +468,7 @@ public class ApiContractGoldenFilesTest
         "listens-request", "users-authenticate-request", "songs-list-request", "playlists-list-request", "user-songs-create",
         "user-songs-last-played", "user-songs-like", "songs-update", "songs-keep-request", "songs-retag-request",
         "replacements-request", "genre-jams-save-request", "song-duplicate-reports-request", "song-duplicate-reports-resolve-request",
+        "songs-merge-request",
     ];
 
     /// <summary>

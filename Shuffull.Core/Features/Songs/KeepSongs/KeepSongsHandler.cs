@@ -1,6 +1,7 @@
 using MediatR;
 using Nut.Results;
 using Shuffull.Core.Errors;
+using Shuffull.Core.Features.SongMerges;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Persistence.Repositories;
 using Shuffull.Core.Persistence.Specifications.UserSongs;
@@ -13,7 +14,8 @@ namespace Shuffull.Core.Features.Songs.KeepSongs;
 /// <summary>
 /// Promotes the caller's kept songs out of audition via <see cref="IAuditionPromotionService"/> — the same durable
 /// write RetagSongs makes before enriching, without the enrichment or the curator gate. Ownership-scoped: only
-/// songs the user has a <c>UserSong</c> for are promoted.
+/// songs the user has a <c>UserSong</c> for are promoted. A Keep for a song merged away since it was queued promotes the
+/// song it was merged into, and is reported under the id the app sent, so its outbox row clears.
 ///
 /// <para>A refusal is also recorded as a <c>keep-refused:</c> health signal, which emails the owner (Shuffull#75):
 /// the app holds the playlist's delete while that Keep is outstanding, and shows nothing.</para>
@@ -48,7 +50,35 @@ public class KeepSongsHandler(IUnitOfWork unitOfWork, IAuditionPromotionService 
         }
 
         var owned = userSongsResult.Get().Select(us => us.SongId).ToHashSet();
-        var toPromote = order.Where(owned.Contains).ToList();
+
+        // A song merged away after the device queued its Keep: the Keep applies to the song it became, where the
+        // merge moved the user's library row.
+        var target = order.ToDictionary(id => id, id => id);
+        var unowned = order.Where(id => !owned.Contains(id)).ToList();
+        if (unowned.Count > 0)
+        {
+            var followed = await SongMergeAliases.FollowMergesAsync(unitOfWork, unowned, cancellationToken);
+            if (followed.IsError)
+            {
+                return Result.Error<KeepSongsResponse>(followed.GetError());
+            }
+            if (followed.Get().Count > 0)
+            {
+                foreach (var (sent, survivor) in followed.Get())
+                {
+                    target[sent] = survivor;
+                }
+                var survivorRows = await unitOfWork.Repository<UserSong>()
+                    .ListAsync(new UserSongsByUserAndSongIdsSpec(request.UserId, followed.Get().Values.Distinct().ToList()), cancellationToken);
+                if (survivorRows.IsError)
+                {
+                    return Result.Error<KeepSongsResponse>(survivorRows.GetError());
+                }
+                owned.UnionWith(survivorRows.Get().Select(us => us.SongId));
+            }
+        }
+
+        var toPromote = order.Select(id => target[id]).Where(owned.Contains).Distinct().ToList();
 
         // A failure aborts the whole batch rather than reporting per-item failures: the caller (the app's
         // outbox) then keeps its rows and retries, instead of reading "failed" as a verdict on the song.
@@ -60,7 +90,7 @@ public class KeepSongsHandler(IUnitOfWork unitOfWork, IAuditionPromotionService 
         }
 
         var results = order
-            .Select(songId => owned.Contains(songId)
+            .Select(songId => owned.Contains(target[songId])
                 ? new SongKeepResult(songId, KeepOutcomes.Kept)
                 : new SongKeepResult(songId, KeepOutcomes.Failed, "Song is not in your library."))
             .ToList();

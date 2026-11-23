@@ -4,8 +4,9 @@ using System.ComponentModel.DataAnnotations;
 namespace Shuffull.Core.Models.Database;
 
 /// <summary>
-/// The record left behind when a song row is purged (today: an un-kept audition song, when its exploratory
-/// playlist is deleted). Written in the same transaction as the delete, so a purge is never silent.
+/// The record left behind when a song row is purged: an un-kept audition song when its exploratory playlist is
+/// deleted, or the losing copy when a curator merges two copies of a song (Shuffull#142, see <see cref="SongMerge"/>).
+/// Written in the same transaction as the delete, so a purge is never silent.
 /// <para>
 /// It does two jobs. First, it holds the media back: the purge does not delete the audio/album-art file. A sweep
 /// deletes it only after <see cref="MediaGracePeriod"/>, and only when no live song shares
@@ -33,10 +34,10 @@ public class SongTombstone
     public string FileHash { get; set; } = string.Empty;
     [Required]
     public string FileExtension { get; set; } = string.Empty;
-    /// <summary>The user whose action caused the purge.</summary>
+    /// <summary>The user whose action caused the purge (for a merge, the curator).</summary>
     [Required]
     public string DeletedByUserId { get; set; }
-    /// <summary>The audition playlist whose deletion purged it.</summary>
+    /// <summary>The audition playlist whose deletion purged it. Null for a merge.</summary>
     public string? PlaylistId { get; set; }
     [Required]
     public DateTime DeletedAt { get; set; }

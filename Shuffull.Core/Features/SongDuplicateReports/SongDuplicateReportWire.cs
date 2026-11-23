@@ -15,7 +15,8 @@ public static class SongDuplicateReportWire
         return char.ToLowerInvariant(name[0]) + name[1..];
     }
 
-    /// <summary>The statuses a curator can resolve a pair to here. Merging is Shuffull#142.</summary>
+    /// <summary>The statuses a curator can resolve a pair to here. A merge closes reports as merged through its own
+    /// command (<c>POST /api/v1/songs/merge</c>).</summary>
     public static readonly SongDuplicateReportStatus[] Resolutions =
         [SongDuplicateReportStatus.NotDuplicate, SongDuplicateReportStatus.KeptBoth];
 }

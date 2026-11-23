@@ -1,5 +1,6 @@
 using MediatR;
 using Nut.Results;
+using Shuffull.Core.Features.SongMerges;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Models.Dtos;
 using Shuffull.Core.Persistence.Repositories;
@@ -14,16 +15,41 @@ public class CreateUserSongsHandler(IUnitOfWork unitOfWork) : IRequestHandler<Cr
     {
         // Only create records for songs that actually exist, mirroring the legacy controller which
         // intersected the requested ids with the Songs table before inserting.
+        var requested = request.SongIds.Distinct().ToList();
         var songsResult = await unitOfWork.Repository<Song>()
-            .ListAsync(new SongsByIdsSpec(request.SongIds.ToList()).AsNoTracking(), cancellationToken);
+            .ListAsync(new SongsByIdsSpec(requested).AsNoTracking(), cancellationToken);
         if (songsResult.IsError)
         {
             return Result.Error<CreateUserSongsResponse>(songsResult.GetError());
         }
+        var songs = songsResult.Get();
+
+        // A song merged away after the device queued the add: the song it became goes into the library instead.
+        var missing = requested.Except(songs.Select(s => s.SongId)).ToList();
+        if (missing.Count > 0)
+        {
+            var followed = await SongMergeAliases.FollowMergesAsync(unitOfWork, missing, cancellationToken);
+            if (followed.IsError)
+            {
+                return Result.Error<CreateUserSongsResponse>(followed.GetError());
+            }
+            var survivorIds = followed.Get().Values.Except(songs.Select(s => s.SongId)).Distinct().ToList();
+            if (survivorIds.Count > 0)
+            {
+                var survivorsResult = await unitOfWork.Repository<Song>()
+                    .ListAsync(new SongsByIdsSpec(survivorIds).AsNoTracking(), cancellationToken);
+                if (survivorsResult.IsError)
+                {
+                    return Result.Error<CreateUserSongsResponse>(survivorsResult.GetError());
+                }
+                songs.AddRange(survivorsResult.Get());
+            }
+        }
+        var songIds = songs.Select(s => s.SongId).ToList();
 
         var userSongRepository = unitOfWork.Repository<UserSong>();
         var existingResult = await userSongRepository
-            .ListAsync(new UserSongsByUserAndSongIdsSpec(request.UserId, request.SongIds.ToList()).AsNoTracking(), cancellationToken);
+            .ListAsync(new UserSongsByUserAndSongIdsSpec(request.UserId, songIds).AsNoTracking(), cancellationToken);
         if (existingResult.IsError)
         {
             return Result.Error<CreateUserSongsResponse>(existingResult.GetError());
@@ -33,7 +59,7 @@ public class CreateUserSongsHandler(IUnitOfWork unitOfWork) : IRequestHandler<Cr
         var now = DateTime.UtcNow;
         var created = new List<UserSong>();
 
-        foreach (var song in songsResult.Get())
+        foreach (var song in songs)
         {
             if (existingSongIds.Contains(song.SongId))
             {
