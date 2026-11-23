@@ -1,9 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Nut.Results;
-using Shuffull.Api.Services;
-using Shuffull.Api.Services.FileStorage;
 using Shuffull.Core.Features.Songs.GetSongSizes;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Tests.Infrastructure;
@@ -21,7 +18,7 @@ public class GetSongSizesHandlerTest : IDisposable
     private static readonly DateTime UserSongVersion = new(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc);
 
     private readonly DatabaseFixture _database = new();
-    private readonly MediaFolders _media = new();
+    private readonly SongMediaFolders _media = new();
     private readonly User _me = NewUser("me");
     private readonly User _other = NewUser("other");
 
@@ -38,7 +35,7 @@ public class GetSongSizesHandlerTest : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    internal static User NewUser(string id) => new() { UserId = id, Username = id, Version = SongVersion, ServerHash = "hash" };
+    private static User NewUser(string id) => new() { UserId = id, Username = id, Version = SongVersion, ServerHash = "hash" };
 
     private void Seed(string songId, string owner, string extension = ".mp3")
     {
@@ -56,7 +53,7 @@ public class GetSongSizesHandlerTest : IDisposable
 
     private async Task<IReadOnlyList<SongSize>> RunAsync(string userId)
     {
-        var result = await new GetSongSizesHandler(_database.CreateContext(), _media.Store)
+        var result = await new GetSongSizesHandler(_database.CreateContext(), _media.Store, NullLogger<GetSongSizesHandler>.Instance)
             .Handle(new GetSongSizesQuery(userId), CancellationToken.None);
         Assert.True(result.IsOk, result.IsError ? result.GetError().Message : null);
         return result.Get();
@@ -135,47 +132,5 @@ public class GetSongSizesHandlerTest : IDisposable
         await using var context = _database.CreateContext();
         Assert.All(await context.Songs.Select(s => s.Version).ToListAsync(), v => Assert.Equal(SongVersion, v));
         Assert.All(await context.UserSongs.Select(us => us.Version).ToListAsync(), v => Assert.Equal(UserSongVersion, v));
-    }
-
-    /// <summary>A throwaway music and album-art folder, and the host's real media store pointed at them.</summary>
-    internal sealed class MediaFolders : IDisposable
-    {
-        private readonly string _root = Path.Combine(Path.GetTempPath(), $"shuffull-sizes-{Guid.NewGuid():N}");
-
-        public string MusicRoot => Path.Combine(_root, "music");
-        public string AlbumArt => Path.Combine(_root, "album_art");
-        public SongMediaStore Store { get; }
-
-        public MediaFolders()
-        {
-            Directory.CreateDirectory(MusicRoot);
-            Directory.CreateDirectory(AlbumArt);
-            var configuration = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["Shuffull:Files:MusicRootDirectory"] = MusicRoot,
-                    ["Shuffull:Files:AlbumArtDirectory"] = AlbumArt,
-                })
-                .Build();
-            Store = new SongMediaStore(configuration, new LocalFileStorageService(), NullLogger<SongMediaStore>.Instance);
-        }
-
-        public void WriteAudio(string fileHash, string extension, int bytes) => Write(Path.Combine(MusicRoot, $"{fileHash}{extension}"), bytes);
-
-        public void WriteArt(string fileHash, int bytes) => Write(Path.Combine(AlbumArt, $"{fileHash}.jpg"), bytes);
-
-        private static void Write(string path, int bytes)
-        {
-            using var file = File.Create(path);
-            file.SetLength(bytes);
-        }
-
-        public void Dispose()
-        {
-            if (Directory.Exists(_root))
-            {
-                Directory.Delete(_root, recursive: true);
-            }
-        }
     }
 }

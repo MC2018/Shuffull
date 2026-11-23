@@ -7,8 +7,10 @@ namespace Shuffull.Core.Services;
 ///
 /// <para>Sizes are read from the files on each call, never stored on <c>Song</c>. Files are named by their content
 /// hash, so a re-source writes a new file under a new name and a size read now is never stale. Reading them costs one
-/// stat per file: on 2026-11-23 a file's first read on the prod pool was no slower than its second (p50 391 ms vs
-/// 393 ms over HTTP, both at the network floor), and 13,000 stats took 35 ms locally.</para>
+/// stat per file. Measured 2026-11-23: warm, 13,000 stats took 35 ms on a dev machine. Cold is not pinned down: over
+/// HTTP to prod (6,501 songs, HDD pool) a file's first read was no slower than its second (p50 391 ms vs 393 ms), but
+/// that ~390 ms network floor would hide a few ms per stat, so the first call after a reboot may be slower. If that
+/// ever matters, cache by file hash: a hash's size never changes, so such a cache can't go stale.</para>
 /// </summary>
 public interface ISongMediaSizes
 {

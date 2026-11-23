@@ -8,7 +8,6 @@ using Shuffull.Core.Models.Database;
 using Shuffull.Core.Persistence;
 using Shuffull.Core.Services;
 using Shuffull.Core.Services.Alerts;
-using Shuffull.Core.Tests.Features.Songs.GetSongSizes;
 using Shuffull.Core.Tests.Infrastructure;
 
 namespace Shuffull.Core.Tests.Api;
@@ -21,8 +20,8 @@ namespace Shuffull.Core.Tests.Api;
 public class SongSizesControllerTest : IDisposable
 {
     private readonly DatabaseFixture _database = new();
-    private readonly GetSongSizesHandlerTest.MediaFolders _media = new();
-    private readonly User _listener = GetSongSizesHandlerTest.NewUser("listener");
+    private readonly SongMediaFolders _media = new();
+    private readonly User _listener = new() { UserId = "listener", Username = "listener", Version = DateTime.UtcNow, ServerHash = "hash" };
 
     public SongSizesControllerTest()
     {
