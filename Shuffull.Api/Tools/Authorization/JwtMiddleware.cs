@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Shuffull.Api.Configuration;
+using Shuffull.Api.Hubs;
 using Shuffull.Core.Models.Database;
 using Shuffull.Core.Persistence;
 using System.IdentityModel.Tokens.Jwt;
@@ -46,7 +47,8 @@ public class JwtMiddleware
     /// <returns></returns>
     public async Task Invoke(HttpContext httpContext, ShuffullContext dbContext)
     {
-        var token = httpContext.Request.Headers["Authorization"].FirstOrDefault()?.Split(" ").Last();
+        var token = httpContext.Request.Headers["Authorization"].FirstOrDefault()?.Split(" ").Last()
+                    ?? PlaybackHubQueryToken(httpContext);
 
         if (token != null)
         {
@@ -54,6 +56,22 @@ public class JwtMiddleware
         }
 
         await _next(httpContext);
+    }
+
+    /// <summary>
+    /// The token from <c>?access_token=</c>, on the playback hub's path only (Shuffull#6). A browser's WebSocket can't
+    /// carry an Authorization header, so SignalR clients put the token in the query there. Nowhere else: a token in a
+    /// URL ends up in logs and history, and shuffull-workspace#58 is removing the one other query fallback (login), so
+    /// don't widen this to other paths. nlog.config drops log lines that contain <c>access_token=</c>.
+    /// </summary>
+    private static string? PlaybackHubQueryToken(HttpContext httpContext)
+    {
+        if (!httpContext.Request.Path.StartsWithSegments(PlaybackHub.Path))
+        {
+            return null;
+        }
+        string? token = httpContext.Request.Query["access_token"];
+        return string.IsNullOrEmpty(token) ? null : token;
     }
 
     /// <summary>

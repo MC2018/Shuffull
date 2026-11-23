@@ -34,6 +34,7 @@ public class ShuffullContext : DbContext
     public DbSet<AlertState> AlertStates { get; set; }
     public DbSet<Listen> Listens { get; set; }
     public DbSet<UserDevice> UserDevices { get; set; }
+    public DbSet<PlaybackSession> PlaybackSessions { get; set; }
 
     public ShuffullContext(DbContextOptions options) : base(options) { }
 
@@ -50,6 +51,17 @@ public class ShuffullContext : DbContext
         // Per user, so the same install signed into two accounts is two devices (Shuffull#132).
         modelBuilder.Entity<UserDevice>()
             .HasKey(d => new { d.UserId, d.DeviceId });
+
+        // One live row per device, sharing the device's key (Shuffull#6). Deleting the device deletes its session; the
+        // session prune never deletes the device.
+        modelBuilder.Entity<PlaybackSession>(session =>
+        {
+            session.HasKey(s => new { s.UserId, s.DeviceId });
+            session.HasOne(s => s.Device)
+                .WithOne()
+                .HasForeignKey<PlaybackSession>(s => new { s.UserId, s.DeviceId })
+                .OnDelete(DeleteBehavior.Cascade);
+        });
 
         modelBuilder.Entity<GenreRelation>()
             .HasOne(gr => gr.MainGenre)

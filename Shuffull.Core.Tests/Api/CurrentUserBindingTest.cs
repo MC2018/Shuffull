@@ -116,19 +116,6 @@ public class CurrentUserBindingTest
 
         Assert.Equal("max", body);
     }
-
-    private sealed class AuthUnavailableStartupFilter : IStartupFilter
-    {
-        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
-        {
-            app.Use((HttpContext context, Func<Task> nextMiddleware) =>
-            {
-                context.Items[JwtMiddleware.AuthUnavailableKey] = true;
-                return nextMiddleware();
-            });
-            next(app);
-        };
-    }
 }
 
 /// <summary>Takes the caller but carries no [Authorize]: the convention must still guard it.</summary>
