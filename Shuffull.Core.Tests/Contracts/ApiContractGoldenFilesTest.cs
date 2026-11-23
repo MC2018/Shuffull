@@ -34,6 +34,7 @@ using Shuffull.Core.Features.Songs.GetLibrarySongs;
 using Shuffull.Core.Features.Songs.GetPendingTagSongs;
 using Shuffull.Core.Features.Songs.GetSongList;
 using Shuffull.Core.Features.Songs.GetSongsChanged;
+using Shuffull.Core.Features.Songs.GetSongSizes;
 using Shuffull.Core.Features.Songs.KeepSongs;
 using Shuffull.Core.Features.Songs.MergeSongs;
 using Shuffull.Core.Features.Songs.RetagSongs;
@@ -203,6 +204,13 @@ public class ApiContractGoldenFilesTest
             new SongKeepResult("song-full", KeepOutcomes.Kept),
             new SongKeepResult("song-sparse", KeepOutcomes.Failed, "Song is not in your library."),
         ]),
+        // GET /api/v1/songs/sizes. The app's auto-download settings show each rule's size from this (ShuffullApp#226). A song
+        // whose audio file is missing is left out; one with no album art has artBytes 0.
+        ["songs-sizes"] = new List<SongSize>
+        {
+            new("song-full", 3_570_000, 41_000),
+            new("song-sparse", 2_000_000, 0),
+        },
         // POST /api/v1/songs/keep — a REQUEST body: the audition songs the user kept.
         ["songs-keep-request"] = new KeepSongsRequest(["song-full", "song-sparse"]),
         // POST /api/v1/listens — a REQUEST body: the listen log the app's outbox sends (ShuffullApp#57).

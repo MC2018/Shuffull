@@ -1,0 +1,12 @@
+[
+  {
+    "songId": "song-full",
+    "audioBytes": 3570000,
+    "artBytes": 41000
+  },
+  {
+    "songId": "song-sparse",
+    "audioBytes": 2000000,
+    "artBytes": 0
+  }
+]

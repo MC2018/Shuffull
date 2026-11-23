@@ -179,6 +179,20 @@ public class LocalFileStorageService : IFileStorageService
         }
     }
 
+    public long? GetFileSize(string filePath)
+    {
+        try
+        {
+            var file = new FileInfo(filePath);
+            return file.Exists ? file.Length : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Deleted between the existence check and the read, or not readable: either way there is no size to give.
+            return null;
+        }
+    }
+
     public Task<Result> DeleteDirectoryAsync(string directoryPath, CancellationToken cancellationToken = default!)
     {
         try
